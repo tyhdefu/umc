@@ -1,0 +1,42 @@
+use std::str::FromStr;
+
+use lalrpop_util::ParseError;
+
+use crate::ast;
+
+grammar;
+
+// Bad - registers and opcodes conflict if < 3
+pub Instruction: ast::Instruction = <c:r"[a-z]{3,}"> <os:Operands> => ast::Instruction{opcode: c.to_string(), operands: os};
+
+Operands: Vec<ast::Operand> = {
+	<mut os:Operands> "," <o:Operand> => {os.push(o); os},
+	Operand => vec![<>],
+}
+
+pub Operand: ast::Operand = {
+	<s:r"0x[0-9A-F]+"> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 16).unwrap())),
+	<s:r"0b[0-1]+"> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 2).unwrap())),
+	<s:r"#[0-9]+"> =>? Ok(ast::Operand::Constant(u64::from_str(&s[1..]).unwrap())),
+	<l:r"\.[A-Z_]+"> =>? Ok(ast::Operand::Label(l[1..].to_string())),
+	<o:RegOperand> => ast::Operand::Reg(o),
+};
+
+
+// Examples:
+//  :0
+//  u32:0
+//  vu32x2:0
+pub RegOperand: ast::RegisterOperand = {
+	<s:RegSet> <i:RegIndex> => ast::RegisterOperand {set: s, index: i},
+	<i:RegIndex> => ast::RegisterOperand {set: ast::RegisterSet::Inferred, index: i},
+};
+
+RegSet: ast::RegisterSet = {
+	<t:RegType> <w:UInt> => ast::RegisterSet::Single(t, w),
+	"v" <t:RegType> <w:UInt> "x" <l:UInt> => ast::RegisterSet::Vector(t, w, l),
+};
+
+RegIndex: u32 = ":" <i:UInt> => i;
+UInt: u32 = <s:r"[0-9]+"> =>? Ok(u32::from_str(s).unwrap());
+RegType: ast::RegType = <t:r"[a-z]"> =>? Ok(ast::RegType::from_str(t).unwrap());
