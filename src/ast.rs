@@ -1,32 +1,13 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use crate::model::RegType;
+use crate::model::RegWidth;
+
 #[derive(Debug)]
 pub enum ParseError {
     RegErr(ParseRegError),
 }
-
-#[derive(Debug, PartialEq)]
-pub enum RegType {
-    SignedInt,
-    UnsignedInt,
-    Float,
-}
-
-impl FromStr for RegType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "i" => Ok(Self::SignedInt),
-            "u" => Ok(Self::UnsignedInt),
-            "f" => Ok(Self::Float),
-            _ => Err(()),
-        }
-    }
-}
-
-type RegWidth = u32;
 
 #[derive(Debug)]
 pub enum ParseRegError {
@@ -48,7 +29,7 @@ impl From<ParseIntError> for ParseRegError {
 pub enum RegisterSet {
     Inferred,
     Single(RegType, RegWidth),
-    Vector(RegType, RegWidth, u32),
+    Vector(RegType, RegWidth, RegWidth),
 }
 
 impl FromStr for RegisterSet {
