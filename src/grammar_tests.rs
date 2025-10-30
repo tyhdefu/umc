@@ -1,5 +1,6 @@
-use crate::ast::{Instruction, Operand, RegType, RegisterOperand, RegisterSet};
+use crate::ast::{ASTRegisterOperand, Instruction, Operand};
 use crate::grammar::{InstructionParser, OperandParser, RegOperandParser};
+use crate::model::{RegType, RegisterSet};
 
 #[test]
 fn parse_hex_constant() {
@@ -32,8 +33,8 @@ fn parse_label_operand() {
 #[test]
 fn parse_reg_operand() {
     let parser = OperandParser::new();
-    let exp = RegisterOperand {
-        set: RegisterSet::Single(RegType::UnsignedInt, 32),
+    let exp = ASTRegisterOperand {
+        set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
         index: 0,
     };
     assert_eq!(Operand::Reg(exp), parser.parse("u32:0").unwrap())
@@ -42,8 +43,8 @@ fn parse_reg_operand() {
 #[test]
 fn parse_vector_reg_operand() {
     let parser = OperandParser::new();
-    let exp = RegisterOperand {
-        set: RegisterSet::Vector(RegType::SignedInt, 64, 8),
+    let exp = ASTRegisterOperand {
+        set: Some(RegisterSet::Vector(RegType::SignedInt, 64, 8)),
         index: 4,
     };
     assert_eq!(Operand::Reg(exp), parser.parse("vi64x8:4").unwrap())
@@ -52,8 +53,8 @@ fn parse_vector_reg_operand() {
 #[test]
 fn parse_implicit_reg_operand() {
     let parser = RegOperandParser::new();
-    let exp = RegisterOperand {
-        set: RegisterSet::Inferred,
+    let exp = ASTRegisterOperand {
+        set: None,
         index: 0,
     };
     assert_eq!(exp, parser.parse(":0").unwrap())
@@ -65,8 +66,8 @@ fn parse_instruction() {
     let exp = Instruction {
         opcode: "mov".to_string(),
         operands: vec![
-            Operand::Reg(RegisterOperand {
-                set: RegisterSet::Single(RegType::UnsignedInt, 32),
+            Operand::Reg(ASTRegisterOperand {
+                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
                 index: 0,
             }),
             Operand::Constant(100),

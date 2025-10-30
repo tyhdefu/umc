@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::bytecode::{Instruction, Operand, RegOperand, RegisterSet};
-use crate::model::{RegIndex, RegType};
+use crate::bytecode::{Instruction, Operand, RegOperand};
+use crate::model::{RegIndex, RegType, RegisterSet};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -27,7 +27,7 @@ impl VirtualMachine {
 
     fn execute_step(&mut self) {
         let instr: &Instruction = &self.program[self.pc];
-        println!("Executing instruction {}: {:?}", self.pc, instr);
+        println!("Executing instruction {}: {}", self.pc, instr);
         match instr {
             Instruction::Mov(dst, operand) => {
                 let opvalue = match operand {
@@ -42,10 +42,12 @@ impl VirtualMachine {
                 let result = opvalue1 + opvalue2;
                 self.state.store_uint(dst.index, result);
             }
-            Instruction::Dbg(reg) => {
-                assert_eq!(reg.set, RegisterSet::Single(RegType::UnsignedInt, 64));
-                println!("{reg:?} = {}", self.state.read_uint(reg.index))
-            }
+            Instruction::Dbg(reg) => match reg.set {
+                RegisterSet::Single(RegType::UnsignedInt, _) => {
+                    println!("{} = {}", reg, self.state.read_uint(reg.index))
+                }
+                _ => todo!(),
+            },
         };
         self.pc += 1;
     }

@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use crate::model::RegType;
 use crate::model::RegWidth;
+use crate::model::RegisterSet;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -23,13 +24,6 @@ impl From<ParseIntError> for ParseRegError {
     fn from(value: ParseIntError) -> Self {
         Self::InvalidInt(value)
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum RegisterSet {
-    Inferred,
-    Single(RegType, RegWidth),
-    Vector(RegType, RegWidth, RegWidth),
 }
 
 impl FromStr for RegisterSet {
@@ -62,13 +56,13 @@ impl FromStr for RegisterSet {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct RegisterOperand {
-    pub set: RegisterSet,
+#[derive(Debug, PartialEq, Clone)]
+pub struct ASTRegisterOperand {
+    pub set: Option<RegisterSet>,
     pub index: u32,
 }
 
-impl FromStr for RegisterOperand {
+impl FromStr for ASTRegisterOperand {
     type Err = ParseRegError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -76,15 +70,12 @@ impl FromStr for RegisterOperand {
         let index: u32 = index.parse().map_err(ParseRegError::InvalidInt)?;
 
         if reg_set.is_empty() {
-            return Ok(Self {
-                set: RegisterSet::Inferred,
-                index,
-            });
+            return Ok(Self { set: None, index });
         }
 
         let reg_set: RegisterSet = reg_set.parse()?;
         Ok(Self {
-            set: reg_set,
+            set: Some(reg_set),
             index,
         })
     }
@@ -92,7 +83,7 @@ impl FromStr for RegisterOperand {
 
 #[derive(Debug, PartialEq)]
 pub enum Operand {
-    Reg(RegisterOperand),
+    Reg(ASTRegisterOperand),
     Constant(u64),
     Label(String),
 }
@@ -105,13 +96,13 @@ pub struct Instruction {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{RegType, RegisterOperand, RegisterSet};
+    use crate::ast::{ASTRegisterOperand, RegType, RegisterSet};
 
     #[test]
     fn parse_reg_operand_inferred() {
         assert_eq!(
-            RegisterOperand {
-                set: RegisterSet::Inferred,
+            ASTRegisterOperand {
+                set: None,
                 index: 2
             },
             ":2".parse().unwrap()
@@ -121,8 +112,8 @@ mod tests {
     #[test]
     fn parse_reg_operand_single() {
         assert_eq!(
-            RegisterOperand {
-                set: RegisterSet::Single(RegType::UnsignedInt, 32),
+            ASTRegisterOperand {
+                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
                 index: 0
             },
             "u32:0".parse().unwrap()
@@ -132,8 +123,8 @@ mod tests {
     #[test]
     fn parse_reg_operand_vector() {
         assert_eq!(
-            RegisterOperand {
-                set: RegisterSet::Vector(RegType::Float, 64, 4),
+            ASTRegisterOperand {
+                set: Some(RegisterSet::Vector(RegType::Float, 64, 4)),
                 index: 0
             },
             "vf64x4:0".parse().unwrap()
