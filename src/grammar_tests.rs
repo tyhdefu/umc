@@ -61,7 +61,7 @@ fn parse_implicit_reg_operand() {
 }
 
 #[test]
-fn parse_instruction() {
+fn parse_mov_constant_instruction() {
     let parser = InstructionParser::new();
     let exp = Instruction {
         opcode: "mov".to_string(),
@@ -74,4 +74,25 @@ fn parse_instruction() {
         ],
     };
     assert_eq!(exp, parser.parse("mov u32:0, #100").unwrap());
+}
+
+#[test]
+fn parse_add_instruction() {
+    let parser = InstructionParser::new();
+
+    let exp = Instruction {
+        opcode: "add".to_string(),
+        operands: vec![
+            Operand::Reg(ASTRegisterOperand {
+                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+                index: 1,
+            }),
+            Operand::Reg(ASTRegisterOperand {
+                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+                index: 0,
+            }),
+            Operand::Constant(100),
+        ],
+    };
+    assert_eq!(exp, parser.parse("add u32:1, u32:0, #100").unwrap())
 }
