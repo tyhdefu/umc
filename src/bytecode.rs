@@ -35,6 +35,8 @@ pub enum Instruction {
     Mov(RegOperand, Operand),
     /// Add the two operands and store in destination register
     Add(RegOperand, Operand, Operand),
+    /// Bitwise Logical NOT
+    Not(RegOperand, Operand),
     /// Print the given register (debugging)
     Dbg(RegOperand),
 }
@@ -44,6 +46,7 @@ impl Display for Instruction {
         match self {
             Instruction::Mov(dst, op1) => write!(f, "mov {}, {}", dst, op1),
             Instruction::Add(dst, op1, op2) => write!(f, "add {}, {}, {}", dst, op1, op2),
+            Instruction::Not(dst, op1) => write!(f, "not {},{}", dst, op1),
             Instruction::Dbg(dst) => write!(f, "dbg {}", dst),
         }
     }

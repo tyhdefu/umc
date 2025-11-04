@@ -1,3 +1,5 @@
+use crate::vm::types::uint::ArbitraryUnsignedInt;
+
 pub mod uint;
 
 pub trait UMCArithmetic: PartialEq {
@@ -6,6 +8,9 @@ pub trait UMCArithmetic: PartialEq {
     fn add(&mut self, rhs: &Self);
 
     //fn sub(&self, rhs: Self) -> Self;
+
+    /// Logical bitwise NOT
+    fn not(&mut self);
 }
 
 pub enum BinaryArithmeticOp {
@@ -25,26 +30,33 @@ impl BinaryArithmeticOp {
 
 pub trait UMCNum: UMCArithmetic {}
 
+/// Any non-vector type that can be cast between all other types
+pub trait CastSingleAny: CastFrom<u32> + CastFrom<u64> + CastFrom<ArbitraryUnsignedInt> {}
+impl<T> CastSingleAny for T where T: CastFrom<u32> + CastFrom<u64> + CastFrom<ArbitraryUnsignedInt> {}
+
 pub trait CastFrom<T> {
-    fn cast_from(value: T) -> Self;
+    fn cast_from(value: &T) -> Self;
 }
 
 pub trait CastInto<T> {
-    fn cast_into(self) -> T;
+    fn cast_into(&self) -> T;
 }
 
 impl<F, T> CastInto<T> for F
 where
     T: CastFrom<F>,
 {
-    fn cast_into(self) -> T {
+    fn cast_into(&self) -> T {
         T::cast_from(self)
     }
 }
 
-impl<T> CastFrom<T> for T {
-    fn cast_from(value: T) -> Self {
-        value
+impl<T> CastFrom<T> for T
+where
+    T: Copy,
+{
+    fn cast_from(value: &T) -> Self {
+        *value
     }
 }
 

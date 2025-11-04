@@ -34,6 +34,15 @@ pub fn ast_to_bytecode(instr: ast::Instruction) -> Result<bytecode::Instruction,
 
             Ok(Instruction::Add(dst, operand1, operand2))
         }
+        "not" => {
+            if instr.operands.len() != 2 {
+                return Err(AssembleError::InvalidOperandCount(2, instr.operands.len()));
+            }
+            let dst = parse_dst_reg(&instr.operands[0])?;
+            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set)?;
+
+            Ok(Instruction::Not(dst, operand1))
+        }
         "dbg" => {
             // acts like a dst reg, as it cannot be inferred
             let operand = parse_dst_reg(&instr.operands[0])?;

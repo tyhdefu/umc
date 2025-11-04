@@ -34,6 +34,9 @@ fn execute_program(file: &str) {
     let mut prog_bc = Vec::new();
 
     for line in prog_str.lines() {
+        if line.is_empty() {
+            continue;
+        }
         let instr = instr_parser.parse(line).unwrap();
         let bc_instr = assembler::ast_to_bytecode(instr).unwrap();
         prog_bc.push(bc_instr);
