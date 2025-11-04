@@ -1,7 +1,9 @@
 //! Shared between AST and Bytecode
 use std::{fmt::Display, str::FromStr};
 
+/// The type used for how large a register can be
 pub type RegWidth = u32;
+/// The type used for the index of a register set
 pub type RegIndex = u32;
 
 #[derive(Debug, PartialEq, Clone)]
