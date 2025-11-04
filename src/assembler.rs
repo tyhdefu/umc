@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast;
 use crate::bytecode::{self, Instruction, RegOperand};
 use crate::model::RegisterSet;
@@ -9,6 +11,35 @@ pub enum AssembleError {
     CannotInferReg,
     InvalidOperand,
     UnknownOpCode,
+}
+
+#[derive(Debug)]
+pub enum AssembleProgError {
+    DuplicateLabel(String),
+    MissingLabel(String),
+    InvalidInstruction(AssembleError), // TODO: add line information
+}
+
+pub fn compile_prog(
+    ast_prog: Vec<ast::Statement>,
+) -> Result<Vec<bytecode::Instruction>, AssembleProgError> {
+    let mut labels = HashMap::new();
+    let mut prog = Vec::new();
+
+    for (i, statement) in ast_prog.iter().enumerate() {
+        if let Some(label) = &statement.label {
+            if labels.insert(&statement.label, i).is_some() {
+                return Err(AssembleProgError::DuplicateLabel(label.to_string()));
+            }
+        }
+    }
+
+    for statement in ast_prog.into_iter() {
+        let bc = ast_to_bytecode(statement.instr)
+            .map_err(|e| AssembleProgError::InvalidInstruction(e))?;
+        prog.push(bc);
+    }
+    Ok(prog)
 }
 
 pub fn ast_to_bytecode(instr: ast::Instruction) -> Result<bytecode::Instruction, AssembleError> {

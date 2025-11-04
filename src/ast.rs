@@ -33,23 +33,21 @@ impl FromStr for RegisterSet {
     /// - u32
     /// - i16
     /// - f64
-    /// - vf32
+    /// - f32x4
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             return Err(ParseRegError::InvalidRegisterType);
         }
-        if s.starts_with('v') {
-            let reg_type: RegType = s[1..2]
-                .parse()
-                .map_err(|_| ParseRegError::InvalidRegisterType)?;
-            let (width, count) = s[2..].split_once('x').ok_or(ParseRegError::InvalidFormat)?;
+        let reg_type: RegType = s[0..1]
+            .parse()
+            .map_err(|_| ParseRegError::InvalidRegisterType)?;
+
+        if s.contains('x') {
+            let (width, count) = s[1..].split_once('x').ok_or(ParseRegError::InvalidFormat)?;
             let width: RegWidth = width.parse()?;
             let count: u32 = count.parse()?;
             Ok(RegisterSet::Vector(reg_type, width, count))
         } else {
-            let reg_type: RegType = s[0..1]
-                .parse()
-                .map_err(|_| ParseRegError::InvalidRegisterType)?;
             let width: RegWidth = s[1..].parse()?;
             Ok(RegisterSet::Single(reg_type, width))
         }
@@ -94,6 +92,12 @@ pub struct Instruction {
     pub operands: Vec<Operand>,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Statement {
+    pub label: Option<String>,
+    pub instr: Instruction,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ast::{ASTRegisterOperand, RegType, RegisterSet};
@@ -127,7 +131,7 @@ mod tests {
                 set: Some(RegisterSet::Vector(RegType::Float, 64, 4)),
                 index: 0
             },
-            "vf64x4:0".parse().unwrap()
+            "f64x4:0".parse().unwrap()
         )
     }
 }

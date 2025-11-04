@@ -1,5 +1,5 @@
 use crate::ast::{ASTRegisterOperand, Instruction, Operand};
-use crate::grammar::{InstructionParser, OperandParser, RegOperandParser};
+use crate::grammar::{InstructionParser, OperandParser, ProgramParser, RegOperandParser};
 use crate::model::{RegType, RegisterSet};
 
 #[test]
@@ -47,7 +47,7 @@ fn parse_vector_reg_operand() {
         set: Some(RegisterSet::Vector(RegType::SignedInt, 64, 8)),
         index: 4,
     };
-    assert_eq!(Operand::Reg(exp), parser.parse("vi64x8:4").unwrap())
+    assert_eq!(Operand::Reg(exp), parser.parse("i64x8:4").unwrap())
 }
 
 #[test]
@@ -95,4 +95,12 @@ fn parse_add_instruction() {
         ],
     };
     assert_eq!(exp, parser.parse("add u32:1, u32:0, #100").unwrap())
+}
+
+#[test]
+fn parse_simple_prog() {
+    let parser = ProgramParser::new();
+    let prog_str = "mov u32:0, #1";
+
+    parser.parse(prog_str).unwrap();
 }

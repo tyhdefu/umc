@@ -29,18 +29,11 @@ fn main() {
 }
 fn execute_program(file: &str) {
     let prog_str = std::fs::read_to_string(file).expect("Failed to read file");
-    let instr_parser = grammar::InstructionParser::new();
+    //let instr_parser = grammar::InstructionParser::new();
+    let prog_parser = grammar::ProgramParser::new();
 
-    let mut prog_bc = Vec::new();
-
-    for line in prog_str.lines() {
-        if line.is_empty() {
-            continue;
-        }
-        let instr = instr_parser.parse(line).unwrap();
-        let bc_instr = assembler::ast_to_bytecode(instr).unwrap();
-        prog_bc.push(bc_instr);
-    }
+    let ast_prog = prog_parser.parse(&prog_str).expect("Parsing failed");
+    let prog_bc = assembler::compile_prog(ast_prog).expect("Compilation failed!");
 
     println!("Compilation Successful");
 

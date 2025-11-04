@@ -12,6 +12,27 @@ extern {
 	type Error = UMCParseError;
 }
 
+match {
+    // Ignore ; ... comments
+	r";[^\n\r]*[\n\r]" => {},
+    r"\n+" => "\n",
+} else {
+	r"\s+" => {},
+	_
+}
+
+pub Program: Vec<ast::Statement> = {
+	<s:Statement> => vec![s],
+	<mut p:Program> "\n" <s:Statement> => {p.push(s); p},
+	<p:Program> "\n" => p
+}
+
+pub Statement: ast::Statement = {
+	<l:r"\.[A-Z_]+:"> "\n" <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
+	<i:Instruction> => ast::Statement {label: None, instr: i},
+}
+
+
 // Bad - registers and opcodes conflict if < 3
 pub Instruction: ast::Instruction = <c:r"[a-z]{3,}"> <os:Operands> => ast::Instruction{opcode: c.to_string(), operands: os};
 
