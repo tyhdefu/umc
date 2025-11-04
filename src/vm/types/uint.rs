@@ -16,6 +16,10 @@ impl ArbitraryUnsignedInt {
         Self { bits, data: vec![] }
     }
 
+    pub fn resize(&mut self, new_bits: u32) {
+        self.bits = new_bits;
+    }
+
     pub fn data(&self) -> &[usize] {
         &self.data[..]
     }
