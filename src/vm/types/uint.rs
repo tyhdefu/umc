@@ -33,9 +33,7 @@ impl ArbitraryUnsignedInt {
         if self.data.len() as u32 > self.bits / usize::BITS {
             let rem_bits = self.bits % usize::BITS;
             let mask = usize::MAX >> (usize::BITS - rem_bits);
-            println!("Masking top: {:x}", mask);
             self.data.last_mut().map(|v| *v &= mask);
-            println!("{:?}", self.data);
         }
     }
 }
