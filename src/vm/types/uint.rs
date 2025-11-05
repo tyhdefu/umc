@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::AddAssign};
 
 use crate::vm::types::{CastFrom, UMCArithmetic};
 

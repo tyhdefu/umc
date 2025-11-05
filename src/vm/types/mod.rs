@@ -1,4 +1,4 @@
-use crate::vm::types::uint::ArbitraryUnsignedInt;
+use crate::vm::types::{address::Address, uint::ArbitraryUnsignedInt};
 
 pub mod address;
 pub mod uint;

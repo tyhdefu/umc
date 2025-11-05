@@ -1,6 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::model::{RegIndex, RegWidth};
+use crate::vm::types::address::Address;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 
 pub trait StoreFor<T: Copy> {
@@ -29,6 +30,7 @@ pub struct RegState {
     uas: TStore<(RegIndex, RegWidth), ArbitraryUnsignedInt>,
     i32s: TStore<RegIndex, i32>,
     i64s: TStore<RegIndex, i64>,
+    addresses: TStore<RegIndex, Address>,
 }
 
 struct TStore<K: Hash + Eq, V> {
@@ -118,6 +120,7 @@ impl RegState {
             uas: TStore::new(),
             i32s: TStore::new(),
             i64s: TStore::new(),
+            addresses: TStore::new(),
         }
     }
 }
@@ -220,5 +223,15 @@ impl DStoreFor<(RegIndex, RegWidth), ArbitraryUnsignedInt> for RegState {
 
     fn get_store_mut(&mut self) -> &mut TStore<(RegIndex, RegWidth), ArbitraryUnsignedInt> {
         &mut self.uas
+    }
+}
+
+impl DStoreFor<RegIndex, Address> for RegState {
+    fn get_store(&self) -> &TStore<RegIndex, Address> {
+        &self.addresses
+    }
+
+    fn get_store_mut(&mut self) -> &mut TStore<RegIndex, Address> {
+        &mut self.addresses
     }
 }

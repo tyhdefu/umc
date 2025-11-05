@@ -1,5 +1,7 @@
 use crate::ast::{ASTRegisterOperand, Instruction, Operand};
-use crate::grammar::{InstructionParser, OperandParser, ProgramParser, RegOperandParser};
+use crate::grammar::{
+    InstructionParser, OperandParser, ProgramParser, RegOperandParser, StatementParser,
+};
 use crate::model::{RegType, RegisterSet};
 
 #[test]
@@ -95,6 +97,14 @@ fn parse_add_instruction() {
         ],
     };
     assert_eq!(exp, parser.parse("add u32:1, u32:0, #100").unwrap())
+}
+
+#[test]
+fn parse_labelled_statement() {
+    let parser = StatementParser::new();
+    let prog_str = ".L:\n mov u32:0, #1";
+
+    parser.parse(prog_str).unwrap();
 }
 
 #[test]

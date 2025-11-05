@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::ast;
-use crate::bytecode::{self, Instruction, RegOperand};
-use crate::model::RegisterSet;
+use crate::bytecode as bc;
+use crate::bytecode::{Instruction, RegOperand};
+use crate::model::{RegType, RegisterSet};
 
 #[derive(Debug)]
 pub enum AssembleError {
@@ -11,38 +12,41 @@ pub enum AssembleError {
     CannotInferReg,
     InvalidOperand,
     UnknownOpCode,
+    MissingLabel(String),
 }
 
 #[derive(Debug)]
 pub enum AssembleProgError {
     DuplicateLabel(String),
-    MissingLabel(String),
     InvalidInstruction(AssembleError), // TODO: add line information
 }
 
 pub fn compile_prog(
     ast_prog: Vec<ast::Statement>,
-) -> Result<Vec<bytecode::Instruction>, AssembleProgError> {
-    let mut labels = HashMap::new();
+) -> Result<Vec<bc::Instruction>, AssembleProgError> {
+    let mut labels: HashMap<String, usize> = HashMap::new();
     let mut prog = Vec::new();
 
     for (i, statement) in ast_prog.iter().enumerate() {
         if let Some(label) = &statement.label {
-            if labels.insert(&statement.label, i).is_some() {
+            if labels.insert(label.clone(), i).is_some() {
                 return Err(AssembleProgError::DuplicateLabel(label.to_string()));
             }
         }
     }
 
     for statement in ast_prog.into_iter() {
-        let bc = ast_to_bytecode(statement.instr)
+        let bc = ast_to_bytecode(statement.instr, &labels)
             .map_err(|e| AssembleProgError::InvalidInstruction(e))?;
         prog.push(bc);
     }
     Ok(prog)
 }
 
-pub fn ast_to_bytecode(instr: ast::Instruction) -> Result<bytecode::Instruction, AssembleError> {
+pub fn ast_to_bytecode(
+    instr: ast::Instruction,
+    labels: &HashMap<String, usize>,
+) -> Result<bc::Instruction, AssembleError> {
     match instr.opcode.as_str() {
         "mov" => {
             if instr.operands.len() != 2 {
@@ -74,6 +78,13 @@ pub fn ast_to_bytecode(instr: ast::Instruction) -> Result<bytecode::Instruction,
 
             Ok(Instruction::Not(dst, operand1))
         }
+        "jmp" => {
+            if instr.operands.len() != 1 {
+                return Err(AssembleError::InvalidOperandCount(1, instr.operands.len()));
+            }
+            let dst = parse_address_operand(&instr.operands[0], labels)?;
+            Ok(Instruction::Jmp(dst))
+        }
         "dbg" => {
             // acts like a dst reg, as it cannot be inferred
             let operand = parse_dst_reg(&instr.operands[0])?;
@@ -83,7 +94,7 @@ pub fn ast_to_bytecode(instr: ast::Instruction) -> Result<bytecode::Instruction,
     }
 }
 
-fn parse_dst_reg(operand: &ast::Operand) -> Result<bytecode::RegOperand, AssembleError> {
+fn parse_dst_reg(operand: &ast::Operand) -> Result<bc::RegOperand, AssembleError> {
     match operand {
         ast::Operand::Reg(reg) => match &reg.set {
             None => return Err(AssembleError::CannotInferReg),
@@ -99,16 +110,39 @@ fn parse_dst_reg(operand: &ast::Operand) -> Result<bytecode::RegOperand, Assembl
 fn parse_reg_or_constant(
     operand: &ast::Operand,
     infer_as: &RegisterSet,
-) -> Result<bytecode::Operand, AssembleError> {
+) -> Result<bc::Operand, AssembleError> {
     match operand {
-        ast::Operand::Reg(reg) => Ok(bytecode::Operand::Reg(infer_reg(reg.clone(), infer_as))),
-        ast::Operand::Constant(x) => Ok(bytecode::Operand::UnsignedConstant(*x)),
+        ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_as))),
+        ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
         ast::Operand::Label(_) => Err(AssembleError::InvalidOperand),
     }
 }
 
-fn infer_reg(reg: ast::ASTRegisterOperand, default: &RegisterSet) -> bytecode::RegOperand {
-    bytecode::RegOperand {
+fn parse_address_operand(
+    operand: &ast::Operand,
+    labels: &HashMap<String, usize>,
+) -> Result<bc::Operand, AssembleError> {
+    match operand {
+        ast::Operand::Reg(reg) => match &reg.set {
+            Some(RegisterSet::Single(RegType::Address)) => Ok(bc::Operand::Reg(RegOperand {
+                set: RegisterSet::Single(RegType::Address),
+                index: reg.index,
+            })),
+            Some(_) => Err(AssembleError::InvalidOperand),
+            None => Err(AssembleError::CannotInferReg), // TODO: Could infer as address register?
+        },
+        ast::Operand::Constant(_) => Err(AssembleError::InvalidOperand),
+        ast::Operand::Label(label) => {
+            let pc = labels
+                .get(label)
+                .ok_or_else(|| AssembleError::MissingLabel(label.to_owned()))?;
+            Ok(bc::Operand::LabelConstant(*pc))
+        }
+    }
+}
+
+fn infer_reg(reg: ast::ASTRegisterOperand, default: &RegisterSet) -> bc::RegOperand {
+    bc::RegOperand {
         set: reg.set.unwrap_or_else(|| default.clone()),
         index: reg.index,
     }

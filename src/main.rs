@@ -29,7 +29,6 @@ fn main() {
 }
 fn execute_program(file: &str) {
     let prog_str = std::fs::read_to_string(file).expect("Failed to read file");
-    //let instr_parser = grammar::InstructionParser::new();
     let prog_parser = grammar::ProgramParser::new();
 
     let ast_prog = prog_parser.parse(&prog_str).expect("Parsing failed");

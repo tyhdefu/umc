@@ -15,7 +15,7 @@ extern {
 match {
     // Ignore ; ... comments
 	r";[^\n\r]*[\n\r]" => {},
-    r"\n+" => "\n",
+    r"\n\s*" => NEWLINE,
 } else {
 	r"\s+" => {},
 	_
@@ -23,12 +23,12 @@ match {
 
 pub Program: Vec<ast::Statement> = {
 	<s:Statement> => vec![s],
-	<mut p:Program> "\n" <s:Statement> => {p.push(s); p},
-	<p:Program> "\n" => p
+	<mut p:Program> NEWLINE <s:Statement> => {p.push(s); p},
+	<p:Program> NEWLINE => p
 }
 
 pub Statement: ast::Statement = {
-	<l:r"\.[A-Z_]+:"> "\n" <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
+	<l:r"\.[A-Z_]+:"> NEWLINE <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
 	<i:Instruction> => ast::Statement {label: None, instr: i},
 }
 
@@ -53,7 +53,7 @@ pub Operand: ast::Operand = {
 // Examples:
 //  :0
 //  u32:0
-//  vu32x2:0
+//  u32x2:0
 pub RegOperand: ASTRegisterOperand = {
 	<s:r":[0-9]+"> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
 	<s:r"[a-z][0-9]+:[0-9]+"> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),

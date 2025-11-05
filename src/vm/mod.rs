@@ -4,8 +4,9 @@ mod types;
 use crate::bytecode::{Instruction, Operand, RegOperand};
 use crate::model::{RegType, RegisterSet};
 use crate::vm::state::{ArbStoreFor, RegState, StoreFor};
+use crate::vm::types::address::Address;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{BinaryArithmeticOp, CastFrom, CastInto, CastSingleAny, UMCArithmetic};
+use crate::vm::types::{BinaryArithmeticOp, CastInto, CastSingleAny, UMCArithmetic};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -47,6 +48,11 @@ impl VirtualMachine {
             }
             Instruction::Not(dst, op1) => {
                 Self::operate_not(&mut self.state, dst, op1);
+            }
+            Instruction::Jmp(op1) => {
+                let to = read_single_as_address(&mut self.state, op1).unwrap();
+                self.pc = to.pc();
+                return;
             }
             Instruction::Dbg(reg) => match reg.set {
                 RegisterSet::Single(RegType::UnsignedInt(_)) => {
@@ -108,7 +114,9 @@ impl VirtualMachine {
                 dst.add(&op2_v);
                 state.store_arb(dst_op.index, w, dst);
             }
-            RegisterSet::Single(RegType::Address) => todo!(), // Should this be allowed
+            RegisterSet::Single(RegType::Address) => {
+                compute_as_prim::<Address>(state, dst_op, op1, op2, arith_op).unwrap()
+            }
             RegisterSet::Single(RegType::SignedInt(_)) => todo!(),
             RegisterSet::Single(RegType::Float(_)) => todo!(),
             RegisterSet::Vector(_, _) => todo!(),
@@ -156,17 +164,34 @@ where
                 Ok(v.cast_into())
             }
             RegisterSet::Single(RegType::UnsignedInt(w)) => {
-                let v: T = state
+                let v: ArbitraryUnsignedInt = state
                     .read_arb(reg.index, w)
                     .map(|v| v.cast_into())
                     .unwrap_or_default();
 
-                Ok(v)
+                Ok(v.cast_into())
             }
-            RegisterSet::Single(_) => todo!(),
+            RegisterSet::Single(RegType::SignedInt(_)) => todo!(),
+            RegisterSet::Single(RegType::Float(_)) => todo!(),
+            RegisterSet::Single(RegType::Address) => Err(()),
             RegisterSet::Vector(_, _) => Err(()),
         },
         Operand::UnsignedConstant(c) => Ok((*c).cast_into()),
+        Operand::LabelConstant(_) => Err(()),
+    }
+}
+
+fn read_single_as_address(state: &RegState, operand: &Operand) -> Result<Address, ()> {
+    match operand {
+        Operand::Reg(reg) => match reg.set {
+            RegisterSet::Single(RegType::Address) => {
+                let v: Address = state.read(reg.index).unwrap_or_default();
+                Ok(v.cast_into())
+            }
+            _ => read_single_as(state, operand),
+        },
+        Operand::UnsignedConstant(_) => Err(()),
+        Operand::LabelConstant(c) => Ok(Address::new(*c)),
     }
 }
 
@@ -190,5 +215,6 @@ where
             RegisterSet::Vector(_, _) => todo!(),
         },
         Operand::UnsignedConstant(_) => None,
+        Operand::LabelConstant(_) => None,
     }
 }

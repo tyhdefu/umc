@@ -18,6 +18,7 @@ impl Display for RegOperand {
 pub enum Operand {
     Reg(RegOperand),
     UnsignedConstant(u64),
+    LabelConstant(usize),
 }
 
 impl Display for Operand {
@@ -25,6 +26,7 @@ impl Display for Operand {
         match self {
             Operand::Reg(reg) => write!(f, "{}", reg),
             Operand::UnsignedConstant(c) => write!(f, "{:#X}", c),
+            Operand::LabelConstant(c) => write!(f, "{:#X}", c),
         }
     }
 }
@@ -37,6 +39,8 @@ pub enum Instruction {
     Add(RegOperand, Operand, Operand),
     /// Bitwise Logical NOT
     Not(RegOperand, Operand),
+    /// Jump to the given location unconditionally
+    Jmp(Operand),
     /// Print the given register (debugging)
     Dbg(RegOperand),
 }
@@ -46,6 +50,7 @@ impl Display for Instruction {
         match self {
             Instruction::Mov(dst, op1) => write!(f, "mov {}, {}", dst, op1),
             Instruction::Add(dst, op1, op2) => write!(f, "add {}, {}, {}", dst, op1, op2),
+            Instruction::Jmp(op1) => write!(f, "jmp {}", op1),
             Instruction::Not(dst, op1) => write!(f, "not {},{}", dst, op1),
             Instruction::Dbg(dst) => write!(f, "dbg {}", dst),
         }
