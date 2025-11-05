@@ -16,6 +16,21 @@ match {
     // Ignore ; ... comments
 	r";[^\n\r]*[\n\r]" => {},
     r"\n\s*" => NEWLINE,
+	r"," => COMMA,
+	// Bad - registers and opcodes conflict if < 3
+	r"[a-z]{3,}" => MNEMONIC,
+    r"\.[A-Z_]+:" => LABEL_SECTION,
+} else {
+	// Parameter
+	r"\.[A-Z_]+" => LABEL_PARAM,
+	// Registers
+	r":[0-9]+" => IMPLICIT_REG,
+	r"[a-z][0-9]+:[0-9]+" => SINGLE_REG,
+	r"[a-z][0-9]+x[0-9]+:[0-9]+" => VECTOR_REG,
+	// Constants
+	r"0x[0-9A-F]+" => HEX_CONSTANT,
+	r"0b[0-1]+" => BINARY_CONSTANT,
+	r"#[0-9]+" => DECIMAL_CONSTANT,
 } else {
 	r"\s+" => {},
 	_
@@ -28,24 +43,23 @@ pub Program: Vec<ast::Statement> = {
 }
 
 pub Statement: ast::Statement = {
-	<l:r"\.[A-Z_]+:"> NEWLINE <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
+	<l:LABEL_SECTION> NEWLINE <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
 	<i:Instruction> => ast::Statement {label: None, instr: i},
 }
 
 
-// Bad - registers and opcodes conflict if < 3
-pub Instruction: ast::Instruction = <c:r"[a-z]{3,}"> <os:Operands> => ast::Instruction{opcode: c.to_string(), operands: os};
+pub Instruction: ast::Instruction = <c:MNEMONIC> <os:Operands> => ast::Instruction{opcode: c.to_string(), operands: os};
 
 Operands: Vec<ast::Operand> = {
-	<mut os:Operands> "," <o:Operand> => {os.push(o); os},
+	<mut os:Operands> COMMA <o:Operand> => {os.push(o); os},
 	Operand => vec![<>],
 }
 
 pub Operand: ast::Operand = {
-	<s:r"0x[0-9A-F]+"> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 16).unwrap())),
-	<s:r"0b[0-1]+"> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 2).unwrap())),
-	<s:r"#[0-9]+"> =>? Ok(ast::Operand::Constant(u64::from_str(&s[1..]).unwrap())),
-	<l:r"\.[A-Z_]+"> =>? Ok(ast::Operand::Label(l[1..].to_string())),
+	<s:HEX_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 16).unwrap())),
+	<s:BINARY_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 2).unwrap())),
+	<s:DECIMAL_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str(&s[1..]).unwrap())),
+	<l:LABEL_PARAM> =>? Ok(ast::Operand::Label(l[1..].to_string())),
 	<o:RegOperand> => ast::Operand::Reg(o),
 };
 
@@ -55,7 +69,7 @@ pub Operand: ast::Operand = {
 //  u32:0
 //  u32x2:0
 pub RegOperand: ASTRegisterOperand = {
-	<s:r":[0-9]+"> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
-	<s:r"[a-z][0-9]+:[0-9]+"> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
-	<s:r"[a-z][0-9]+x[0-9]+:[0-9]+"> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
+	<s:IMPLICIT_REG> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
+	<s:SINGLE_REG> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
+	<s:VECTOR_REG> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
 };
