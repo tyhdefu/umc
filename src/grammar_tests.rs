@@ -34,7 +34,7 @@ fn parse_label_operand() {
 fn parse_reg_operand() {
     let parser = OperandParser::new();
     let exp = ASTRegisterOperand {
-        set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+        set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
         index: 0,
     };
     assert_eq!(Operand::Reg(exp), parser.parse("u32:0").unwrap())
@@ -44,7 +44,7 @@ fn parse_reg_operand() {
 fn parse_vector_reg_operand() {
     let parser = OperandParser::new();
     let exp = ASTRegisterOperand {
-        set: Some(RegisterSet::Vector(RegType::SignedInt, 64, 8)),
+        set: Some(RegisterSet::Vector(RegType::SignedInt(64), 8)),
         index: 4,
     };
     assert_eq!(Operand::Reg(exp), parser.parse("i64x8:4").unwrap())
@@ -67,7 +67,7 @@ fn parse_mov_constant_instruction() {
         opcode: "mov".to_string(),
         operands: vec![
             Operand::Reg(ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
                 index: 0,
             }),
             Operand::Constant(100),
@@ -84,11 +84,11 @@ fn parse_add_instruction() {
         opcode: "add".to_string(),
         operands: vec![
             Operand::Reg(ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
                 index: 1,
             }),
             Operand::Reg(ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
                 index: 0,
             }),
             Operand::Constant(100),

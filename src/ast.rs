@@ -2,7 +2,6 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use crate::model::RegType;
-use crate::model::RegWidth;
 use crate::model::RegisterSet;
 
 #[derive(Debug)]
@@ -38,18 +37,16 @@ impl FromStr for RegisterSet {
         if s.is_empty() {
             return Err(ParseRegError::InvalidRegisterType);
         }
-        let reg_type: RegType = s[0..1]
-            .parse()
-            .map_err(|_| ParseRegError::InvalidRegisterType)?;
-
         if s.contains('x') {
-            let (width, count) = s[1..].split_once('x').ok_or(ParseRegError::InvalidFormat)?;
-            let width: RegWidth = width.parse()?;
+            let (reg_type_str, count) = s.split_once('x').ok_or(ParseRegError::InvalidFormat)?;
+            let reg_type: RegType = reg_type_str
+                .parse()
+                .map_err(|_| ParseRegError::InvalidRegisterType)?;
             let count: u32 = count.parse()?;
-            Ok(RegisterSet::Vector(reg_type, width, count))
+            Ok(RegisterSet::Vector(reg_type, count))
         } else {
-            let width: RegWidth = s[1..].parse()?;
-            Ok(RegisterSet::Single(reg_type, width))
+            let reg_type: RegType = s.parse().map_err(|_| ParseRegError::InvalidRegisterType)?;
+            Ok(RegisterSet::Single(reg_type))
         }
     }
 }
@@ -117,7 +114,7 @@ mod tests {
     fn parse_reg_operand_single() {
         assert_eq!(
             ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt, 32)),
+                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
                 index: 0
             },
             "u32:0".parse().unwrap()
@@ -128,7 +125,7 @@ mod tests {
     fn parse_reg_operand_vector() {
         assert_eq!(
             ASTRegisterOperand {
-                set: Some(RegisterSet::Vector(RegType::Float, 64, 4)),
+                set: Some(RegisterSet::Vector(RegType::Float(64), 4)),
                 index: 0
             },
             "f64x4:0".parse().unwrap()

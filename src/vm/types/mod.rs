@@ -1,5 +1,6 @@
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 
+pub mod address;
 pub mod uint;
 
 pub trait UMCArithmetic: PartialEq {

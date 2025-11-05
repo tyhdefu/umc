@@ -42,7 +42,7 @@ fn execute_program(file: &str) {
 }
 
 fn dummy_program() {
-    let regset = RegisterSet::Single(model::RegType::UnsignedInt, 64);
+    let regset = RegisterSet::Single(model::RegType::UnsignedInt(64));
     let reg0 = RegOperand {
         set: regset.clone(),
         index: 0,

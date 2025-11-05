@@ -49,13 +49,13 @@ impl VirtualMachine {
                 Self::operate_not(&mut self.state, dst, op1);
             }
             Instruction::Dbg(reg) => match reg.set {
-                RegisterSet::Single(RegType::UnsignedInt, _) => {
+                RegisterSet::Single(RegType::UnsignedInt(_)) => {
                     let x: ArbitraryUnsignedInt =
                         read_single_as(&self.state, &Operand::Reg(reg.clone()))
                             .expect("Should be able to read any unsigned as arbitrary");
                     println!("{} = {}", reg, x);
                 }
-                RegisterSet::Single(RegType::SignedInt, i32::BITS) => {
+                RegisterSet::Single(RegType::SignedInt(i32::BITS)) => {
                     let v: Option<i32> = self.state.read(reg.index);
                     println!("{} = {:?}", reg, v);
                 }
@@ -93,13 +93,13 @@ impl VirtualMachine {
         }
 
         match dst_op.set {
-            RegisterSet::Single(RegType::UnsignedInt, u32::BITS) => {
+            RegisterSet::Single(RegType::UnsignedInt(u32::BITS)) => {
                 compute_as_prim::<u32>(state, dst_op, op1, op2, arith_op).unwrap();
             }
-            RegisterSet::Single(RegType::UnsignedInt, u64::BITS) => {
+            RegisterSet::Single(RegType::UnsignedInt(u64::BITS)) => {
                 compute_as_prim::<u64>(state, dst_op, op1, op2, arith_op).unwrap();
             }
-            RegisterSet::Single(RegType::UnsignedInt, w) => {
+            RegisterSet::Single(RegType::UnsignedInt(w)) => {
                 let op1_v: ArbitraryUnsignedInt = read_single_as(&state, op1).unwrap();
                 let op2_v: ArbitraryUnsignedInt = read_single_as(&state, op2).unwrap();
                 // TODO: catch dst is one of the operands?
@@ -108,9 +108,10 @@ impl VirtualMachine {
                 dst.add(&op2_v);
                 state.store_arb(dst_op.index, w, dst);
             }
-            RegisterSet::Single(RegType::SignedInt, _) => todo!(),
-            RegisterSet::Single(RegType::Float, _) => todo!(),
-            RegisterSet::Vector(_, _, _) => todo!(),
+            RegisterSet::Single(RegType::Address) => todo!(), // Should this be allowed
+            RegisterSet::Single(RegType::SignedInt(_)) => todo!(),
+            RegisterSet::Single(RegType::Float(_)) => todo!(),
+            RegisterSet::Vector(_, _) => todo!(),
         }
     }
 
@@ -127,14 +128,14 @@ impl VirtualMachine {
         }
 
         match dst_op.set {
-            RegisterSet::Single(RegType::UnsignedInt, u32::BITS) => {
+            RegisterSet::Single(RegType::UnsignedInt(u32::BITS)) => {
                 compute_as_prim::<u32>(state, dst_op, op1)
             }
-            RegisterSet::Single(RegType::UnsignedInt, u64::BITS) => {
+            RegisterSet::Single(RegType::UnsignedInt(u64::BITS)) => {
                 compute_as_prim::<u64>(state, dst_op, op1)
             }
-            RegisterSet::Single(_, _) => todo!(),
-            RegisterSet::Vector(_, _, _) => todo!(),
+            RegisterSet::Single(_) => todo!(),
+            RegisterSet::Vector(_, _) => todo!(),
         }
     }
 }
@@ -146,15 +147,15 @@ where
 {
     match operand {
         Operand::Reg(reg) => match reg.set {
-            RegisterSet::Single(RegType::UnsignedInt, u32::BITS) => {
+            RegisterSet::Single(RegType::UnsignedInt(u32::BITS)) => {
                 let v: u32 = state.read(reg.index).unwrap_or_default();
                 Ok(v.cast_into())
             }
-            RegisterSet::Single(RegType::UnsignedInt, u64::BITS) => {
+            RegisterSet::Single(RegType::UnsignedInt(u64::BITS)) => {
                 let v: u64 = state.read(reg.index).unwrap_or_default();
                 Ok(v.cast_into())
             }
-            RegisterSet::Single(RegType::UnsignedInt, w) => {
+            RegisterSet::Single(RegType::UnsignedInt(w)) => {
                 let v: T = state
                     .read_arb(reg.index, w)
                     .map(|v| v.cast_into())
@@ -162,8 +163,8 @@ where
 
                 Ok(v)
             }
-            RegisterSet::Single(_, _) => todo!(),
-            RegisterSet::Vector(_, _, _) => Err(()),
+            RegisterSet::Single(_) => todo!(),
+            RegisterSet::Vector(_, _) => Err(()),
         },
         Operand::UnsignedConstant(c) => Ok((*c).cast_into()),
     }
@@ -181,12 +182,12 @@ where
     }
     match operand {
         Operand::Reg(reg) => match reg.set {
-            RegisterSet::Single(_, _) => None,
-            RegisterSet::Vector(RegType::UnsignedInt, u32::BITS, l) => {
+            RegisterSet::Single(_) => None,
+            RegisterSet::Vector(RegType::UnsignedInt(u32::BITS), l) => {
                 let slice: &[u32] = state.read_multi(reg.index, l as usize)?;
                 Some(cast_vec(slice))
             }
-            RegisterSet::Vector(_, _, _) => todo!(),
+            RegisterSet::Vector(_, _) => todo!(),
         },
         Operand::UnsignedConstant(_) => None,
     }
