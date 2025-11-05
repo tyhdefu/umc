@@ -115,7 +115,10 @@ impl VirtualMachine {
                 state.store_arb(dst_op.index, w, dst);
             }
             RegisterSet::Single(RegType::Address) => {
-                compute_as_prim::<Address>(state, dst_op, op1, op2, arith_op).unwrap()
+                let mut op1_v: Address = read_single_as_address(&state, op1).unwrap();
+                let op2_v: Address = read_single_as_address(&state, op2).unwrap();
+                op1_v.add(&op2_v);
+                state.store(dst_op.index, op1_v);
             }
             RegisterSet::Single(RegType::SignedInt(_)) => todo!(),
             RegisterSet::Single(RegType::Float(_)) => todo!(),
@@ -190,7 +193,7 @@ fn read_single_as_address(state: &RegState, operand: &Operand) -> Result<Address
             }
             _ => read_single_as(state, operand),
         },
-        Operand::UnsignedConstant(_) => Err(()),
+        Operand::UnsignedConstant(c) => Ok(Address::new(*c as usize)),
         Operand::LabelConstant(c) => Ok(Address::new(*c)),
     }
 }

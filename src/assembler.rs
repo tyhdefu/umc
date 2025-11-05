@@ -53,7 +53,7 @@ pub fn ast_to_bytecode(
                 return Err(AssembleError::InvalidOperandCount(2, instr.operands.len()));
             }
             let dst = parse_dst_reg(&instr.operands[0])?;
-            let operand = parse_reg_or_constant(&instr.operands[1], &dst.set)?;
+            let operand = parse_reg_or_constant(&instr.operands[1], &dst.set, labels)?;
 
             // TODO: that the type of these can be converted to ints
 
@@ -64,8 +64,8 @@ pub fn ast_to_bytecode(
                 return Err(AssembleError::InvalidOperandCount(3, instr.operands.len()));
             }
             let dst = parse_dst_reg(&instr.operands[0])?;
-            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set)?;
-            let operand2 = parse_reg_or_constant(&instr.operands[2], &dst.set)?;
+            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set, labels)?;
+            let operand2 = parse_reg_or_constant(&instr.operands[2], &dst.set, labels)?;
 
             Ok(Instruction::Add(dst, operand1, operand2))
         }
@@ -74,7 +74,7 @@ pub fn ast_to_bytecode(
                 return Err(AssembleError::InvalidOperandCount(2, instr.operands.len()));
             }
             let dst = parse_dst_reg(&instr.operands[0])?;
-            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set)?;
+            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set, labels)?;
 
             Ok(Instruction::Not(dst, operand1))
         }
@@ -110,11 +110,21 @@ fn parse_dst_reg(operand: &ast::Operand) -> Result<bc::RegOperand, AssembleError
 fn parse_reg_or_constant(
     operand: &ast::Operand,
     infer_as: &RegisterSet,
+    labels: &HashMap<String, usize>,
 ) -> Result<bc::Operand, AssembleError> {
     match operand {
         ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_as))),
         ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
-        ast::Operand::Label(_) => Err(AssembleError::InvalidOperand),
+        // Labels are only allowed if we are inferring as the address type (destination is an address register)
+        ast::Operand::Label(label) => match infer_as {
+            RegisterSet::Single(RegType::Address) => {
+                let pc = labels
+                    .get(label)
+                    .ok_or_else(|| AssembleError::MissingLabel(label.to_owned()))?;
+                Ok(bc::Operand::LabelConstant(*pc))
+            }
+            _ => Err(AssembleError::InvalidOperand),
+        },
     }
 }
 
