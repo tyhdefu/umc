@@ -37,6 +37,13 @@ fn execute_program(file: &str) {
         Ok(ast) => ast,
         Err(e) => {
             eprintln!("Syntax Error: {:?}", e);
+            match e {
+                lalrpop_util::ParseError::UnrecognizedToken { token, .. } => {
+                    let (line_num, pos) = get_line_and_char_offset(&prog_str, token.0);
+                    eprintln!("At {}:{}", line_num, pos);
+                }
+                _ => {}
+            }
             return;
         }
     };

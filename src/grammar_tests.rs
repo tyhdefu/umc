@@ -127,7 +127,7 @@ fn parse_labelled_statement() {
 #[test]
 fn parse_simple_prog() {
     let parser = ProgramParser::new();
-    let prog_str = "mov u32:0, #1";
+    let prog_str = "mov u32:0, #1\n";
 
     parser.parse(prog_str).unwrap();
 }

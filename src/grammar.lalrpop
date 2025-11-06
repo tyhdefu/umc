@@ -37,13 +37,11 @@ match {
 }
 
 pub Program: Vec<ast::Statement> = {
-	NEWLINE? <s:Statement> => vec![s],
-	<mut p:Program> NEWLINE <s:Statement> => {p.push(s); p},
-	<p:Program> NEWLINE => p
+	NEWLINE* <(<Statement> NEWLINE+)+>,
 }
 
 pub Statement: ast::Statement = {
-	<l:LABEL_SECTION> NEWLINE <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
+	<l:LABEL_SECTION> NEWLINE+ <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
 	<i:Instruction> => ast::Statement {label: None, instr: i},
 }
 

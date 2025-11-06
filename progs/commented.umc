@@ -1,4 +1,13 @@
+
 ; Comment at start
 mov u32:0, #100
 ; Standalone comment
+add u32:0, u32:0, #10
+; Double
+
+; comment
 dbg u32:0 ; Inline comment
+
+.LABEL:
+	; Comment between content and label
+	dbg u32:0
