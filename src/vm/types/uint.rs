@@ -1,3 +1,4 @@
+use std::iter::repeat_n;
 use std::ops::BitAndAssign;
 use std::{fmt::Display, ops::BitXorAssign};
 
@@ -34,6 +35,12 @@ impl ArbitraryUnsignedInt {
             let mask = usize::MAX >> (usize::BITS - rem_bits);
             self.data.last_mut().map(|v| *v &= mask);
         }
+    }
+
+    fn grow_to_max(&mut self) {
+        let full_len = self.bits.div_ceil(usize::BITS);
+        let extra_len = full_len as usize - self.data.len();
+        self.data.extend(repeat_n(0, extra_len));
     }
 }
 
@@ -188,6 +195,8 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
     }
 
     fn not(&mut self) {
+        // Any sparse 0s will become non-zero, so fill vec first:
+        self.grow_to_max();
         for v in self.data.iter_mut() {
             *v = !*v;
         }
@@ -202,10 +211,19 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
     }
 
     fn and(&mut self, rhs: &Self) {
-        todo!() // Shouldn't be too hard
+        // AND results in 0 if LHS is zero, so no need to pad / extend the vec
+        for (i, x) in self.data.iter_mut().enumerate() {
+            let y = rhs.data.get(i).copied().unwrap_or(0);
+            x.bitand_assign(y);
+        }
     }
 
     fn xor(&mut self, rhs: &Self) {
-        todo!() // Neither
+        self.grow_to_max();
+        for (i, x) in self.data.iter_mut().enumerate() {
+            let y = rhs.data.get(i).copied().unwrap_or(0);
+            x.bitxor_assign(y);
+        }
+        self.mask_top();
     }
 }
