@@ -8,6 +8,11 @@ pub trait UMCArithmetic: PartialEq {
     /// Silently and safely overflow if needed
     fn add(&mut self, rhs: &Self);
 
+    /// Bitwise AND
+    fn and(&mut self, rhs: &Self);
+    /// Bitwise XOR
+    fn xor(&mut self, rhs: &Self);
+
     //fn sub(&self, rhs: Self) -> Self;
 
     /// Logical bitwise NOT
@@ -16,6 +21,8 @@ pub trait UMCArithmetic: PartialEq {
 
 pub enum BinaryArithmeticOp {
     Add,
+    And,
+    Xor,
 }
 
 impl BinaryArithmeticOp {
@@ -25,6 +32,8 @@ impl BinaryArithmeticOp {
     {
         match &self {
             Self::Add => a.add(b),
+            Self::And => a.and(b),
+            Self::Xor => a.xor(b),
         }
     }
 }

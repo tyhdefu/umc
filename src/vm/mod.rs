@@ -46,6 +46,12 @@ impl VirtualMachine {
             Instruction::Add(dst, op1, op2) => {
                 Self::operate_arithmetic(&mut self.state, dst, op1, op2, BinaryArithmeticOp::Add);
             }
+            Instruction::And(dst, op1, op2) => {
+                Self::operate_arithmetic(&mut self.state, dst, op1, op2, BinaryArithmeticOp::And);
+            }
+            Instruction::Xor(dst, op1, op2) => {
+                Self::operate_arithmetic(&mut self.state, dst, op1, op2, BinaryArithmeticOp::Xor);
+            }
             Instruction::Not(dst, op1) => {
                 Self::operate_not(&mut self.state, dst, op1);
             }
@@ -53,6 +59,22 @@ impl VirtualMachine {
                 let to = read_single_as_address(&mut self.state, op1).unwrap();
                 self.pc = to.pc();
                 return;
+            }
+            Instruction::Bz(op1, op2) => {
+                let to = read_single_as_address(&mut self.state, op1).unwrap();
+                let x: u32 = read_single_as(&mut self.state, op2).unwrap();
+                if x == 0 {
+                    self.pc = to.pc();
+                    return;
+                }
+            }
+            Instruction::Bnz(op1, op2) => {
+                let to = read_single_as_address(&mut self.state, op1).unwrap();
+                let x: u32 = read_single_as(&mut self.state, op2).unwrap();
+                if x != 0 {
+                    self.pc = to.pc();
+                    return;
+                }
             }
             Instruction::Dbg(reg) => match reg.set {
                 RegisterSet::Single(RegType::UnsignedInt(_)) => {
@@ -110,14 +132,15 @@ impl VirtualMachine {
                 let op2_v: ArbitraryUnsignedInt = read_single_as(&state, op2).unwrap();
                 // TODO: catch dst is one of the operands?
                 let mut dst = ArbitraryUnsignedInt::new(w);
-                dst.add(&op1_v);
-                dst.add(&op2_v);
+                dst.add(&op1_v); // TODO: Verify this is chill?
+                arith_op.operate(&mut dst, &op2_v);
                 state.store_arb(dst_op.index, w, dst);
             }
             RegisterSet::Single(RegType::Address) => {
                 let mut op1_v: Address = read_single_as_address(&state, op1).unwrap();
                 let op2_v: Address = read_single_as_address(&state, op2).unwrap();
-                op1_v.add(&op2_v);
+
+                arith_op.operate(&mut op1_v, &op2_v);
                 state.store(dst_op.index, op1_v);
             }
             RegisterSet::Single(RegType::SignedInt(_)) => todo!(),

@@ -33,7 +33,13 @@ fn execute_program(file: &str) {
     let prog_str = std::fs::read_to_string(file).expect("Failed to read file");
     let prog_parser = grammar::ProgramParser::new();
 
-    let ast_prog = prog_parser.parse(&prog_str).expect("Parsing failed");
+    let ast_prog = match prog_parser.parse(&prog_str) {
+        Ok(ast) => ast,
+        Err(e) => {
+            eprintln!("Syntax Error: {:?}", e);
+            return;
+        }
+    };
 
     let prog_bc = match assembler::compile_prog(ast_prog) {
         Ok(p) => p,
@@ -63,7 +69,7 @@ fn get_line_and_char_offset(s: &str, pos: usize) -> (usize, usize) {
 }
 
 fn display_errors(prog: &str, errors: Vec<AssembleError>) {
-    eprintln!("Compilation failed with {} errors", errors.len());
+    eprintln!("Assembling failed with {} errors", errors.len());
 
     for err in errors.into_iter() {
         eprintln!("Error: {:?}", err.error);

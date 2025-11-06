@@ -1,4 +1,5 @@
-use std::{fmt::Display, ops::AddAssign};
+use std::ops::BitAndAssign;
+use std::{fmt::Display, ops::BitXorAssign};
 
 use crate::vm::types::{CastFrom, UMCArithmetic};
 
@@ -8,8 +9,6 @@ pub struct ArbitraryUnsignedInt {
     // Least significant values first
     data: Vec<usize>,
 }
-
-// TODO: Display implementation
 
 impl ArbitraryUnsignedInt {
     pub const fn new(bits: u32) -> Self {
@@ -138,6 +137,14 @@ impl UMCArithmetic for u32 {
     fn not(&mut self) {
         *self = !*self
     }
+
+    fn and(&mut self, rhs: &Self) {
+        self.bitand_assign(rhs);
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        self.bitxor_assign(rhs);
+    }
 }
 
 impl UMCArithmetic for u64 {
@@ -147,6 +154,14 @@ impl UMCArithmetic for u64 {
 
     fn not(&mut self) {
         *self = !*self
+    }
+
+    fn and(&mut self, rhs: &Self) {
+        self.bitand_assign(rhs);
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        self.bitxor_assign(rhs);
     }
 }
 
@@ -184,5 +199,13 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
             }
         }
         self.mask_top();
+    }
+
+    fn and(&mut self, rhs: &Self) {
+        todo!() // Shouldn't be too hard
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        todo!() // Neither
     }
 }

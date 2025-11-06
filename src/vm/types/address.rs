@@ -1,3 +1,5 @@
+use std::ops::{BitAndAssign, BitXorAssign};
+
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{CastFrom, UMCArithmetic};
 
@@ -28,6 +30,14 @@ impl UMCArithmetic for Address {
     }
 
     fn not(&mut self) {}
+
+    fn and(&mut self, rhs: &Self) {
+        self.0.bitand_assign(rhs.0);
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        self.0.bitxor_assign(rhs.0);
+    }
 }
 
 impl CastFrom<u32> for Address {

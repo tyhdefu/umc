@@ -14,11 +14,11 @@ extern {
 
 match {
     // Ignore ; ... comments
-	r";[^\n\r]*[\n\r]" => {},
+	r";[^\n\r]*" => {},
     r"\n\s*" => NEWLINE,
 	r"," => COMMA,
 	// Bad - registers and opcodes conflict if < 3
-	r"[a-z]{3,}" => MNEMONIC,
+	r"[a-z]{2,}" => MNEMONIC,
     r"\.[A-Z_][A-Z_0-0]*:" => LABEL_SECTION,
 } else {
 	// Parameter
@@ -37,7 +37,7 @@ match {
 }
 
 pub Program: Vec<ast::Statement> = {
-	<s:Statement> => vec![s],
+	NEWLINE? <s:Statement> => vec![s],
 	<mut p:Program> NEWLINE <s:Statement> => {p.push(s); p},
 	<p:Program> NEWLINE => p
 }
