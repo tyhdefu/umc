@@ -1,12 +1,14 @@
 use std::collections::HashMap;
+use std::ops::RangeInclusive;
 
-use crate::ast;
+use crate::ast::{self, OperandWithLoc};
 use crate::bytecode as bc;
 use crate::bytecode::{Instruction, RegOperand};
 use crate::model::{RegType, RegisterSet};
 
 #[derive(Debug)]
-pub enum AssembleError {
+pub enum AssembleInstructionError {
+    /// Expected size, got size
     InvalidOperandCount(usize, usize),
     ExpectedDstReg,
     CannotInferReg,
@@ -18,29 +20,75 @@ pub enum AssembleError {
 #[derive(Debug)]
 pub enum AssembleProgError {
     DuplicateLabel(String),
-    InvalidInstruction(AssembleError), // TODO: add line information
+    InvalidInstruction(AssembleInstructionError), // TODO: add line information
+}
+
+#[derive(Debug)]
+pub enum ErrorLocation {
+    /// The error was caused by a bad instruction
+    Instruction(RangeInclusive<usize>),
+    /// The error was caused by an invalid operand to an instruction
+    Operand(usize, RangeInclusive<usize>),
+}
+
+#[derive(Debug)]
+pub struct AssembleError {
+    pub error: AssembleProgError,
+    pub loc: ErrorLocation,
+}
+
+impl AssembleError {
+    pub fn bad_instruction(error: AssembleInstructionError, instr: &ast::Instruction) -> Self {
+        Self {
+            error: AssembleProgError::InvalidInstruction(error),
+            loc: ErrorLocation::Instruction(instr.loc.clone()),
+        }
+    }
+
+    pub fn bad_op(error: AssembleInstructionError, operand: &OperandWithLoc) -> Self {
+        Self {
+            error: AssembleProgError::InvalidInstruction(error),
+            loc: ErrorLocation::Operand(operand.1, operand.2.clone()),
+        }
+    }
 }
 
 pub fn compile_prog(
     ast_prog: Vec<ast::Statement>,
-) -> Result<Vec<bc::Instruction>, AssembleProgError> {
+) -> Result<Vec<bc::Instruction>, Vec<AssembleError>> {
     let mut labels: HashMap<String, usize> = HashMap::new();
     let mut prog = Vec::new();
+
+    let mut errors = vec![];
 
     for (i, statement) in ast_prog.iter().enumerate() {
         if let Some(label) = &statement.label {
             if labels.insert(label.clone(), i).is_some() {
-                return Err(AssembleProgError::DuplicateLabel(label.to_string()));
+                //errors.push(AssembleProgError::DuplicateLabel(label.to_owned()));
             }
         }
     }
 
     for statement in ast_prog.into_iter() {
-        let bc = ast_to_bytecode(statement.instr, &labels)
-            .map_err(|e| AssembleProgError::InvalidInstruction(e))?;
-        prog.push(bc);
+        match ast_to_bytecode(statement.instr, &labels) {
+            Ok(bc) => prog.push(bc),
+            Err(e) => errors.push(e),
+        }
+    }
+    if !errors.is_empty() {
+        return Err(errors);
     }
     Ok(prog)
+}
+
+fn ops<const N: usize>(instr: &ast::Instruction) -> Result<&[OperandWithLoc; N], AssembleError> {
+    let slice: &[OperandWithLoc] = &instr.operands;
+    slice.try_into().map_err(|_| AssembleError {
+        error: AssembleProgError::InvalidInstruction(
+            AssembleInstructionError::InvalidOperandCount(N, instr.operands.len()),
+        ),
+        loc: ErrorLocation::Instruction(instr.loc.clone()),
+    })
 }
 
 pub fn ast_to_bytecode(
@@ -49,103 +97,127 @@ pub fn ast_to_bytecode(
 ) -> Result<bc::Instruction, AssembleError> {
     match instr.opcode.as_str() {
         "mov" => {
-            if instr.operands.len() != 2 {
-                return Err(AssembleError::InvalidOperandCount(2, instr.operands.len()));
-            }
-            let dst = parse_dst_reg(&instr.operands[0])?;
-            let operand = parse_reg_or_constant(&instr.operands[1], &dst.set, labels)?;
+            let [op1, op2] = ops(&instr)?;
+            let dst = parse_dst_reg(&op1)?;
+            let operand = parse_reg_or_constant(&op2, &dst.set, labels)?;
 
             // TODO: that the type of these can be converted to ints
 
             Ok(Instruction::Mov(dst, operand))
         }
         "add" => {
-            if instr.operands.len() != 3 {
-                return Err(AssembleError::InvalidOperandCount(3, instr.operands.len()));
-            }
-            let dst = parse_dst_reg(&instr.operands[0])?;
-            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set, labels)?;
-            let operand2 = parse_reg_or_constant(&instr.operands[2], &dst.set, labels)?;
+            let [op1, op2, op3] = ops(&instr)?;
+            let dst = parse_dst_reg(&op1)?;
+            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
+            let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
 
             Ok(Instruction::Add(dst, operand1, operand2))
         }
         "not" => {
-            if instr.operands.len() != 2 {
-                return Err(AssembleError::InvalidOperandCount(2, instr.operands.len()));
-            }
-            let dst = parse_dst_reg(&instr.operands[0])?;
-            let operand1 = parse_reg_or_constant(&instr.operands[1], &dst.set, labels)?;
+            let [op1, op2] = ops(&instr)?;
+            let dst = parse_dst_reg(&op1)?;
+            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
 
             Ok(Instruction::Not(dst, operand1))
         }
         "jmp" => {
-            if instr.operands.len() != 1 {
-                return Err(AssembleError::InvalidOperandCount(1, instr.operands.len()));
-            }
-            let dst = parse_address_operand(&instr.operands[0], labels)?;
+            let [op1] = ops(&instr)?;
+            let dst = parse_address_operand(&op1, labels)?;
             Ok(Instruction::Jmp(dst))
         }
         "dbg" => {
+            let [op1] = ops(&instr)?;
             // acts like a dst reg, as it cannot be inferred
-            let operand = parse_dst_reg(&instr.operands[0])?;
+            let operand = parse_dst_reg(&op1)?;
             Ok(Instruction::Dbg(operand))
         }
-        _ => Err(AssembleError::UnknownOpCode),
+        _ => Err(AssembleError {
+            error: AssembleProgError::InvalidInstruction(AssembleInstructionError::UnknownOpCode),
+            loc: ErrorLocation::Instruction(instr.loc.clone()),
+        }),
     }
 }
 
-fn parse_dst_reg(operand: &ast::Operand) -> Result<bc::RegOperand, AssembleError> {
-    match operand {
+fn parse_dst_reg(operand: &OperandWithLoc) -> Result<bc::RegOperand, AssembleError> {
+    match &operand.0 {
         ast::Operand::Reg(reg) => match &reg.set {
-            None => return Err(AssembleError::CannotInferReg),
+            None => {
+                return Err(AssembleError::bad_op(
+                    AssembleInstructionError::CannotInferReg,
+                    &operand,
+                ));
+            }
             Some(reg_set) => Ok(RegOperand {
                 set: reg_set.clone(),
                 index: reg.index,
             }),
         },
-        _ => return Err(AssembleError::ExpectedDstReg),
+        _ => {
+            return Err(AssembleError::bad_op(
+                AssembleInstructionError::ExpectedDstReg,
+                &operand,
+            ));
+        }
     }
 }
 
 fn parse_reg_or_constant(
-    operand: &ast::Operand,
+    operand: &OperandWithLoc,
     infer_as: &RegisterSet,
     labels: &HashMap<String, usize>,
 ) -> Result<bc::Operand, AssembleError> {
-    match operand {
+    match &operand.0 {
         ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_as))),
         ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
         // Labels are only allowed if we are inferring as the address type (destination is an address register)
         ast::Operand::Label(label) => match infer_as {
             RegisterSet::Single(RegType::Address) => {
-                let pc = labels
-                    .get(label)
-                    .ok_or_else(|| AssembleError::MissingLabel(label.to_owned()))?;
+                let pc = labels.get(label).ok_or_else(|| {
+                    AssembleError::bad_op(
+                        AssembleInstructionError::MissingLabel(label.to_owned()),
+                        operand,
+                    )
+                })?;
                 Ok(bc::Operand::LabelConstant(*pc))
             }
-            _ => Err(AssembleError::InvalidOperand),
+            _ => Err(AssembleError::bad_op(
+                AssembleInstructionError::InvalidOperand,
+                operand,
+            )),
         },
     }
 }
 
 fn parse_address_operand(
-    operand: &ast::Operand,
+    operand: &OperandWithLoc,
     labels: &HashMap<String, usize>,
 ) -> Result<bc::Operand, AssembleError> {
-    match operand {
+    match &operand.0 {
         ast::Operand::Reg(reg) => match &reg.set {
             Some(RegisterSet::Single(RegType::Address)) => Ok(bc::Operand::Reg(RegOperand {
                 set: RegisterSet::Single(RegType::Address),
                 index: reg.index,
             })),
-            Some(_) => Err(AssembleError::InvalidOperand),
-            None => Err(AssembleError::CannotInferReg), // TODO: Could infer as address register?
+            Some(_) => Err(AssembleError::bad_op(
+                AssembleInstructionError::InvalidOperand,
+                operand,
+            )),
+            None => Err(AssembleError::bad_op(
+                AssembleInstructionError::CannotInferReg,
+                operand,
+            )), // TODO: Could infer as address register?
         },
-        ast::Operand::Constant(_) => Err(AssembleError::InvalidOperand),
+        ast::Operand::Constant(_) => Err(AssembleError::bad_op(
+            AssembleInstructionError::InvalidOperand,
+            operand,
+        )),
         ast::Operand::Label(label) => {
-            let pc = labels
-                .get(label)
-                .ok_or_else(|| AssembleError::MissingLabel(label.to_owned()))?;
+            let pc = labels.get(label).ok_or_else(|| {
+                AssembleError::bad_op(
+                    AssembleInstructionError::MissingLabel(label.to_owned()),
+                    operand,
+                )
+            })?;
             Ok(bc::Operand::LabelConstant(*pc))
         }
     }

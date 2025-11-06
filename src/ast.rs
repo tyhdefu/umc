@@ -1,4 +1,5 @@
 use std::num::ParseIntError;
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 use crate::model::RegType;
@@ -83,10 +84,13 @@ pub enum Operand {
     Label(String),
 }
 
+pub type OperandWithLoc = (Operand, usize, RangeInclusive<usize>);
+
 #[derive(Debug, PartialEq)]
 pub struct Instruction {
     pub opcode: String,
-    pub operands: Vec<Operand>,
+    pub operands: Vec<OperandWithLoc>,
+    pub loc: RangeInclusive<usize>,
 }
 
 #[derive(Debug, PartialEq)]

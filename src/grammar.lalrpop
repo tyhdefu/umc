@@ -48,12 +48,12 @@ pub Statement: ast::Statement = {
 }
 
 
-pub Instruction: ast::Instruction = <c:MNEMONIC> <os:Operands> => ast::Instruction{opcode: c.to_string(), operands: os};
+pub Instruction: ast::Instruction = <start:@L> <c:MNEMONIC> <os:Operands> <end:@R> => ast::Instruction{opcode: c.to_string(), operands: os, loc: start..=end-1};
 
-Operands: Vec<ast::Operand> = {
-	<mut os:Operands> COMMA <o:Operand> => {os.push(o); os},
-	Operand => vec![<>],
-}
+Operands: Vec<ast::OperandWithLoc> = {
+	<mut os:Operands> COMMA <start:@L> <o:Operand> <end:@R> => {os.push((o, os.len(), start..=end-1)); os},
+	<start:@L> <o:Operand> <end:@R> => vec![(o, 0, start..=end-1)],
+};
 
 pub Operand: ast::Operand = {
 	<s:HEX_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 16).unwrap())),

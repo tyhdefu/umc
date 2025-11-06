@@ -64,39 +64,56 @@ fn parse_implicit_reg_operand() {
 
 #[test]
 fn parse_mov_constant_instruction() {
+    const INSTR: &str = "mov u32:0, #100";
+
     let parser = InstructionParser::new();
     let exp = Instruction {
         opcode: "mov".to_string(),
         operands: vec![
-            Operand::Reg(ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
-                index: 0,
-            }),
-            Operand::Constant(100),
+            (
+                Operand::Reg(ASTRegisterOperand {
+                    set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                    index: 0,
+                }),
+                0,
+                4..=8,
+            ),
+            (Operand::Constant(100), 1, 11..=INSTR.len() - 1),
         ],
+        loc: 0..=INSTR.len() - 1,
     };
-    assert_eq!(exp, parser.parse("mov u32:0, #100").unwrap());
+    assert_eq!(exp, parser.parse(INSTR).unwrap());
 }
 
 #[test]
 fn parse_add_instruction() {
+    const INSTR: &str = "add u32:1, u32:0, #100";
     let parser = InstructionParser::new();
 
     let exp = Instruction {
         opcode: "add".to_string(),
         operands: vec![
-            Operand::Reg(ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
-                index: 1,
-            }),
-            Operand::Reg(ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
-                index: 0,
-            }),
-            Operand::Constant(100),
+            (
+                Operand::Reg(ASTRegisterOperand {
+                    set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                    index: 1,
+                }),
+                0,
+                4..=8,
+            ),
+            (
+                Operand::Reg(ASTRegisterOperand {
+                    set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                    index: 0,
+                }),
+                1,
+                11..=15,
+            ),
+            (Operand::Constant(100), 2, 18..=21),
         ],
+        loc: 0..=INSTR.len() - 1,
     };
-    assert_eq!(exp, parser.parse("add u32:1, u32:0, #100").unwrap())
+    assert_eq!(exp, parser.parse(INSTR).unwrap())
 }
 
 #[test]

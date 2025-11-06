@@ -9,6 +9,8 @@ use lalrpop_util::lalrpop_mod;
 use model::RegisterSet;
 use vm::VirtualMachine;
 
+use crate::assembler::AssembleError;
+
 lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 
 #[cfg(test)]
@@ -32,12 +34,50 @@ fn execute_program(file: &str) {
     let prog_parser = grammar::ProgramParser::new();
 
     let ast_prog = prog_parser.parse(&prog_str).expect("Parsing failed");
-    let prog_bc = assembler::compile_prog(ast_prog).expect("Compilation failed!");
 
+    let prog_bc = match assembler::compile_prog(ast_prog) {
+        Ok(p) => p,
+        Err(errors) => {
+            display_errors(&prog_str, errors);
+            return;
+        }
+    };
     println!("Compilation Successful");
 
     println!("Executing program");
     VirtualMachine::new(prog_bc).execute();
+}
+
+fn get_line_and_char_offset(s: &str, pos: usize) -> (usize, usize) {
+    let mut line = 0;
+    let mut offset = 0;
+    for c in s[0..pos].bytes() {
+        if c == b'\n' {
+            offset = 0;
+            line += 1;
+        } else {
+            offset += 1;
+        }
+    }
+    (line, offset)
+}
+
+fn display_errors(prog: &str, errors: Vec<AssembleError>) {
+    eprintln!("Compilation failed with {} errors", errors.len());
+
+    for err in errors.into_iter() {
+        eprintln!("Error: {:?}", err.error);
+        let range = match err.loc {
+            assembler::ErrorLocation::Instruction(r) => r,
+            assembler::ErrorLocation::Operand(i, r) => {
+                eprintln!("> Operand {}", i + 1);
+                r
+            }
+        };
+        let (line, offset) = get_line_and_char_offset(prog, *range.start());
+        eprintln!("> {}", &prog[range]);
+        eprintln!("> at {}:{}", line, offset);
+    }
 }
 
 fn dummy_program() {
