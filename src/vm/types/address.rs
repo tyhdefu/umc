@@ -5,26 +5,26 @@ use crate::vm::types::{CastFrom, UMCArithmetic};
 
 /// The address type
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub struct Address(usize);
+pub struct InstructionAddress(usize);
 
-impl Address {
+impl InstructionAddress {
     pub fn new(x: usize) -> Self {
         Self(x)
     }
 
-    /// Interpret this address as a program counter location
+    /// Get the program counter equivalent of this address
     pub fn pc(&self) -> usize {
         self.0
     }
 }
 
-impl Default for Address {
+impl Default for InstructionAddress {
     fn default() -> Self {
         Self(0)
     }
 }
 
-impl UMCArithmetic for Address {
+impl UMCArithmetic for InstructionAddress {
     fn add(&mut self, rhs: &Self) {
         self.0 = self.0.wrapping_add(rhs.0);
     }
@@ -40,19 +40,19 @@ impl UMCArithmetic for Address {
     }
 }
 
-impl CastFrom<u32> for Address {
+impl CastFrom<u32> for InstructionAddress {
     fn cast_from(value: &u32) -> Self {
         Self(*value as usize)
     }
 }
 
-impl CastFrom<u64> for Address {
+impl CastFrom<u64> for InstructionAddress {
     fn cast_from(value: &u64) -> Self {
         Self(*value as usize)
     }
 }
 
-impl CastFrom<ArbitraryUnsignedInt> for Address {
+impl CastFrom<ArbitraryUnsignedInt> for InstructionAddress {
     fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
         Self(value.data().get(0).copied().unwrap_or(0))
     }

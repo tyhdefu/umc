@@ -4,7 +4,7 @@ mod types;
 use crate::bytecode::{Instruction, Operand, RegOperand};
 use crate::model::{RegType, RegisterSet};
 use crate::vm::state::{ArbStoreFor, RegState, StoreFor};
-use crate::vm::types::address::Address;
+use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{BinaryArithmeticOp, CastInto, CastSingleAny, UMCArithmetic};
 
@@ -56,12 +56,12 @@ impl VirtualMachine {
                 Self::operate_not(&mut self.state, dst, op1);
             }
             Instruction::Jmp(op1) => {
-                let to = read_single_as_address(&mut self.state, op1).unwrap();
+                let to = read_single_as_iaddress(&mut self.state, op1).unwrap();
                 self.pc = to.pc();
                 return;
             }
             Instruction::Bz(op1, op2) => {
-                let to = read_single_as_address(&mut self.state, op1).unwrap();
+                let to = read_single_as_iaddress(&mut self.state, op1).unwrap();
                 let x: u32 = read_single_as(&mut self.state, op2).unwrap();
                 if x == 0 {
                     self.pc = to.pc();
@@ -69,7 +69,7 @@ impl VirtualMachine {
                 }
             }
             Instruction::Bnz(op1, op2) => {
-                let to = read_single_as_address(&mut self.state, op1).unwrap();
+                let to = read_single_as_iaddress(&mut self.state, op1).unwrap();
                 let x: u32 = read_single_as(&mut self.state, op2).unwrap();
                 if x != 0 {
                     self.pc = to.pc();
@@ -136,9 +136,16 @@ impl VirtualMachine {
                 arith_op.operate(&mut dst, &op2_v);
                 state.store_arb(dst_op.index, w, dst);
             }
-            RegisterSet::Single(RegType::Address) => {
-                let mut op1_v: Address = read_single_as_address(&state, op1).unwrap();
-                let op2_v: Address = read_single_as_address(&state, op2).unwrap();
+            RegisterSet::Single(RegType::InstructionAddress) => {
+                let mut op1_v: InstructionAddress = read_single_as_iaddress(&state, op1).unwrap();
+                let op2_v: InstructionAddress = read_single_as_iaddress(&state, op2).unwrap();
+
+                arith_op.operate(&mut op1_v, &op2_v);
+                state.store(dst_op.index, op1_v);
+            }
+            RegisterSet::Single(RegType::MemoryAddress) => {
+                let mut op1_v: InstructionAddress = read_single_as_iaddress(&state, op1).unwrap();
+                let op2_v: InstructionAddress = read_single_as_iaddress(&state, op2).unwrap();
 
                 arith_op.operate(&mut op1_v, &op2_v);
                 state.store(dst_op.index, op1_v);
@@ -199,7 +206,8 @@ where
             }
             RegisterSet::Single(RegType::SignedInt(_)) => todo!(),
             RegisterSet::Single(RegType::Float(_)) => todo!(),
-            RegisterSet::Single(RegType::Address) => Err(()),
+            RegisterSet::Single(RegType::InstructionAddress) => Err(()),
+            RegisterSet::Single(RegType::MemoryAddress) => Err(()),
             RegisterSet::Vector(_, _) => Err(()),
         },
         Operand::UnsignedConstant(c) => Ok((*c).cast_into()),
@@ -207,17 +215,17 @@ where
     }
 }
 
-fn read_single_as_address(state: &RegState, operand: &Operand) -> Result<Address, ()> {
+fn read_single_as_iaddress(state: &RegState, operand: &Operand) -> Result<InstructionAddress, ()> {
     match operand {
         Operand::Reg(reg) => match reg.set {
-            RegisterSet::Single(RegType::Address) => {
-                let v: Address = state.read(reg.index).unwrap_or_default();
+            RegisterSet::Single(RegType::InstructionAddress) => {
+                let v: InstructionAddress = state.read(reg.index).unwrap_or_default();
                 Ok(v.cast_into())
             }
             _ => read_single_as(state, operand),
         },
-        Operand::UnsignedConstant(c) => Ok(Address::new(*c as usize)),
-        Operand::LabelConstant(c) => Ok(Address::new(*c)),
+        Operand::UnsignedConstant(c) => Ok(InstructionAddress::new(*c as usize)),
+        Operand::LabelConstant(c) => Ok(InstructionAddress::new(*c)),
     }
 }
 

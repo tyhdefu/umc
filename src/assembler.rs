@@ -199,9 +199,9 @@ fn parse_reg_or_constant(
     match &operand.0 {
         ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_as))),
         ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
-        // Labels are only allowed if we are inferring as the address type (destination is an address register)
+        // Labels are only allowed if we are inferring as the i-address type (destination is an i-address register)
         ast::Operand::Label(label) => match infer_as {
-            RegisterSet::Single(RegType::Address) => {
+            RegisterSet::Single(RegType::InstructionAddress) => {
                 let pc = labels.get(label).ok_or_else(|| {
                     AssembleError::bad_op(
                         AssembleInstructionError::MissingLabel(label.to_owned()),
@@ -210,10 +210,7 @@ fn parse_reg_or_constant(
                 })?;
                 Ok(bc::Operand::LabelConstant(*pc))
             }
-            _ => Err(AssembleError::bad_op(
-                AssembleInstructionError::InvalidOperand,
-                operand,
-            )),
+            _ => Err(AssembleError::invalid_op(operand)),
         },
     }
 }
@@ -241,10 +238,12 @@ fn parse_address_operand(
 ) -> Result<bc::Operand, AssembleError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => match &reg.set {
-            Some(RegisterSet::Single(RegType::Address)) => Ok(bc::Operand::Reg(RegOperand {
-                set: RegisterSet::Single(RegType::Address),
-                index: reg.index,
-            })),
+            Some(RegisterSet::Single(RegType::InstructionAddress)) => {
+                Ok(bc::Operand::Reg(RegOperand {
+                    set: RegisterSet::Single(RegType::InstructionAddress),
+                    index: reg.index,
+                }))
+            }
             Some(_) => Err(AssembleError::invalid_op(operand)),
             None => Err(AssembleError::bad_op(
                 AssembleInstructionError::CannotInferReg,

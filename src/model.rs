@@ -1,8 +1,6 @@
 //! Shared between AST and Bytecode
-use std::{
-    fmt::{Display, Write},
-    str::FromStr,
-};
+use std::fmt::Display;
+use std::str::FromStr;
 
 /// The type used for how large a register can be
 pub type RegWidth = u32;
@@ -11,10 +9,11 @@ pub type RegIndex = u32;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum RegType {
-    SignedInt(RegWidth),
     UnsignedInt(RegWidth),
+    SignedInt(RegWidth),
     Float(RegWidth),
-    Address,
+    InstructionAddress,
+    MemoryAddress,
 }
 
 impl FromStr for RegType {
@@ -24,11 +23,10 @@ impl FromStr for RegType {
         if s.is_empty() {
             return Err(());
         }
-        if s.starts_with("a") {
-            if s == "a" {
-                return Ok(Self::Address);
-            }
-            return Err(());
+        match s {
+            "m" => return Ok(Self::MemoryAddress),
+            "n" => return Ok(Self::InstructionAddress),
+            _ => {}
         }
         let w: RegWidth = s[1..].parse().map_err(|_| ())?;
         Ok(match &s[0..1] {
@@ -43,10 +41,11 @@ impl FromStr for RegType {
 impl Display for RegType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Address => f.write_char('a'),
             Self::SignedInt(w) => write!(f, "i{}", w),
             Self::UnsignedInt(w) => write!(f, "u{}", w),
             Self::Float(w) => write!(f, "f{}", w),
+            Self::InstructionAddress => write!(f, "n"),
+            Self::MemoryAddress => write!(f, "m"),
         }
     }
 }
