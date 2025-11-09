@@ -9,9 +9,7 @@ pub type RegIndex = u32;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum RegType {
-    UnsignedInt(RegWidth),
-    SignedInt(RegWidth),
-    Float(RegWidth),
+    Num(NumRegType),
     InstructionAddress,
     MemoryAddress,
 }
@@ -28,6 +26,33 @@ impl FromStr for RegType {
             "n" => return Ok(Self::InstructionAddress),
             _ => {}
         }
+        NumRegType::from_str(s).map(|n| Self::Num(n))
+    }
+}
+
+impl Display for RegType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RegType::Num(num_reg) => write!(f, "{}", num_reg),
+            RegType::InstructionAddress => write!(f, "n"),
+            RegType::MemoryAddress => write!(f, "m"),
+        }
+    }
+}
+
+/// Number Register
+/// The values from these
+#[derive(Debug, PartialEq, Clone)]
+pub enum NumRegType {
+    UnsignedInt(RegWidth),
+    SignedInt(RegWidth),
+    Float(RegWidth),
+}
+
+impl FromStr for NumRegType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let w: RegWidth = s[1..].parse().map_err(|_| ())?;
         Ok(match &s[0..1] {
             "i" => Self::SignedInt(w),
@@ -38,14 +63,23 @@ impl FromStr for RegType {
     }
 }
 
-impl Display for RegType {
+impl TryFrom<RegType> for NumRegType {
+    type Error = ();
+
+    fn try_from(value: RegType) -> Result<Self, Self::Error> {
+        match value {
+            RegType::Num(num) => Ok(num),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Display for NumRegType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SignedInt(w) => write!(f, "i{}", w),
             Self::UnsignedInt(w) => write!(f, "u{}", w),
             Self::Float(w) => write!(f, "f{}", w),
-            Self::InstructionAddress => write!(f, "n"),
-            Self::MemoryAddress => write!(f, "m"),
         }
     }
 }
@@ -54,6 +88,12 @@ impl Display for RegType {
 pub enum RegisterSet {
     Single(RegType),
     Vector(RegType, RegWidth),
+}
+
+impl RegisterSet {
+    pub fn single_num(t: NumRegType) -> Self {
+        Self::Single(RegType::Num(t))
+    }
 }
 
 impl Display for RegisterSet {

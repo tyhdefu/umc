@@ -102,6 +102,7 @@ pub struct Statement {
 #[cfg(test)]
 mod tests {
     use crate::ast::{ASTRegisterOperand, RegType, RegisterSet};
+    use crate::model::NumRegType;
 
     #[test]
     fn parse_reg_operand_inferred() {
@@ -118,7 +119,9 @@ mod tests {
     fn parse_reg_operand_single() {
         assert_eq!(
             ASTRegisterOperand {
-                set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                set: Some(RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(
+                    32
+                )))),
                 index: 0
             },
             "u32:0".parse().unwrap()
@@ -129,7 +132,7 @@ mod tests {
     fn parse_reg_operand_vector() {
         assert_eq!(
             ASTRegisterOperand {
-                set: Some(RegisterSet::Vector(RegType::Float(64), 4)),
+                set: Some(RegisterSet::Vector(RegType::Num(NumRegType::Float(64)), 4)),
                 index: 0
             },
             "f64x4:0".parse().unwrap()

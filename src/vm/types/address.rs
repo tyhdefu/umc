@@ -1,7 +1,7 @@
 use std::ops::{BitAndAssign, BitXorAssign};
 
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{CastFrom, UMCArithmetic};
+use crate::vm::types::{CastFrom, UMCAddSub, UMCArithmetic};
 
 /// The address type
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -24,19 +24,13 @@ impl Default for InstructionAddress {
     }
 }
 
-impl UMCArithmetic for InstructionAddress {
+impl UMCAddSub for InstructionAddress {
     fn add(&mut self, rhs: &Self) {
         self.0 = self.0.wrapping_add(rhs.0);
     }
 
-    fn not(&mut self) {}
-
-    fn and(&mut self, rhs: &Self) {
-        self.0.bitand_assign(rhs.0);
-    }
-
-    fn xor(&mut self, rhs: &Self) {
-        self.0.bitxor_assign(rhs.0);
+    fn sub(&mut self, rhs: &Self) {
+        self.0 = self.0.wrapping_sub(rhs.0);
     }
 }
 

@@ -3,24 +3,45 @@ use crate::vm::types::uint::ArbitraryUnsignedInt;
 pub mod address;
 pub mod uint;
 
-pub trait UMCArithmetic: PartialEq {
+pub trait UMCAddSub {
     /// Perform addition according to the UMC rules
     /// Silently and safely overflow if needed
     fn add(&mut self, rhs: &Self);
 
+    /// Perform subtraction according to the UMC rules
+    /// Silently and safely underflow if needed
+    fn sub(&mut self, rhs: &Self);
+}
+
+pub trait UMCArithmetic: UMCAddSub + PartialEq {
     /// Bitwise AND
     fn and(&mut self, rhs: &Self);
     /// Bitwise XOR
     fn xor(&mut self, rhs: &Self);
 
-    //fn sub(&self, rhs: Self) -> Self;
-
     /// Logical bitwise NOT
     fn not(&mut self);
 }
 
-pub enum BinaryArithmeticOp {
+pub enum AddSubOp {
     Add,
+    Sub,
+}
+
+impl AddSubOp {
+    pub fn operate<T>(&self, a: &mut T, b: &T)
+    where
+        T: UMCAddSub,
+    {
+        match self {
+            AddSubOp::Add => a.add(b),
+            AddSubOp::Sub => a.sub(b),
+        }
+    }
+}
+
+pub enum BinaryArithmeticOp {
+    AddOrSub(AddSubOp),
     And,
     Xor,
 }
@@ -31,7 +52,7 @@ impl BinaryArithmeticOp {
         T: UMCArithmetic,
     {
         match &self {
-            Self::Add => a.add(b),
+            Self::AddOrSub(sub_op) => sub_op.operate(a, b),
             Self::And => a.and(b),
             Self::Xor => a.xor(b),
         }

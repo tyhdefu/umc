@@ -2,7 +2,7 @@ use std::iter::repeat_n;
 use std::ops::BitAndAssign;
 use std::{fmt::Display, ops::BitXorAssign};
 
-use crate::vm::types::{CastFrom, UMCArithmetic};
+use crate::vm::types::{CastFrom, UMCAddSub, UMCArithmetic};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArbitraryUnsignedInt {
@@ -12,8 +12,21 @@ pub struct ArbitraryUnsignedInt {
 }
 
 impl ArbitraryUnsignedInt {
+    pub const ZERO: ArbitraryUnsignedInt = ArbitraryUnsignedInt::new(0);
+    pub const ZERO_REF: &'static ArbitraryUnsignedInt = &Self::ZERO;
+
     pub const fn new(bits: u32) -> Self {
         Self { bits, data: vec![] }
+    }
+
+    pub fn resized_clone(&self, new_bits: u32) -> Self {
+        let new_len = new_bits.div_ceil(usize::BITS) as usize;
+        let mut copy = Self {
+            bits: new_bits,
+            data: self.data.iter().take(new_len).copied().collect(),
+        };
+        copy.mask_top();
+        return copy;
     }
 
     pub fn resize(&mut self, new_bits: u32) {
@@ -136,11 +149,17 @@ impl CastFrom<u64> for ArbitraryUnsignedInt {
     }
 }
 
-impl UMCArithmetic for u32 {
+impl UMCAddSub for u32 {
     fn add(&mut self, rhs: &Self) {
         *self = u32::wrapping_add(*self, *rhs)
     }
 
+    fn sub(&mut self, rhs: &Self) {
+        todo!()
+    }
+}
+
+impl UMCArithmetic for u32 {
     fn not(&mut self) {
         *self = !*self
     }
@@ -151,14 +170,20 @@ impl UMCArithmetic for u32 {
 
     fn xor(&mut self, rhs: &Self) {
         self.bitxor_assign(rhs);
+    }
+}
+
+impl UMCAddSub for u64 {
+    fn add(&mut self, rhs: &Self) {
+        *self = Self::wrapping_add(*self, *rhs)
+    }
+
+    fn sub(&mut self, rhs: &Self) {
+        *self = Self::wrapping_sub(*self, *rhs)
     }
 }
 
 impl UMCArithmetic for u64 {
-    fn add(&mut self, rhs: &Self) {
-        *self = u64::wrapping_add(*self, *rhs)
-    }
-
     fn not(&mut self) {
         *self = !*self
     }
@@ -172,7 +197,7 @@ impl UMCArithmetic for u64 {
     }
 }
 
-impl UMCArithmetic for ArbitraryUnsignedInt {
+impl UMCAddSub for ArbitraryUnsignedInt {
     fn add(&mut self, rhs: &Self) {
         self.data.reserve(rhs.data.len() - self.data.len());
         let mut carry = false;
@@ -194,6 +219,12 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
         self.mask_top();
     }
 
+    fn sub(&mut self, rhs: &Self) {
+        todo!()
+    }
+}
+
+impl UMCArithmetic for ArbitraryUnsignedInt {
     fn not(&mut self) {
         // Any sparse 0s will become non-zero, so fill vec first:
         self.grow_to_max();

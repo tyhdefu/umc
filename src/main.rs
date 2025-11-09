@@ -6,10 +6,11 @@ use bytecode::Instruction;
 use bytecode::Operand;
 use bytecode::RegOperand;
 use lalrpop_util::lalrpop_mod;
-use model::RegisterSet;
 use vm::VirtualMachine;
 
 use crate::assembler::AssembleError;
+use crate::model::NumRegType;
+use crate::model::RegisterSet;
 
 lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 
@@ -94,7 +95,7 @@ fn display_errors(prog: &str, errors: Vec<AssembleError>) {
 }
 
 fn dummy_program() {
-    let regset = RegisterSet::Single(model::RegType::UnsignedInt(64));
+    let regset = RegisterSet::single_num(NumRegType::UnsignedInt(64));
     let reg0 = RegOperand {
         set: regset.clone(),
         index: 0,

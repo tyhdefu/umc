@@ -2,7 +2,7 @@ use crate::ast::{ASTRegisterOperand, Instruction, Operand};
 use crate::grammar::{
     InstructionParser, OperandParser, ProgramParser, RegOperandParser, StatementParser,
 };
-use crate::model::{RegType, RegisterSet};
+use crate::model::{NumRegType, RegType, RegisterSet};
 
 #[test]
 fn parse_hex_constant() {
@@ -36,7 +36,7 @@ fn parse_label_operand() {
 fn parse_reg_operand() {
     let parser = OperandParser::new();
     let exp = ASTRegisterOperand {
-        set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+        set: Some(RegisterSet::single_num(NumRegType::UnsignedInt(32))),
         index: 0,
     };
     assert_eq!(Operand::Reg(exp), parser.parse("u32:0").unwrap())
@@ -46,7 +46,10 @@ fn parse_reg_operand() {
 fn parse_vector_reg_operand() {
     let parser = OperandParser::new();
     let exp = ASTRegisterOperand {
-        set: Some(RegisterSet::Vector(RegType::SignedInt(64), 8)),
+        set: Some(RegisterSet::Vector(
+            RegType::Num(NumRegType::SignedInt(64)),
+            8,
+        )),
         index: 4,
     };
     assert_eq!(Operand::Reg(exp), parser.parse("i64x8:4").unwrap())
@@ -72,7 +75,7 @@ fn parse_mov_constant_instruction() {
         operands: vec![
             (
                 Operand::Reg(ASTRegisterOperand {
-                    set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                    set: Some(RegisterSet::single_num(NumRegType::UnsignedInt(32))),
                     index: 0,
                 }),
                 0,
@@ -95,7 +98,7 @@ fn parse_add_instruction() {
         operands: vec![
             (
                 Operand::Reg(ASTRegisterOperand {
-                    set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                    set: Some(RegisterSet::single_num(NumRegType::UnsignedInt(32))),
                     index: 1,
                 }),
                 0,
@@ -103,7 +106,7 @@ fn parse_add_instruction() {
             ),
             (
                 Operand::Reg(ASTRegisterOperand {
-                    set: Some(RegisterSet::Single(RegType::UnsignedInt(32))),
+                    set: Some(RegisterSet::single_num(NumRegType::UnsignedInt(32))),
                     index: 0,
                 }),
                 1,
