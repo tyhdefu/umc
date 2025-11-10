@@ -6,54 +6,45 @@ use crate::bytecode as bc;
 use crate::bytecode::{Instruction, RegOperand};
 use crate::model::{RegType, RegisterSet};
 
+type Loc = RangeInclusive<usize>;
+
+pub enum AssembleError {
+    DuplicateLabel(String, Loc),
+    InvalidInstruction(AssembleInstructionError, Loc),
+}
+
 #[derive(Debug)]
 pub enum AssembleInstructionError {
-    /// Expected size, got size
+    UnknownOpCode(Loc),
     InvalidOperandCount(usize, usize),
+    InvalidOperand(InvalidOperandError, usize, Loc),
+}
+
+impl AssembleInstructionError {
+    pub fn invalid_op(error: InvalidOperandError, operand: &OperandWithLoc) -> Self {
+        Self::InvalidOperand(error, operand.1, operand.2.clone())
+    }
+
+    pub fn unknown_opcode(instr: &ast::Instruction) -> Self {
+        let opcode_loc = *instr.loc.start()..=(instr.loc.start() + instr.opcode.len() - 1); // TODO?
+        Self::UnknownOpCode(opcode_loc)
+    }
+}
+
+#[derive(Debug)]
+pub enum InvalidOperandError {
     ExpectedDstReg,
     CannotInferReg,
-    InvalidOperand,
-    UnknownOpCode,
-    MissingLabel(String),
+    UnknownLabel(String),
+    /// The type of the operand does not agree with the destination / instruction
+    InvalidType,
 }
 
-#[derive(Debug)]
-pub enum AssembleProgError {
-    DuplicateLabel(String),
-    InvalidInstruction(AssembleInstructionError), // TODO: add line information
-}
-
-#[derive(Debug)]
-pub enum ErrorLocation {
-    /// The error was caused by a bad instruction
-    Instruction(RangeInclusive<usize>),
-    /// The error was caused by an invalid operand to an instruction
-    Operand(usize, RangeInclusive<usize>),
-}
-
-#[derive(Debug)]
-pub struct AssembleError {
-    pub error: AssembleProgError,
-    pub loc: ErrorLocation,
-}
+impl AssembleError {}
 
 impl AssembleError {
     pub fn bad_instruction(error: AssembleInstructionError, instr: &ast::Instruction) -> Self {
-        Self {
-            error: AssembleProgError::InvalidInstruction(error),
-            loc: ErrorLocation::Instruction(instr.loc.clone()),
-        }
-    }
-
-    pub fn bad_op(error: AssembleInstructionError, operand: &OperandWithLoc) -> Self {
-        Self {
-            error: AssembleProgError::InvalidInstruction(error),
-            loc: ErrorLocation::Operand(operand.1, operand.2.clone()),
-        }
-    }
-
-    pub fn invalid_op(operand: &OperandWithLoc) -> Self {
-        Self::bad_op(AssembleInstructionError::InvalidOperand, operand)
+        Self::InvalidInstruction(error, instr.loc.clone())
     }
 }
 
@@ -67,16 +58,23 @@ pub fn compile_prog(
 
     for (i, statement) in ast_prog.iter().enumerate() {
         if let Some(label) = &statement.label {
-            if labels.insert(label.clone(), i).is_some() {
-                //errors.push(AssembleProgError::DuplicateLabel(label.to_owned()));
+            if labels.insert(label.0.clone(), i).is_some() {
+                errors.push(AssembleError::DuplicateLabel(
+                    label.0.to_owned(),
+                    label.1.clone(),
+                ));
             }
         }
     }
 
+    if !errors.is_empty() {
+        return Err(errors);
+    }
+
     for statement in ast_prog.into_iter() {
-        match ast_to_bytecode(statement.instr, &labels) {
+        match ast_to_bytecode(statement.instr.clone(), &labels) {
             Ok(bc) => prog.push(bc),
-            Err(e) => errors.push(e),
+            Err(e) => errors.push(AssembleError::bad_instruction(e, &statement.instr)),
         }
     }
     if !errors.is_empty() {
@@ -85,20 +83,19 @@ pub fn compile_prog(
     Ok(prog)
 }
 
-fn ops<const N: usize>(instr: &ast::Instruction) -> Result<&[OperandWithLoc; N], AssembleError> {
+fn ops<const N: usize>(
+    instr: &ast::Instruction,
+) -> Result<&[OperandWithLoc; N], AssembleInstructionError> {
     let slice: &[OperandWithLoc] = &instr.operands;
-    slice.try_into().map_err(|_| AssembleError {
-        error: AssembleProgError::InvalidInstruction(
-            AssembleInstructionError::InvalidOperandCount(N, instr.operands.len()),
-        ),
-        loc: ErrorLocation::Instruction(instr.loc.clone()),
-    })
+    slice
+        .try_into()
+        .map_err(|_| AssembleInstructionError::InvalidOperandCount(N, slice.len()))
 }
 
 pub fn ast_to_bytecode(
     instr: ast::Instruction,
     labels: &HashMap<String, usize>,
-) -> Result<bc::Instruction, AssembleError> {
+) -> Result<bc::Instruction, AssembleInstructionError> {
     match instr.opcode.as_str() {
         "mov" => {
             let [op1, op2] = ops(&instr)?;
@@ -161,19 +158,16 @@ pub fn ast_to_bytecode(
             let operand = parse_dst_reg(&op1)?;
             Ok(Instruction::Dbg(operand))
         }
-        _ => Err(AssembleError {
-            error: AssembleProgError::InvalidInstruction(AssembleInstructionError::UnknownOpCode),
-            loc: ErrorLocation::Instruction(instr.loc.clone()),
-        }),
+        _ => Err(AssembleInstructionError::unknown_opcode(&instr)),
     }
 }
 
-fn parse_dst_reg(operand: &OperandWithLoc) -> Result<bc::RegOperand, AssembleError> {
+fn parse_dst_reg(operand: &OperandWithLoc) -> Result<bc::RegOperand, AssembleInstructionError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => match &reg.set {
             None => {
-                return Err(AssembleError::bad_op(
-                    AssembleInstructionError::CannotInferReg,
+                return Err(AssembleInstructionError::invalid_op(
+                    InvalidOperandError::CannotInferReg,
                     &operand,
                 ));
             }
@@ -183,8 +177,8 @@ fn parse_dst_reg(operand: &OperandWithLoc) -> Result<bc::RegOperand, AssembleErr
             }),
         },
         _ => {
-            return Err(AssembleError::bad_op(
-                AssembleInstructionError::ExpectedDstReg,
+            return Err(AssembleInstructionError::invalid_op(
+                InvalidOperandError::ExpectedDstReg,
                 &operand,
             ));
         }
@@ -195,7 +189,7 @@ fn parse_reg_or_constant(
     operand: &OperandWithLoc,
     infer_as: &RegisterSet,
     labels: &HashMap<String, usize>,
-) -> Result<bc::Operand, AssembleError> {
+) -> Result<bc::Operand, AssembleInstructionError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_as))),
         ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
@@ -203,39 +197,48 @@ fn parse_reg_or_constant(
         ast::Operand::Label(label) => match infer_as {
             RegisterSet::Single(RegType::InstructionAddress) => {
                 let pc = labels.get(label).ok_or_else(|| {
-                    AssembleError::bad_op(
-                        AssembleInstructionError::MissingLabel(label.to_owned()),
+                    AssembleInstructionError::invalid_op(
+                        InvalidOperandError::UnknownLabel(label.to_owned()),
                         operand,
                     )
                 })?;
                 Ok(bc::Operand::LabelConstant(*pc))
             }
-            _ => Err(AssembleError::invalid_op(operand)),
+            _ => Err(AssembleInstructionError::invalid_op(
+                InvalidOperandError::CannotInferReg,
+                operand,
+            )),
         },
     }
 }
 
-fn parse_int_reg(operand: &OperandWithLoc) -> Result<bc::Operand, AssembleError> {
+fn parse_int_reg(operand: &OperandWithLoc) -> Result<bc::Operand, AssembleInstructionError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(RegOperand {
             set: reg
                 .set
                 .as_ref()
                 .ok_or_else(|| {
-                    AssembleError::bad_op(AssembleInstructionError::CannotInferReg, operand)
+                    AssembleInstructionError::invalid_op(
+                        InvalidOperandError::CannotInferReg,
+                        operand,
+                    )
                 })?
                 .clone(),
             index: reg.index,
         })),
         ast::Operand::Constant(c) => Ok(bc::Operand::UnsignedConstant(*c)),
-        ast::Operand::Label(_) => Err(AssembleError::invalid_op(operand)),
+        ast::Operand::Label(_) => Err(AssembleInstructionError::invalid_op(
+            InvalidOperandError::InvalidType,
+            operand,
+        )),
     }
 }
 
 fn parse_address_operand(
     operand: &OperandWithLoc,
     labels: &HashMap<String, usize>,
-) -> Result<bc::Operand, AssembleError> {
+) -> Result<bc::Operand, AssembleInstructionError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => match &reg.set {
             Some(RegisterSet::Single(RegType::InstructionAddress)) => {
@@ -244,17 +247,23 @@ fn parse_address_operand(
                     index: reg.index,
                 }))
             }
-            Some(_) => Err(AssembleError::invalid_op(operand)),
-            None => Err(AssembleError::bad_op(
-                AssembleInstructionError::CannotInferReg,
+            Some(_) => Err(AssembleInstructionError::invalid_op(
+                InvalidOperandError::InvalidType,
+                operand,
+            )),
+            None => Err(AssembleInstructionError::invalid_op(
+                InvalidOperandError::CannotInferReg,
                 operand,
             )), // TODO: Could infer as address register?
         },
-        ast::Operand::Constant(_) => Err(AssembleError::invalid_op(operand)),
+        ast::Operand::Constant(_) => Err(AssembleInstructionError::invalid_op(
+            InvalidOperandError::InvalidType,
+            operand,
+        )),
         ast::Operand::Label(label) => {
             let pc = labels.get(label).ok_or_else(|| {
-                AssembleError::bad_op(
-                    AssembleInstructionError::MissingLabel(label.to_owned()),
+                AssembleInstructionError::invalid_op(
+                    InvalidOperandError::UnknownLabel(label.to_owned()),
                     operand,
                 )
             })?;

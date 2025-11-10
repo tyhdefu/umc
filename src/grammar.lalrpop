@@ -41,7 +41,7 @@ pub Program: Vec<ast::Statement> = {
 }
 
 pub Statement: ast::Statement = {
-	<l:LABEL_SECTION> NEWLINE+ <i:Instruction> => ast::Statement { label: Some(l[1..l.len()-1].to_string()), instr: i},
+	<lstart:@L> <l:LABEL_SECTION> <lend:@R> NEWLINE+ <i:Instruction> => ast::Statement { label: Some((l[1..l.len()-1].to_string(), lstart..=lend)), instr: i},
 	<i:Instruction> => ast::Statement {label: None, instr: i},
 }
 
@@ -67,7 +67,7 @@ pub Operand: ast::Operand = {
 //  u32:0
 //  u32x2:0
 pub RegOperand: ASTRegisterOperand = {
-	<s:IMPLICIT_REG> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
-	<s:SINGLE_REG> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
-	<s:VECTOR_REG> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e) }),
+	<start: @L> <s:IMPLICIT_REG> <end: @R> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e, start..=end) }),
+	<start: @L> <s:SINGLE_REG> <end: @R> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e, start..=end)}),
+	<start: @L> <s:VECTOR_REG> <end: @R> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e, start..=end)}),
 };

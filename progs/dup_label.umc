@@ -1,0 +1,4 @@
+.LABEL:
+	mov u32:0, #10
+.LABEL:
+	mov u32:1, #5

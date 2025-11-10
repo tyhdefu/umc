@@ -7,7 +7,7 @@ use crate::model::RegisterSet;
 
 #[derive(Debug)]
 pub enum ParseError {
-    RegErr(ParseRegError),
+    RegErr(ParseRegError, RangeInclusive<usize>),
 }
 
 #[derive(Debug)]
@@ -77,7 +77,7 @@ impl FromStr for ASTRegisterOperand {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Operand {
     Reg(ASTRegisterOperand),
     Constant(u64),
@@ -86,7 +86,7 @@ pub enum Operand {
 
 pub type OperandWithLoc = (Operand, usize, RangeInclusive<usize>);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Instruction {
     pub opcode: String,
     pub operands: Vec<OperandWithLoc>,
@@ -95,7 +95,7 @@ pub struct Instruction {
 
 #[derive(Debug, PartialEq)]
 pub struct Statement {
-    pub label: Option<String>,
+    pub label: Option<(String, RangeInclusive<usize>)>,
     pub instr: Instruction,
 }
 

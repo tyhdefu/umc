@@ -1,7 +1,5 @@
-use std::ops::{BitAndAssign, BitXorAssign};
-
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{CastFrom, UMCAddSub, UMCArithmetic};
+use crate::vm::types::{CastFrom, UMCAddSub};
 
 /// The address type
 #[derive(PartialEq, Debug, Copy, Clone)]
