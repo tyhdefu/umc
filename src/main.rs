@@ -199,14 +199,14 @@ fn format_syntax_error<'a, T>(
 
 fn format_assemble_error<'a>(error: &'a AssembleError, prog: &'a str) -> Vec<Group<'a>> {
     match error {
-        AssembleError::DuplicateLabel(_, range) => {
+        AssembleError::DuplicateLabel(l, range) => {
             let line = get_line_num_at(prog, *range.start());
             vec![
                 Level::ERROR.primary_title("Repeated label").element(
                     Snippet::source(prog).line_start(line).annotation(
                         AnnotationKind::Primary
                             .span(*range.start()..range.end() + 1)
-                            .label("This label is defined before this"),
+                            .label(format!("The label `{}` is defined before this", l)),
                     ),
                 ),
             ]
