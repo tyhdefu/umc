@@ -7,7 +7,7 @@ use crate::bytecode::{Instruction, Operand, RegOperand};
 use crate::model::{NumRegType, RegType, RegisterSet};
 use crate::vm::state::{RegState, StoreFor};
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{AddSubOp, BinaryArithmeticOp, CastSingleAny, UMCArithmetic};
+use crate::vm::types::{BinaryArithmeticOp, CastSingleAny, UMCArithmetic};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -39,7 +39,10 @@ impl VirtualMachine {
                 helper::compute_mov(&mut self.state, dst, src);
             }
             Instruction::Add(dst, op1, op2) => {
-                helper::compute_addsub(&mut self.state, dst, op1, op2, AddSubOp::Add);
+                helper::compute_addsub(&mut self.state, dst, op1, op2, true);
+            }
+            Instruction::Sub(dst, op1, op2) => {
+                helper::compute_addsub(&mut self.state, dst, op1, op2, false);
             }
             Instruction::And(dst, op1, op2) => {
                 Self::operate_arithmetic(&mut self.state, dst, op1, op2, BinaryArithmeticOp::And);
@@ -80,8 +83,12 @@ impl VirtualMachine {
                     println!("{} = {}", reg, x);
                 }
                 RegisterSet::Single(RegType::Num(NumRegType::SignedInt(i32::BITS))) => {
-                    let v: Option<i32> = self.state.read(reg.index);
-                    println!("{} = {:?}", reg, v);
+                    let v: i32 = self.state.read(reg.index).unwrap_or_default();
+                    println!("{} = {}", reg, v);
+                }
+                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(i64::BITS))) => {
+                    let v: i64 = self.state.read(reg.index).unwrap_or_default();
+                    println!("{} = {}", reg, v);
                 }
                 _ => todo!(),
             },

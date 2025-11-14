@@ -1,5 +1,4 @@
-use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{CastFrom, UMCAddSub};
+use crate::vm::types::UMCOffset;
 
 /// The address type
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -22,30 +21,8 @@ impl Default for InstructionAddress {
     }
 }
 
-impl UMCAddSub for InstructionAddress {
-    fn add(&mut self, rhs: &Self) {
-        self.0 = self.0.wrapping_add(rhs.0);
-    }
-
-    fn sub(&mut self, rhs: &Self) {
-        self.0 = self.0.wrapping_sub(rhs.0);
-    }
-}
-
-impl CastFrom<u32> for InstructionAddress {
-    fn cast_from(value: &u32) -> Self {
-        Self(*value as usize)
-    }
-}
-
-impl CastFrom<u64> for InstructionAddress {
-    fn cast_from(value: &u64) -> Self {
-        Self(*value as usize)
-    }
-}
-
-impl CastFrom<ArbitraryUnsignedInt> for InstructionAddress {
-    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
-        Self(value.data().get(0).copied().unwrap_or(0))
+impl UMCOffset for InstructionAddress {
+    fn offset(&mut self, offset: isize) {
+        self.0 = self.0.wrapping_add_signed(offset);
     }
 }

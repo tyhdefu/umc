@@ -3,18 +3,10 @@ use crate::model::{NumRegType, RegIndex, RegType, RegisterSet};
 use crate::vm::state::{ArbStoreFor, RegState, StoreFor};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{
-    AddSubOp, BinaryArithmeticOp, CastInto, CastSingleAny, UMCAddSub, UMCArithmetic,
-};
+use crate::vm::types::{BinaryArithmeticOp, CastInto, CastSingleAny, UMCArithmetic, UMCOffset};
 
 pub fn compute_mov(state: &mut RegState, dst: &RegOperand, src: &Operand) {
-    compute_addsub(
-        state,
-        dst,
-        src,
-        &Operand::UnsignedConstant(0),
-        AddSubOp::Add,
-    );
+    compute_addsub(state, dst, src, &Operand::UnsignedConstant(0), true);
 }
 
 pub fn compute_addsub(
@@ -22,24 +14,26 @@ pub fn compute_addsub(
     dst_op: &RegOperand,
     op1: &Operand,
     op2: &Operand,
-    add_sub_op: AddSubOp,
+    is_add: bool,
 ) {
     match &dst_op.set {
         RegisterSet::Single(RegType::Num(num)) => {
-            compute_arith(
-                state,
-                &num,
-                dst_op.index,
-                op1,
-                op2,
-                BinaryArithmeticOp::AddOrSub(add_sub_op),
-            );
+            let arith_op = if is_add {
+                BinaryArithmeticOp::Add
+            } else {
+                BinaryArithmeticOp::Sub
+            };
+            compute_arith(state, &num, dst_op.index, op1, op2, arith_op);
         }
         RegisterSet::Single(RegType::MemoryAddress) => todo!(),
         RegisterSet::Single(RegType::InstructionAddress) => {
             let mut v1: InstructionAddress = read_single_as_iaddress(state, op1).unwrap();
-            let v2: InstructionAddress = read_single_as_iaddress(state, op2).unwrap();
-            v1.add(&v2);
+            let mut offset: i64 = read_single_as(state, op2).unwrap(); // TODO: Ideally this should work on 64-bit+ platforms
+
+            if !is_add {
+                offset = -offset;
+            }
+            v1.offset(offset as isize);
             state.store(dst_op.index, v1);
         }
         RegisterSet::Vector(_, _) => todo!(),
@@ -79,8 +73,8 @@ pub fn compute_arith(
             operation.operate(&mut v1, &v2);
             state.store_arb(dst_idx, *w, v1);
         }
-        NumRegType::SignedInt(i32::BITS) => todo!(), //comp::<i32>(state, dst_idx, op1, op2, operation),
-        NumRegType::SignedInt(i64::BITS) => todo!(), //comp::<i64>(state, dst_idx, op1, op2, operation),
+        NumRegType::SignedInt(i32::BITS) => comp::<i32>(state, dst_idx, op1, op2, operation),
+        NumRegType::SignedInt(i64::BITS) => comp::<i64>(state, dst_idx, op1, op2, operation),
         NumRegType::SignedInt(_) => todo!(),
         NumRegType::Float(_) => todo!(),
     }
@@ -122,6 +116,14 @@ where
             let v: ArbitraryUnsignedInt = state.read_arb(idx, *w).cloned().unwrap_or_default();
             v.cast_into()
         }
+        NumRegType::SignedInt(i32::BITS) => {
+            let v: i32 = state.read(idx).unwrap_or_default();
+            v.cast_into()
+        }
+        NumRegType::SignedInt(i64::BITS) => {
+            let v: i64 = state.read(idx).unwrap_or_default();
+            v.cast_into()
+        }
         NumRegType::SignedInt(_) => todo!(),
         NumRegType::Float(_) => todo!(),
     }
@@ -137,9 +139,9 @@ pub fn read_single_as_iaddress(
                 let v: InstructionAddress = state.read(reg.index).unwrap_or_default();
                 Ok(v.cast_into())
             }
-            _ => read_single_as(state, operand),
+            _ => Err(()),
         },
-        Operand::UnsignedConstant(c) => Ok(InstructionAddress::new(*c as usize)),
+        Operand::UnsignedConstant(_) => Err(()),
         Operand::LabelConstant(c) => Ok(InstructionAddress::new(*c)),
     }
 }

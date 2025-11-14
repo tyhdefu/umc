@@ -2,7 +2,7 @@ use std::iter::repeat_n;
 use std::ops::BitAndAssign;
 use std::{fmt::Display, ops::BitXorAssign};
 
-use crate::vm::types::{CastFrom, UMCAddSub, UMCArithmetic};
+use crate::vm::types::{CastFrom, CastInto, UMCArithmetic};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArbitraryUnsignedInt {
@@ -83,83 +83,15 @@ impl CastFrom<ArbitraryUnsignedInt> for ArbitraryUnsignedInt {
     }
 }
 
-// Casts between integer types
-impl CastFrom<u64> for u32 {
-    fn cast_from(value: &u64) -> Self {
-        *value as u32
-    }
-}
-
-impl CastFrom<ArbitraryUnsignedInt> for u32 {
-    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
-        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
-        compile_error!("Only 32-bit and 64-bit archectures supported");
-
-        value.data.first().copied().map(|v| v as u32).unwrap_or(0)
-    }
-}
-
-impl CastFrom<ArbitraryUnsignedInt> for u64 {
-    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
-        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
-        compile_error!("Only 32-bit and 64-bit archectures supported");
-
-        #[cfg(target_pointer_width = "64")]
-        return value.data.first().copied().map(|v| v as u64).unwrap_or(0);
-
-        #[cfg(target_pointer_width = "32")]
-        {
-            let lower = self.data.get(0).copied().unwrap_or(0) as u64;
-            let upper = self.data.get(1).copied().unwrap_or(0) as u64;
-            return lower + (upper << usize::BITS);
-        }
-    }
-}
-
-impl CastFrom<u32> for u64 {
-    fn cast_from(value: &u32) -> Self {
-        *value as u64
-    }
-}
-
-impl CastFrom<u32> for ArbitraryUnsignedInt {
-    fn cast_from(value: &u32) -> Self {
-        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
-        compile_error!("Only 32-bit and 64-bit archectures supported");
-
-        Self {
-            bits: 32,
-            data: vec![*value as usize],
-        }
-    }
-}
-
-impl CastFrom<u64> for ArbitraryUnsignedInt {
-    fn cast_from(value: &u64) -> Self {
-        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
-        compile_error!("Only 32-bit and 64-bit archectures supported");
-
-        Self {
-            bits: 64,
-            #[cfg(target_pointer_width = "64")]
-            data: vec![*value as usize],
-            #[cfg(target_pointer_width = "32")]
-            data: vec![*value >> 32 as usize, *value as usize],
-        }
-    }
-}
-
-impl UMCAddSub for u32 {
+impl UMCArithmetic for u32 {
     fn add(&mut self, rhs: &Self) {
-        *self = u32::wrapping_add(*self, *rhs)
+        *self = self.wrapping_add(*rhs)
     }
 
     fn sub(&mut self, rhs: &Self) {
-        todo!()
+        *self = self.wrapping_sub(*rhs)
     }
-}
 
-impl UMCArithmetic for u32 {
     fn not(&mut self) {
         *self = !*self
     }
@@ -170,20 +102,18 @@ impl UMCArithmetic for u32 {
 
     fn xor(&mut self, rhs: &Self) {
         self.bitxor_assign(rhs);
-    }
-}
-
-impl UMCAddSub for u64 {
-    fn add(&mut self, rhs: &Self) {
-        *self = Self::wrapping_add(*self, *rhs)
-    }
-
-    fn sub(&mut self, rhs: &Self) {
-        *self = Self::wrapping_sub(*self, *rhs)
     }
 }
 
 impl UMCArithmetic for u64 {
+    fn add(&mut self, rhs: &Self) {
+        *self = self.wrapping_add(*rhs)
+    }
+
+    fn sub(&mut self, rhs: &Self) {
+        *self = self.wrapping_sub(*rhs)
+    }
+
     fn not(&mut self) {
         *self = !*self
     }
@@ -197,7 +127,7 @@ impl UMCArithmetic for u64 {
     }
 }
 
-impl UMCAddSub for ArbitraryUnsignedInt {
+impl UMCArithmetic for ArbitraryUnsignedInt {
     fn add(&mut self, rhs: &Self) {
         self.data.reserve(rhs.data.len() - self.data.len());
         let mut carry = false;
@@ -222,9 +152,7 @@ impl UMCAddSub for ArbitraryUnsignedInt {
     fn sub(&mut self, rhs: &Self) {
         todo!()
     }
-}
 
-impl UMCArithmetic for ArbitraryUnsignedInt {
     fn not(&mut self) {
         // Any sparse 0s will become non-zero, so fill vec first:
         self.grow_to_max();
@@ -256,5 +184,112 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
             x.bitxor_assign(y);
         }
         self.mask_top();
+    }
+}
+
+// u32 casts
+impl CastFrom<u64> for u32 {
+    fn cast_from(value: &u64) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<ArbitraryUnsignedInt> for u32 {
+    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
+        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+        compile_error!("Only 32-bit and 64-bit archectures supported");
+
+        value.data.first().copied().map(|v| v as u32).unwrap_or(0)
+    }
+}
+
+impl CastFrom<i32> for u32 {
+    fn cast_from(value: &i32) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i64> for u32 {
+    fn cast_from(value: &i64) -> Self {
+        *value as Self
+    }
+}
+
+// u64 casts
+impl CastFrom<ArbitraryUnsignedInt> for u64 {
+    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
+        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+        compile_error!("Only 32-bit and 64-bit archectures supported");
+
+        #[cfg(target_pointer_width = "64")]
+        return value.data.first().copied().map(|v| v as u64).unwrap_or(0);
+
+        #[cfg(target_pointer_width = "32")]
+        {
+            let lower = self.data.get(0).copied().unwrap_or(0) as u64;
+            let upper = self.data.get(1).copied().unwrap_or(0) as u64;
+            return lower + (upper << usize::BITS);
+        }
+    }
+}
+
+impl CastFrom<u32> for u64 {
+    fn cast_from(value: &u32) -> Self {
+        *value as u64
+    }
+}
+
+impl CastFrom<i32> for u64 {
+    fn cast_from(value: &i32) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i64> for u64 {
+    fn cast_from(value: &i64) -> Self {
+        *value as Self
+    }
+}
+
+// Arbitrary unsigned casts
+
+impl CastFrom<u32> for ArbitraryUnsignedInt {
+    fn cast_from(value: &u32) -> Self {
+        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+        compile_error!("Only 32-bit and 64-bit archectures supported");
+
+        Self {
+            bits: 32,
+            data: vec![*value as usize],
+        }
+    }
+}
+
+impl CastFrom<u64> for ArbitraryUnsignedInt {
+    fn cast_from(value: &u64) -> Self {
+        #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
+        compile_error!("Only 32-bit and 64-bit archectures supported");
+
+        Self {
+            bits: 64,
+            #[cfg(target_pointer_width = "64")]
+            data: vec![*value as usize],
+            #[cfg(target_pointer_width = "32")]
+            data: vec![*value >> 32 as usize, *value as usize],
+        }
+    }
+}
+
+impl CastFrom<i32> for ArbitraryUnsignedInt {
+    fn cast_from(value: &i32) -> Self {
+        let v = *value as u32;
+        v.cast_into()
+    }
+}
+
+impl CastFrom<i64> for ArbitraryUnsignedInt {
+    fn cast_from(value: &i64) -> Self {
+        let v = *value as u64;
+        v.cast_into()
     }
 }

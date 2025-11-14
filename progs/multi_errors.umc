@@ -1,0 +1,6 @@
+mov .X, #100
+jmp .LABEL, #10
+
+.LABEL:
+	dbg #10
+	dbg :1

@@ -67,10 +67,6 @@ pub fn compile_prog(
         }
     }
 
-    if !errors.is_empty() {
-        return Err(errors);
-    }
-
     for statement in ast_prog.into_iter() {
         match ast_to_bytecode(statement.instr.clone(), &labels) {
             Ok(bc) => prog.push(bc),
@@ -120,6 +116,13 @@ pub fn ast_to_bytecode(
             let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
             let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
             Ok(Instruction::And(dst, operand1, operand2))
+        }
+        "sub" => {
+            let [op1, op2, op3] = ops(&instr)?;
+            let dst = parse_dst_reg(&op1)?;
+            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
+            let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
+            Ok(Instruction::Sub(dst, operand1, operand2))
         }
         "xor" => {
             let [op1, op2, op3] = ops(&instr)?;

@@ -1,9 +1,14 @@
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 
 pub mod address;
+pub mod int;
 pub mod uint;
 
-pub trait UMCAddSub {
+pub trait UMCOffset {
+    fn offset(&mut self, offset: isize);
+}
+
+pub trait UMCArithmetic: PartialEq {
     /// Perform addition according to the UMC rules
     /// Silently and safely overflow if needed
     fn add(&mut self, rhs: &Self);
@@ -11,9 +16,7 @@ pub trait UMCAddSub {
     /// Perform subtraction according to the UMC rules
     /// Silently and safely underflow if needed
     fn sub(&mut self, rhs: &Self);
-}
 
-pub trait UMCArithmetic: UMCAddSub + PartialEq {
     /// Bitwise AND
     fn and(&mut self, rhs: &Self);
     /// Bitwise XOR
@@ -23,25 +26,9 @@ pub trait UMCArithmetic: UMCAddSub + PartialEq {
     fn not(&mut self);
 }
 
-pub enum AddSubOp {
+pub enum BinaryArithmeticOp {
     Add,
     Sub,
-}
-
-impl AddSubOp {
-    pub fn operate<T>(&self, a: &mut T, b: &T)
-    where
-        T: UMCAddSub,
-    {
-        match self {
-            AddSubOp::Add => a.add(b),
-            AddSubOp::Sub => a.sub(b),
-        }
-    }
-}
-
-pub enum BinaryArithmeticOp {
-    AddOrSub(AddSubOp),
     And,
     Xor,
 }
@@ -52,18 +39,31 @@ impl BinaryArithmeticOp {
         T: UMCArithmetic,
     {
         match &self {
-            Self::AddOrSub(sub_op) => sub_op.operate(a, b),
+            Self::Add => a.add(b),
+            Self::Sub => a.sub(b),
             Self::And => a.and(b),
             Self::Xor => a.xor(b),
         }
     }
 }
 
-pub trait UMCNum: UMCArithmetic {}
+/// Any non-vector type that can be cast into from an unsigned integer
+pub trait CastSingleUnsigned:
+    CastFrom<u32> + CastFrom<u64> + CastFrom<ArbitraryUnsignedInt>
+{
+}
+impl<T> CastSingleUnsigned for T where
+    T: CastFrom<u32> + CastFrom<u64> + CastFrom<ArbitraryUnsignedInt>
+{
+}
+
+/// Any non-vector type that can be cast into from a signed integer
+pub trait CastSingleSigned: CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/ {}
+impl<T> CastSingleSigned for T where T: CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/ {}
 
 /// Any non-vector type that can be cast between all other types
-pub trait CastSingleAny: CastFrom<u32> + CastFrom<u64> + CastFrom<ArbitraryUnsignedInt> {}
-impl<T> CastSingleAny for T where T: CastFrom<u32> + CastFrom<u64> + CastFrom<ArbitraryUnsignedInt> {}
+pub trait CastSingleAny: CastSingleUnsigned + CastSingleSigned {}
+impl<T> CastSingleAny for T where T: CastSingleUnsigned + CastSingleSigned {}
 
 pub trait CastFrom<T> {
     fn cast_from(value: &T) -> Self;

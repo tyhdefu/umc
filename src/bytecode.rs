@@ -37,6 +37,8 @@ pub enum Instruction {
     Mov(RegOperand, Operand),
     /// Add the two operands and store in destination register
     Add(RegOperand, Operand, Operand),
+    /// Subtract the second operand from the first register
+    Sub(RegOperand, Operand, Operand),
     /// Bitwise AND
     And(RegOperand, Operand, Operand),
     /// Bitwise XOR
@@ -58,6 +60,7 @@ impl Display for Instruction {
         match self {
             Instruction::Mov(dst, op1) => write!(f, "mov {}, {}", dst, op1),
             Instruction::Add(dst, op1, op2) => write!(f, "add {}, {}, {}", dst, op1, op2),
+            Instruction::Sub(dst, op1, op2) => write!(f, "sub {}, {}, {}", dst, op1, op2),
             Instruction::And(dst, op1, op2) => write!(f, "and {}, {}, {}", dst, op1, op2),
             Instruction::Xor(dst, op1, op2) => write!(f, "xor {}, {}, {}", dst, op1, op2),
             Instruction::Jmp(op1) => write!(f, "jmp {}", op1),
