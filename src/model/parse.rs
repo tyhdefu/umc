@@ -3,10 +3,31 @@
 
 use crate::bytecode::{Operand, RegOperand};
 use crate::model::instructions::{
-    AddParams, AnyCoherentNumOp, ConsistentNumOp, InstructionValidateError, MemReg, MovParams,
+    AddParams, AnyCoherentNumOp, ConsistentComparison, ConsistentNumOp, MemReg, MovParams,
     NotParams, NumReg, RegOrConstant,
 };
-use crate::model::{NumRegType, RegType, RegisterSet};
+use crate::model::{NumRegType, RegIndex, RegType, RegisterSet};
+
+pub enum InstructionValidateError {
+    InvalidOpCount {
+        expected: usize,
+        got: usize,
+    },
+    ExpectedDstReg,
+    CannotInferReg {
+        op_index: usize,
+    },
+    InvalidRegType {
+        op_index: usize,
+    },
+    InconsistentOperand {
+        op_index: usize,
+    },
+    /// Operand inconsistent because width narrowing is not allowed implicitly
+    CannotNarrowWidth {
+        op_index: usize,
+    },
+}
 
 impl TryFrom<&[&Operand]> for AddParams {
     type Error = InstructionValidateError;
@@ -192,6 +213,118 @@ impl TryFrom<&[&Operand]> for NotParams {
             }
         } else {
             Err(InstructionValidateError::ExpectedDstReg)
+        }
+    }
+}
+
+impl TryFrom<&[&Operand]> for ConsistentComparison {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let [p1, p2] = ops(value)?;
+
+        let unsigned = |a: RegOrConstant<NumReg, u64>| {
+            let b = match p2 {
+                Operand::Reg(RegOperand {
+                    set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))),
+                    index,
+                }) => RegOrConstant::Reg(NumReg {
+                    index: *index,
+                    width: *width,
+                }),
+                Operand::UnsignedConstant(c) => RegOrConstant::Const(*c),
+                _ => return Err(InstructionValidateError::InconsistentOperand { op_index: 2 }),
+            };
+            Ok(ConsistentComparison::UnsignedCompare(a, b))
+        };
+
+        let signed = |a: RegOrConstant<NumReg, i64>| {
+            let b = match p2 {
+                Operand::Reg(RegOperand {
+                    set: RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))),
+                    index,
+                }) => RegOrConstant::Reg(NumReg {
+                    index: *index,
+                    width: *width,
+                }),
+                Operand::SignedConstant(c) => RegOrConstant::Const(*c),
+                Operand::UnsignedConstant(c) => {
+                    RegOrConstant::Const((*c).try_into().map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 2 }
+                    })?)
+                }
+                _ => return Err(InstructionValidateError::InconsistentOperand { op_index: 2 }),
+            };
+            Ok(ConsistentComparison::SignedCompare(a, b))
+        };
+
+        let float = |a: RegOrConstant<NumReg, f64>| {
+            let b = match p2 {
+                Operand::Reg(RegOperand {
+                    set: RegisterSet::Single(RegType::Num(NumRegType::Float(width))),
+                    index,
+                }) => RegOrConstant::Reg(NumReg {
+                    index: *index,
+                    width: *width,
+                }),
+                Operand::FloatConstant(c) => RegOrConstant::Const(*c),
+                _ => return Err(InstructionValidateError::InconsistentOperand { op_index: 2 }),
+            };
+            Ok(ConsistentComparison::FloatCompare(a, b))
+        };
+
+        let iaddr = |a: RegOrConstant<RegIndex, usize>| {
+            let b = match p2 {
+                Operand::Reg(RegOperand {
+                    set: RegisterSet::Single(RegType::InstructionAddress),
+                    index,
+                }) => RegOrConstant::Reg(*index),
+                Operand::LabelConstant(c) => RegOrConstant::Const(*c),
+                _ => return Err(InstructionValidateError::InconsistentOperand { op_index: 2 }),
+            };
+            Ok(ConsistentComparison::InstrAddressCompare(a, b))
+        };
+
+        match p1 {
+            Operand::Reg(reg) => match &reg.set {
+                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
+                    unsigned(RegOrConstant::Reg(NumReg {
+                        index: reg.index,
+                        width: *width,
+                    }))
+                }
+                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
+                    signed(RegOrConstant::Reg(NumReg {
+                        index: reg.index,
+                        width: *width,
+                    }))
+                }
+                RegisterSet::Single(RegType::Num(NumRegType::Float(width))) => {
+                    float(RegOrConstant::Reg(NumReg {
+                        index: reg.index,
+                        width: *width,
+                    }))
+                }
+                RegisterSet::Single(RegType::InstructionAddress) => {
+                    iaddr(RegOrConstant::Reg(reg.index))
+                }
+                RegisterSet::Single(RegType::MemoryAddress) => {
+                    if let Operand::Reg(RegOperand {
+                        set: RegisterSet::Single(RegType::MemoryAddress),
+                        index,
+                    }) = p2
+                    {
+                        return Ok(Self::MemAddressCompare(reg.index, *index));
+                    } else {
+                        return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
+                    }
+                }
+                RegisterSet::Vector(_, _) => todo!("vector comparison not supported yet"),
+            },
+            Operand::UnsignedConstant(c) => unsigned(RegOrConstant::Const(*c)),
+            Operand::SignedConstant(c) => signed(RegOrConstant::Const(*c)),
+            Operand::FloatConstant(c) => float(RegOrConstant::Const(*c)),
+            Operand::LabelConstant(c) => iaddr(RegOrConstant::Const(*c)),
         }
     }
 }

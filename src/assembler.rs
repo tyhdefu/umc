@@ -5,9 +5,10 @@ use crate::ast::{self, OperandWithLoc};
 use crate::bytecode as bc;
 use crate::bytecode::{Operand, RegOperand};
 use crate::model::instructions::{
-    AnyCoherentNumOp, CompareToZero, InstrReg, Instruction, InstructionValidateError, MovParams,
-    NotParams, NumReg, RegOrConstant,
+    AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, InstrReg, Instruction,
+    MovParams, NotParams, NumReg, RegOrConstant,
 };
+use crate::model::parse::InstructionValidateError;
 use crate::model::{NumRegType, RegType, RegisterSet};
 
 type Loc = RangeInclusive<usize>;
@@ -134,7 +135,7 @@ pub fn ast_to_bytecode(
 
         let mut ops = vec![];
         for o in instr.operands.iter() {
-            let x = parse_reg_or_constant(o, &dst_reg.set, labels)?;
+            let x = parse_reg_or_constant(o, Some(&dst_reg.set), labels)?;
             ops.push(x);
         }
 
@@ -149,6 +150,26 @@ pub fn ast_to_bytecode(
         let refs: Vec<&Operand> = inferred.iter().collect();
         let params = AnyCoherentNumOp::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
         Ok(params)
+    }
+
+    fn comparison_op(
+        instr: &ast::Instruction,
+        labels: &HashMap<String, usize>,
+    ) -> Result<(NumReg, ConsistentComparison), AssembleInstructionError> {
+        let [p0, p1, p2] = ops(instr)?;
+        let dst = parse_dst_reg(p0)?;
+        let num_reg = match dst.set {
+            RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => NumReg {
+                index: dst.index,
+                width,
+            },
+            _ => return Err(AssembleInstructionError::invalid_op_type(&p0)),
+        };
+        let p1 = parse_reg_or_constant(p1, None, labels)?;
+        let p2 = parse_reg_or_constant(p2, None, labels)?;
+        let cmp = ConsistentComparison::try_from([&p1, &p2].as_slice())
+            .map_err(|e| add_ctx(e, &instr))?;
+        Ok((num_reg, cmp))
     }
 
     match instr.opcode.as_str() {
@@ -179,6 +200,38 @@ pub fn ast_to_bytecode(
             let refs: Vec<&Operand> = inferred.iter().collect();
             let params = NotParams::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
             Ok(Instruction::Not(params))
+        }
+        "gt" => {
+            let (dst, args) = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::GreaterThan,
+                dst,
+                args,
+            })
+        }
+        "ge" => {
+            let (dst, args) = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::GreaterThanOrEqualTo,
+                dst,
+                args,
+            })
+        }
+        "lt" => {
+            let (dst, args) = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::LessThan,
+                dst,
+                args,
+            })
+        }
+        "le" => {
+            let (dst, args) = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::LessThanOrEqualTo,
+                dst,
+                args,
+            })
         }
         "jmp" => {
             let [p1] = ops::<1>(&instr)?;
@@ -232,28 +285,35 @@ fn parse_dst_reg(operand: &OperandWithLoc) -> Result<bc::RegOperand, AssembleIns
 
 fn parse_reg_or_constant(
     operand: &OperandWithLoc,
-    infer_as: &RegisterSet,
+    infer_as: Option<&RegisterSet>,
     labels: &HashMap<String, usize>,
 ) -> Result<bc::Operand, AssembleInstructionError> {
     match &operand.0 {
-        ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_as))),
-        ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
-        // Labels are only allowed if we are inferring as the i-address type (destination is an i-address register)
-        ast::Operand::Label(label) => match infer_as {
-            RegisterSet::Single(RegType::InstructionAddress) => {
-                let pc = labels.get(label).ok_or_else(|| {
+        ast::Operand::Reg(reg) => match infer_as {
+            Some(infer_set) => Ok(bc::Operand::Reg(infer_reg(reg.clone(), infer_set))),
+            None => {
+                let set = reg.set.as_ref().ok_or_else(|| {
                     AssembleInstructionError::invalid_op(
-                        InvalidOperandError::UnknownLabel(label.to_owned()),
+                        InvalidOperandError::CannotInferReg,
                         operand,
                     )
                 })?;
-                Ok(bc::Operand::LabelConstant(*pc))
+                Ok(bc::Operand::Reg(RegOperand {
+                    set: set.clone(),
+                    index: reg.index,
+                }))
             }
-            _ => Err(AssembleInstructionError::invalid_op(
-                InvalidOperandError::CannotInferReg,
-                operand,
-            )),
         },
+        ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
+        ast::Operand::Label(label) => {
+            let pc = labels.get(label).ok_or_else(|| {
+                AssembleInstructionError::invalid_op(
+                    InvalidOperandError::UnknownLabel(label.to_owned()),
+                    operand,
+                )
+            })?;
+            Ok(bc::Operand::LabelConstant(*pc))
+        }
     }
 }
 

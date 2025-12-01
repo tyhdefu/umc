@@ -29,7 +29,7 @@ impl ArbitraryUnsignedInt {
         return copy;
     }
 
-    pub fn resize(&mut self, new_bits: u32) {
+    pub fn set_bits(&mut self, new_bits: u32) {
         self.bits = new_bits;
     }
 

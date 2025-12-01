@@ -19,25 +19,48 @@ pub struct NumVecReg {
     pub length: RegWidth,
 }
 
-pub enum InstructionValidateError {
-    InvalidOpCount {
-        expected: usize,
-        got: usize,
+#[derive(Debug)]
+pub enum Instruction {
+    /// Move the operand into the destination register
+    Mov(MovParams),
+
+    /// Add the two operands and store in destination register
+    Add(AnyCoherentNumOp),
+    /// Subtract the second operand from the first register
+    Sub(AnyCoherentNumOp),
+    /// Bitwise AND
+    And(AnyCoherentNumOp),
+
+    /// Bitwise XOR
+    Xor(AnyCoherentNumOp),
+    /// Bitwise Logical NOT
+    Not(NotParams),
+
+    /// Comparison operation
+    /// Stores 1 into destination if true else 0
+    Compare {
+        cond: BinaryCondition,
+        dst: NumReg,
+        args: ConsistentComparison,
     },
-    ExpectedDstReg,
-    CannotInferReg {
-        op_index: usize,
-    },
-    InvalidRegType {
-        op_index: usize,
-    },
-    InconsistentOperand {
-        op_index: usize,
-    },
-    /// Operand inconsistent because width narrowing is not allowed implicitly
-    CannotNarrowWidth {
-        op_index: usize,
-    },
+
+    /// Jump to the given location unconditionally
+    Jmp(RegOrConstant<InstrReg, usize>),
+    /// Conditionally branch to the given location (op1) if the second operand is zero
+    Bz(RegOrConstant<InstrReg, usize>, CompareToZero),
+    /// Conditionally branch to the given location (op1) if the second operand is not zero
+    Bnz(RegOrConstant<InstrReg, usize>, CompareToZero),
+    /// Print the given register (debugging)
+    Dbg(RegOperand),
+}
+
+#[derive(Debug)]
+pub enum BinaryCondition {
+    Equal,
+    GreaterThan,
+    GreaterThanOrEqualTo,
+    LessThan,
+    LessThanOrEqualTo,
 }
 
 #[derive(Clone, Debug)]
@@ -103,13 +126,6 @@ pub enum MovParams {
 pub enum NotParams {
     UnsignedInt(NumReg, RegOrConstant<NumReg, u64>),
     SignedInt(NumReg, RegOrConstant<NumReg, i64>),
-}
-
-#[derive(Debug)]
-pub struct ComparisonParams {
-    /// Unsigned integer register to store 1 or 0 in dependending on the comparison result
-    dst: NumReg,
-    args: ConsistentComparison,
 }
 
 #[derive(Debug)]
@@ -240,30 +256,6 @@ impl RegOrConstant<IntReg, i64> {
     }
 }
 
-#[derive(Debug)]
-pub enum Instruction {
-    /// Move the operand into the destination register
-    Mov(MovParams),
-    /// Add the two operands and store in destination register
-    Add(AnyCoherentNumOp),
-    /// Subtract the second operand from the first register
-    Sub(AnyCoherentNumOp),
-    /// Bitwise AND
-    And(AnyCoherentNumOp),
-    /// Bitwise XOR
-    Xor(AnyCoherentNumOp),
-    /// Bitwise Logical NOT
-    Not(NotParams),
-    /// Jump to the given location unconditionally
-    Jmp(RegOrConstant<InstrReg, usize>),
-    /// Conditionally branch to the given location (op1) if the second operand is zero
-    Bz(RegOrConstant<InstrReg, usize>, CompareToZero),
-    /// Conditionally branch to the given location (op1) if the second operand is not zero
-    Bnz(RegOrConstant<InstrReg, usize>, CompareToZero),
-    /// Print the given register (debugging)
-    Dbg(RegOperand),
-}
-
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -273,6 +265,16 @@ impl Display for Instruction {
             Instruction::And(params) => write!(f, "and {}", params),
             Instruction::Xor(params) => write!(f, "xor {}", params),
             Instruction::Not(params) => write!(f, "not {}", params),
+            Instruction::Compare { cond, dst, args } => {
+                let opcode = match cond {
+                    BinaryCondition::Equal => "eq",
+                    BinaryCondition::GreaterThan => "gt",
+                    BinaryCondition::GreaterThanOrEqualTo => "ge",
+                    BinaryCondition::LessThan => "lt",
+                    BinaryCondition::LessThanOrEqualTo => "le",
+                };
+                write!(f, "{opcode} u{dst}, {args}")
+            }
             Instruction::Jmp(reg_or_constant) => write!(f, "jmp {}", reg_or_constant),
             Instruction::Bz(reg_or_constant, compare_to_zero) => {
                 write!(f, "bz {}, {}", reg_or_constant, compare_to_zero)
@@ -363,6 +365,18 @@ impl Display for NotParams {
             NotParams::SignedInt(num_reg, reg_or_constant) => {
                 write!(f, "i{}, {}", num_reg, reg_or_constant)
             }
+        }
+    }
+}
+
+impl Display for ConsistentComparison {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Self::UnsignedCompare(p1, p2) => write!(f, "{p1}, {p2}"),
+            Self::SignedCompare(p1, p2) => write!(f, "{p1}, {p2}"),
+            Self::FloatCompare(p1, p2) => write!(f, "{p1}, {p2}"),
+            Self::MemAddressCompare(i1, i2) => write!(f, "a:{i1}, a:{i2}"),
+            Self::InstrAddressCompare(p1, p2) => write!(f, "{p1}, {p2}"),
         }
     }
 }

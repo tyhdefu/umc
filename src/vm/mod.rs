@@ -6,7 +6,7 @@ mod helper;
 #[cfg(test)]
 mod test;
 
-use crate::model::instructions::{Instruction, NumReg, RegOrConstant};
+use crate::model::instructions::{BinaryCondition, Instruction, NumReg, RegOrConstant};
 use crate::model::{NumRegType, RegIndex, RegType, RegWidth, RegisterSet};
 use crate::vm::state::RegState;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
@@ -73,6 +73,9 @@ impl VirtualMachine {
             }
             Instruction::Not(params) => {
                 helper::execute_not(params, &mut self.state);
+            }
+            Instruction::Compare { cond, dst, args } => {
+                helper::execute_comparison(cond, dst, args, &mut self.state);
             }
             Instruction::Jmp(p) => {
                 let to = helper::read_iaddr(p, &self.state);

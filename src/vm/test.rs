@@ -148,3 +148,29 @@ fn widening_add() {
     let v: u64 = vm.inspect_uint(1, u64::BITS);
     assert_eq!(v, 11);
 }
+
+#[test]
+fn compare_uints() {
+    const PROG: &str = "
+        mov u32:0, #5
+        mov u32:1, #0
+
+        gt u32:3, u32:0, u32:1
+        dbg u32:3
+
+        le u1:0, u32:5, u32:5
+        dbg u1:0
+
+        lt u1:1, #10, u32:0
+        dbg u1:1
+    ";
+    let vm = compile_and_run(PROG);
+    let u32_3: u32 = vm.inspect_uint(3, u32::BITS);
+    assert_eq!(u32_3, 1);
+
+    let u1_0: u32 = vm.inspect_uint(0, 1);
+    assert_eq!(u1_0, 1);
+
+    let u1_1: u32 = vm.inspect_uint(1, 1);
+    assert_eq!(u1_1, 0)
+}
