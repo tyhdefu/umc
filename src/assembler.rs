@@ -3,8 +3,12 @@ use std::ops::RangeInclusive;
 
 use crate::ast::{self, OperandWithLoc};
 use crate::bytecode as bc;
-use crate::bytecode::{Instruction, RegOperand};
-use crate::model::{RegType, RegisterSet};
+use crate::bytecode::{Operand, RegOperand};
+use crate::model::instructions::{
+    AnyCoherentNumOp, CompareToZero, InstrReg, Instruction, InstructionValidateError, MovParams,
+    NotParams, NumReg, RegOrConstant,
+};
+use crate::model::{NumRegType, RegType, RegisterSet};
 
 type Loc = RangeInclusive<usize>;
 
@@ -25,6 +29,10 @@ impl AssembleInstructionError {
         Self::InvalidOperand(error, operand.1, operand.2.clone())
     }
 
+    pub fn invalid_op_type(operand: &OperandWithLoc) -> Self {
+        Self::invalid_op(InvalidOperandError::InvalidType, operand)
+    }
+
     pub fn unknown_opcode(instr: &ast::Instruction) -> Self {
         let opcode_loc = *instr.loc.start()..=(instr.loc.start() + instr.opcode.len() - 1); // TODO?
         Self::UnknownOpCode(opcode_loc)
@@ -40,17 +48,39 @@ pub enum InvalidOperandError {
     InvalidType,
 }
 
-impl AssembleError {}
-
 impl AssembleError {
     pub fn bad_instruction(error: AssembleInstructionError, instr: &ast::Instruction) -> Self {
         Self::InvalidInstruction(error, instr.loc.clone())
     }
 }
 
-pub fn compile_prog(
-    ast_prog: Vec<ast::Statement>,
-) -> Result<Vec<bc::Instruction>, Vec<AssembleError>> {
+fn add_ctx(err: InstructionValidateError, instr: &ast::Instruction) -> AssembleInstructionError {
+    let operand_err =
+        |err, index| AssembleInstructionError::invalid_op(err, &instr.operands[index]);
+    let instr_err = match err {
+        InstructionValidateError::InvalidOpCount { expected, got } => {
+            AssembleInstructionError::InvalidOperandCount(expected, got)
+        }
+        InstructionValidateError::ExpectedDstReg => {
+            operand_err(InvalidOperandError::ExpectedDstReg, 0)
+        }
+        InstructionValidateError::CannotInferReg { op_index } => {
+            operand_err(InvalidOperandError::CannotInferReg, op_index)
+        }
+        InstructionValidateError::InvalidRegType { op_index } => {
+            operand_err(InvalidOperandError::InvalidType, op_index)
+        }
+        InstructionValidateError::InconsistentOperand { op_index } => {
+            operand_err(InvalidOperandError::InvalidType, op_index)
+        }
+        InstructionValidateError::CannotNarrowWidth { op_index } => {
+            operand_err(InvalidOperandError::InvalidType, op_index)
+        } // TODO: Assembler-level errors
+    };
+    instr_err
+}
+
+pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Vec<Instruction>, Vec<AssembleError>> {
     let mut labels: HashMap<String, usize> = HashMap::new();
     let mut prog = Vec::new();
 
@@ -91,68 +121,80 @@ fn ops<const N: usize>(
 pub fn ast_to_bytecode(
     instr: ast::Instruction,
     labels: &HashMap<String, usize>,
-) -> Result<bc::Instruction, AssembleInstructionError> {
+) -> Result<Instruction, AssembleInstructionError> {
+    fn infer_ops<'a, const N: usize>(
+        instr: &ast::Instruction,
+        labels: &HashMap<String, usize>,
+    ) -> Result<Vec<Operand>, AssembleInstructionError> {
+        let dst = instr
+            .operands
+            .first()
+            .ok_or(AssembleInstructionError::InvalidOperandCount(N, 0))?;
+        let dst_reg = parse_dst_reg(dst)?;
+
+        let mut ops = vec![];
+        for o in instr.operands.iter() {
+            let x = parse_reg_or_constant(o, &dst_reg.set, labels)?;
+            ops.push(x);
+        }
+
+        Ok(ops)
+    }
+
+    fn coherent_num_op(
+        instr: &ast::Instruction,
+        labels: &HashMap<String, usize>,
+    ) -> Result<AnyCoherentNumOp, AssembleInstructionError> {
+        let inferred = infer_ops::<3>(instr, labels)?;
+        let refs: Vec<&Operand> = inferred.iter().collect();
+        let params = AnyCoherentNumOp::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
+        Ok(params)
+    }
+
     match instr.opcode.as_str() {
         "mov" => {
-            let [op1, op2] = ops(&instr)?;
-            let dst = parse_dst_reg(&op1)?;
-            let operand = parse_reg_or_constant(&op2, &dst.set, labels)?;
-
-            // TODO: that the type of these can be converted to ints
-
-            Ok(Instruction::Mov(dst, operand))
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let params = MovParams::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Mov(params))
         }
         "add" => {
-            let [op1, op2, op3] = ops(&instr)?;
-            let dst = parse_dst_reg(&op1)?;
-            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
-            let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
-
-            Ok(Instruction::Add(dst, operand1, operand2))
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Add(params))
         }
         "and" => {
-            let [op1, op2, op3] = ops(&instr)?;
-            let dst = parse_dst_reg(&op1)?;
-            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
-            let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
-            Ok(Instruction::And(dst, operand1, operand2))
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::And(params))
         }
         "sub" => {
-            let [op1, op2, op3] = ops(&instr)?;
-            let dst = parse_dst_reg(&op1)?;
-            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
-            let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
-            Ok(Instruction::Sub(dst, operand1, operand2))
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Sub(params))
         }
         "xor" => {
-            let [op1, op2, op3] = ops(&instr)?;
-            let dst = parse_dst_reg(&op1)?;
-            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
-            let operand2 = parse_reg_or_constant(&op3, &dst.set, labels)?;
-            Ok(Instruction::Xor(dst, operand1, operand2))
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Xor(params))
         }
         "not" => {
-            let [op1, op2] = ops(&instr)?;
-            let dst = parse_dst_reg(&op1)?;
-            let operand1 = parse_reg_or_constant(&op2, &dst.set, labels)?;
-
-            Ok(Instruction::Not(dst, operand1))
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let params = NotParams::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Not(params))
         }
         "jmp" => {
-            let [op1] = ops(&instr)?;
-            let dst = parse_address_operand(&op1, labels)?;
-            Ok(Instruction::Jmp(dst))
+            let [p1] = ops::<1>(&instr)?;
+            let iaddr_op = parse_iaddress_operand(p1, labels)?;
+            Ok(Instruction::Jmp(iaddr_op))
         }
         "bz" => {
-            let [op1, op2] = ops(&instr)?;
-            let dst = parse_address_operand(&op1, labels)?;
-            let operand1 = parse_int_reg(&op2)?;
+            let [p1, p2] = ops(&instr)?;
+            let dst = parse_iaddress_operand(&p1, labels)?;
+            let operand1 = parse_is_zero(&p2)?;
             Ok(Instruction::Bz(dst, operand1))
         }
         "bnz" => {
-            let [op1, op2] = ops(&instr)?;
-            let dst = parse_address_operand(&op1, labels)?;
-            let operand1 = parse_int_reg(&op2)?;
+            let [p1, p2] = ops(&instr)?;
+            let dst = parse_iaddress_operand(&p1, labels)?;
+            let operand1 = parse_is_zero(&p2)?;
             Ok(Instruction::Bnz(dst, operand1))
         }
         "dbg" => {
@@ -215,63 +257,63 @@ fn parse_reg_or_constant(
     }
 }
 
-fn parse_int_reg(operand: &OperandWithLoc) -> Result<bc::Operand, AssembleInstructionError> {
+fn parse_is_zero(operand: &OperandWithLoc) -> Result<CompareToZero, AssembleInstructionError> {
     match &operand.0 {
-        ast::Operand::Reg(reg) => Ok(bc::Operand::Reg(RegOperand {
-            set: reg
-                .set
-                .as_ref()
-                .ok_or_else(|| {
-                    AssembleInstructionError::invalid_op(
-                        InvalidOperandError::CannotInferReg,
-                        operand,
-                    )
-                })?
-                .clone(),
-            index: reg.index,
-        })),
-        ast::Operand::Constant(c) => Ok(bc::Operand::UnsignedConstant(*c)),
-        ast::Operand::Label(_) => Err(AssembleInstructionError::invalid_op(
-            InvalidOperandError::InvalidType,
-            operand,
-        )),
+        ast::Operand::Reg(reg) => Ok(match &reg.set {
+            Some(RegisterSet::Single(RegType::Num(num))) => match num {
+                NumRegType::UnsignedInt(w) => CompareToZero::Unsigned(RegOrConstant::Reg(NumReg {
+                    index: reg.index,
+                    width: *w,
+                })),
+                NumRegType::SignedInt(w) => CompareToZero::Signed(RegOrConstant::Reg(NumReg {
+                    index: reg.index,
+                    width: *w,
+                })),
+                NumRegType::Float(_) => {
+                    return Err(AssembleInstructionError::invalid_op_type(operand));
+                }
+            },
+            Some(_) => return Err(AssembleInstructionError::invalid_op_type(operand)),
+            None => {
+                return Err(AssembleInstructionError::invalid_op(
+                    InvalidOperandError::CannotInferReg,
+                    operand,
+                ));
+            }
+        }),
+        ast::Operand::Constant(c) => Ok(CompareToZero::Unsigned(RegOrConstant::Const(*c))),
+        ast::Operand::Label(_) => Err(AssembleInstructionError::invalid_op_type(operand)),
     }
 }
 
-fn parse_address_operand(
+fn parse_iaddress_operand(
     operand: &OperandWithLoc,
     labels: &HashMap<String, usize>,
-) -> Result<bc::Operand, AssembleInstructionError> {
+) -> Result<RegOrConstant<InstrReg, usize>, AssembleInstructionError> {
     match &operand.0 {
-        ast::Operand::Reg(reg) => match &reg.set {
+        ast::Operand::Reg(reg) => match reg.set {
             Some(RegisterSet::Single(RegType::InstructionAddress)) => {
-                Ok(bc::Operand::Reg(RegOperand {
-                    set: RegisterSet::Single(RegType::InstructionAddress),
-                    index: reg.index,
-                }))
+                Ok(RegOrConstant::Reg(reg.index))
             }
             Some(_) => Err(AssembleInstructionError::invalid_op(
                 InvalidOperandError::InvalidType,
                 operand,
             )),
             None => Err(AssembleInstructionError::invalid_op(
-                InvalidOperandError::CannotInferReg,
+                InvalidOperandError::InvalidType,
                 operand,
-            )), // TODO: Could infer as address register?
+            )),
         },
         ast::Operand::Constant(_) => Err(AssembleInstructionError::invalid_op(
             InvalidOperandError::InvalidType,
             operand,
         )),
-        ast::Operand::Label(label) => {
-            let pc = labels.get(label).ok_or_else(|| {
-                AssembleInstructionError::invalid_op(
-                    InvalidOperandError::UnknownLabel(label.to_owned()),
-                    operand,
-                )
-            })?;
-            Ok(bc::Operand::LabelConstant(*pc))
-        }
+        ast::Operand::Label(l) => Ok(RegOrConstant::Const(*labels.get(l).ok_or_else(|| {
+            AssembleInstructionError::invalid_op(
+                InvalidOperandError::UnknownLabel(l.to_owned()),
+                operand,
+            )
+        })?)),
     }
 }
 

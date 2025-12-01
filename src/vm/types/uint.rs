@@ -4,7 +4,7 @@ use std::{fmt::Display, ops::BitXorAssign};
 
 use crate::vm::types::{CastFrom, CastInto, UMCArithmetic};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ArbitraryUnsignedInt {
     bits: u32,
     // Least significant values first
@@ -60,6 +60,35 @@ impl ArbitraryUnsignedInt {
 impl Default for ArbitraryUnsignedInt {
     fn default() -> Self {
         Self::new(0)
+    }
+}
+
+impl PartialEq for ArbitraryUnsignedInt {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for ArbitraryUnsignedInt {}
+
+impl PartialOrd for ArbitraryUnsignedInt {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ArbitraryUnsignedInt {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        for i in 0..(self.data.len().max(other.data.len())) {
+            let x1 = self.data.get(i).copied().unwrap_or(0);
+            let x2 = other.data.get(i).copied().unwrap_or(0);
+            let cmp = x1.cmp(&x2);
+            match cmp {
+                std::cmp::Ordering::Equal => continue,
+                v => return v,
+            }
+        }
+        std::cmp::Ordering::Equal
     }
 }
 

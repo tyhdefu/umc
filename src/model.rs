@@ -1,4 +1,8 @@
 //! Shared between AST and Bytecode
+
+pub mod instructions;
+pub mod parse;
+
 use std::fmt::Display;
 use std::str::FromStr;
 

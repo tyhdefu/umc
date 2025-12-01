@@ -105,4 +105,13 @@ mod test {
 
         assert_eq!(x.data(), &[2, 1])
     }
+
+    #[test]
+    fn test_add_overflow_u3() {
+        let mut x = ArbitraryUnsignedInt::new(3);
+        x.add(&5u32.cast_into());
+        x.add(&5u32.cast_into());
+
+        assert_eq!(x.data(), &[2])
+    }
 }

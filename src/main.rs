@@ -5,15 +5,16 @@ use std::ops::Range;
 
 use annotate_snippets::Renderer;
 use annotate_snippets::{AnnotationKind, Group, Level, Snippet};
-use bytecode::Instruction;
-use bytecode::Operand;
-use bytecode::RegOperand;
 use lalrpop_util::lalrpop_mod;
 use vm::VirtualMachine;
 
 use crate::assembler::{AssembleError, AssembleInstructionError, InvalidOperandError};
-use crate::model::NumRegType;
-use crate::model::RegisterSet;
+use crate::bytecode::RegOperand;
+use crate::model::instructions::{
+    AnyCoherentNumOp, ConsistentNumOp, Instruction, MovParams, NumReg, RegOrConstant,
+};
+use crate::model::{NumRegType, RegType};
+use crate::model::{RegisterSet, instructions};
 
 lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 
@@ -28,13 +29,16 @@ mod vm;
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() == 2 {
-        execute_program(&args[1]);
+        let prog_str = std::fs::read_to_string(&args[1]).expect("Failed to read file");
+        let prog_bc = assemble_prog(&prog_str).expect("Compilation Failed");
+        println!("Executing program");
+        VirtualMachine::new(prog_bc).execute();
     } else {
         dummy_program();
     }
 }
-fn execute_program(file: &str) {
-    let prog_str = std::fs::read_to_string(file).expect("Failed to read file");
+
+pub fn assemble_prog(prog_str: &str) -> Result<Vec<instructions::Instruction>, ()> {
     let prog_parser = grammar::ProgramParser::new();
 
     let ast_prog = match prog_parser.parse(&prog_str) {
@@ -43,7 +47,7 @@ fn execute_program(file: &str) {
             let renderer = Renderer::styled();
             let report = format_syntax_error(e, &prog_str);
             eprintln!("{}", renderer.render(&report));
-            return;
+            return Err(());
         }
     };
 
@@ -51,13 +55,11 @@ fn execute_program(file: &str) {
         Ok(p) => p,
         Err(errors) => {
             display_errors(&prog_str, errors);
-            return;
+            return Err(());
         }
     };
     println!("Compilation Successful");
-
-    println!("Executing program");
-    VirtualMachine::new(prog_bc).execute();
+    Ok(prog_bc)
 }
 
 fn display_errors(prog: &str, errors: Vec<AssembleError>) {
@@ -73,25 +75,37 @@ fn display_errors(prog: &str, errors: Vec<AssembleError>) {
 }
 
 fn dummy_program() {
-    let regset = RegisterSet::single_num(NumRegType::UnsignedInt(64));
-    let reg0 = RegOperand {
-        set: regset.clone(),
+    let reg0 = NumReg {
         index: 0,
+        width: u64::BITS,
     };
-    let reg1 = RegOperand {
-        set: regset.clone(),
+    let reg1 = NumReg {
         index: 1,
+        width: u64::BITS,
     };
-    let reg2 = RegOperand {
-        set: regset,
+    let reg2 = NumReg {
         index: 2,
+        width: u64::BITS,
     };
 
     let mut vm = VirtualMachine::new(vec![
-        Instruction::Mov(reg0.clone(), Operand::UnsignedConstant(5)),
-        Instruction::Mov(reg1.clone(), Operand::UnsignedConstant(10)),
-        Instruction::Add(reg2.clone(), Operand::Reg(reg0), Operand::Reg(reg1)),
-        Instruction::Dbg(reg2),
+        Instruction::Mov(MovParams::UnsignedInt(
+            reg0.clone(),
+            RegOrConstant::Const(5),
+        )),
+        Instruction::Mov(MovParams::UnsignedInt(
+            reg1.clone(),
+            RegOrConstant::Const(10),
+        )),
+        Instruction::Add(AnyCoherentNumOp::UnsignedInt(ConsistentNumOp::Single(
+            reg2,
+            RegOrConstant::Reg(reg1),
+            RegOrConstant::Reg(reg0),
+        ))),
+        Instruction::Dbg(RegOperand {
+            set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(u64::BITS))),
+            index: 2,
+        }),
     ]);
     vm.execute();
 }

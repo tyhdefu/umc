@@ -1,0 +1,218 @@
+//! Translate unvalidated Instruction-Operand form to a form
+//! that is guaranteed to execute
+
+use crate::bytecode::{Operand, RegOperand};
+use crate::model::instructions::{
+    AddParams, AnyCoherentNumOp, ConsistentNumOp, InstructionValidateError, MemReg, MovParams,
+    NotParams, NumReg, RegOrConstant,
+};
+use crate::model::{NumRegType, RegType, RegisterSet};
+
+impl TryFrom<&[&Operand]> for AddParams {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let ops: &[&Operand; 3] = ops(value)?;
+        let reg_op = match ops[0] {
+            Operand::Reg(reg_op) => reg_op,
+            _ => return Err(InstructionValidateError::ExpectedDstReg),
+        };
+        Ok(match &reg_op.set {
+            RegisterSet::Single(RegType::Num(_)) | RegisterSet::Vector(RegType::Num(_), _) => {
+                match AnyCoherentNumOp::try_from(value)? {
+                    AnyCoherentNumOp::UnsignedInt(num_op) => Self::UnsignedInt(num_op),
+                    AnyCoherentNumOp::SignedInt(num_op) => Self::SignedInt(num_op),
+                    AnyCoherentNumOp::Float(num_op) => Self::Float(num_op),
+                }
+            }
+            RegisterSet::Single(RegType::MemoryAddress) => {
+                let p1 = require_mem_reg(ops[1])
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+                let p2 = RegOrConstant::from_int(ops[2])
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
+                Self::MemAddress(reg_op.index, p1, p2)
+            }
+            RegisterSet::Single(RegType::InstructionAddress) => {
+                let p1 = RegOrConstant::from_instr_addr(ops[1])
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+                let p2 = RegOrConstant::from_int(ops[2])
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
+                Self::InstrAddress(reg_op.index, p1, p2)
+            }
+            RegisterSet::Vector(_, _) => todo!(),
+        })
+    }
+}
+
+impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let ops: &[&Operand; 3] = ops(value)?;
+        let reg_op = match ops[0] {
+            Operand::Reg(reg_op) => reg_op,
+            _ => return Err(InstructionValidateError::ExpectedDstReg),
+        };
+        match &reg_op.set {
+            RegisterSet::Single(reg_type) => match reg_type {
+                RegType::Num(num_reg) => match num_reg {
+                    NumRegType::UnsignedInt(w) => {
+                        let p1 = RegOrConstant::from_unsigned(ops[1])
+                            .map_err(|_| Self::Error::InconsistentOperand { op_index: 1 })?;
+                        let p2 = RegOrConstant::from_unsigned(ops[2])
+                            .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
+                        Ok(Self::UnsignedInt(ConsistentNumOp::Single(
+                            NumReg {
+                                index: reg_op.index,
+                                width: *w,
+                            },
+                            p1,
+                            p2,
+                        )))
+                    }
+                    NumRegType::SignedInt(w) => {
+                        let p1 = RegOrConstant::from_signed(ops[1])
+                            .map_err(|_| Self::Error::InconsistentOperand { op_index: 1 })?;
+                        let p2 = RegOrConstant::from_signed(ops[2])
+                            .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
+                        Ok(Self::SignedInt(ConsistentNumOp::Single(
+                            NumReg {
+                                index: reg_op.index,
+                                width: *w,
+                            },
+                            p1,
+                            p2,
+                        )))
+                    }
+                    NumRegType::Float(w) => {
+                        let p1 = RegOrConstant::from_float(ops[1])
+                            .map_err(|_| Self::Error::InconsistentOperand { op_index: 1 })?;
+                        let p2 = RegOrConstant::from_float(ops[2])
+                            .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
+                        Ok(Self::Float(ConsistentNumOp::Single(
+                            NumReg {
+                                index: reg_op.index,
+                                width: *w,
+                            },
+                            p1,
+                            p2,
+                        )))
+                    }
+                },
+                _ => Err(Self::Error::InvalidRegType { op_index: 0 }),
+            },
+            RegisterSet::Vector(reg_type, _) => match reg_type {
+                RegType::Num(num_reg) => match num_reg {
+                    NumRegType::UnsignedInt(_) => todo!(),
+                    NumRegType::SignedInt(_) => todo!(),
+                    NumRegType::Float(_) => todo!(),
+                },
+                _ => Err(Self::Error::InvalidRegType { op_index: 0 }),
+            },
+        }
+    }
+}
+
+impl TryFrom<&[&Operand]> for MovParams {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let [p1, p2] = ops(value)?;
+
+        match p1 {
+            Operand::Reg(reg) => consistent_operand(reg, p2),
+            _ => Err(InstructionValidateError::ExpectedDstReg),
+        }
+    }
+}
+
+fn consistent_operand(
+    dst: &RegOperand,
+    p: &Operand,
+) -> Result<MovParams, InstructionValidateError> {
+    match &dst.set {
+        RegisterSet::Single(RegType::Num(num_type)) => match num_type {
+            NumRegType::UnsignedInt(w) => match p {
+                Operand::Reg(RegOperand {
+                    index: i2,
+                    set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w2))),
+                }) => {
+                    if w2 > w {
+                        return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
+                    }
+                    Ok(MovParams::UnsignedInt(
+                        NumReg {
+                            index: dst.index,
+                            width: *w,
+                        },
+                        RegOrConstant::Reg(NumReg {
+                            index: *i2,
+                            width: *w,
+                        }),
+                    ))
+                }
+                Operand::UnsignedConstant(c) => Ok(MovParams::UnsignedInt(
+                    NumReg {
+                        index: dst.index,
+                        width: *w,
+                    },
+                    RegOrConstant::Const(*c),
+                )),
+                _ => Err(InstructionValidateError::InconsistentOperand { op_index: 1 }),
+            },
+            NumRegType::SignedInt(_) => todo!("signed operands not implemented yet"),
+            NumRegType::Float(_) => todo!(),
+        },
+        RegisterSet::Single(RegType::InstructionAddress) => match p {
+            Operand::Reg(r) => Ok(MovParams::InstrAddress(
+                dst.index,
+                RegOrConstant::Reg(r.index),
+            )),
+            Operand::LabelConstant(l) => {
+                Ok(MovParams::InstrAddress(dst.index, RegOrConstant::Const(*l)))
+            }
+            _ => Err(InstructionValidateError::InconsistentOperand { op_index: 1 }),
+        },
+        RegisterSet::Single(RegType::MemoryAddress) => todo!(),
+        RegisterSet::Vector(_, _) => todo!("vector operands not implemented yet!"),
+    }
+}
+
+impl TryFrom<&[&Operand]> for NotParams {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let [dst, p] = ops(value)?;
+        if let Operand::Reg(r) = dst {
+            let params = consistent_operand(r, p)?;
+            match params {
+                MovParams::UnsignedInt(d, p) => Ok(NotParams::UnsignedInt(d, p)),
+                MovParams::SignedInt(d, p) => Ok(NotParams::SignedInt(d, p)),
+                _ => Err(InstructionValidateError::InvalidRegType { op_index: 0 }),
+            }
+        } else {
+            Err(InstructionValidateError::ExpectedDstReg)
+        }
+    }
+}
+
+fn ops<'a, const N: usize>(
+    slice: &'a [&'a Operand],
+) -> Result<&'a [&'a Operand; N], InstructionValidateError> {
+    slice
+        .try_into()
+        .map_err(|_| InstructionValidateError::InvalidOpCount {
+            expected: N,
+            got: slice.len(),
+        })
+}
+
+fn require_mem_reg(op: &Operand) -> Result<MemReg, ()> {
+    match op {
+        Operand::Reg(reg) => match reg.set {
+            RegisterSet::Single(RegType::MemoryAddress) => Ok(reg.index),
+            _ => Err(()),
+        },
+        _ => Err(()),
+    }
+}

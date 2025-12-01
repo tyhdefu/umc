@@ -1,6 +1,0 @@
-mov u32:0, #100
-mov n:0, .END
-jmp n:0
-
-.END:
-	dbg u32:0

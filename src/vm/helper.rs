@@ -1,147 +1,202 @@
-use crate::bytecode::{Operand, RegOperand};
-use crate::model::{NumRegType, RegIndex, RegType, RegisterSet};
+use std::cmp::Ordering;
+
+use crate::model::instructions::{
+    AnyCoherentNumOp, CompareToZero, ConsistentComparison, ConsistentNumOp, InstrReg, MovParams,
+    NotParams, NumReg, RegOrConstant,
+};
 use crate::vm::state::{ArbStoreFor, RegState, StoreFor};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{BinaryArithmeticOp, CastInto, CastSingleAny, UMCArithmetic, UMCOffset};
+use crate::vm::types::{
+    BinaryArithmeticOp, CastInto, CastSingleSigned, CastSingleUnsigned, UMCArithmetic,
+};
 
-pub fn compute_mov(state: &mut RegState, dst: &RegOperand, src: &Operand) {
-    compute_addsub(state, dst, src, &Operand::UnsignedConstant(0), true);
-}
-
-pub fn compute_addsub(
-    state: &mut RegState,
-    dst_op: &RegOperand,
-    op1: &Operand,
-    op2: &Operand,
-    is_add: bool,
-) {
-    match &dst_op.set {
-        RegisterSet::Single(RegType::Num(num)) => {
-            let arith_op = if is_add {
-                BinaryArithmeticOp::Add
-            } else {
-                BinaryArithmeticOp::Sub
-            };
-            compute_arith(state, &num, dst_op.index, op1, op2, arith_op);
+pub fn execute_mov(params: &MovParams, state: &mut RegState) {
+    match params {
+        MovParams::UnsignedInt(r, reg_or_constant) => {
+            let num_op = AnyCoherentNumOp::UnsignedInt(ConsistentNumOp::Single(
+                r.clone(),
+                reg_or_constant.clone(),
+                RegOrConstant::Const(0),
+            ));
+            execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
-        RegisterSet::Single(RegType::MemoryAddress) => todo!(),
-        RegisterSet::Single(RegType::InstructionAddress) => {
-            let mut v1: InstructionAddress = read_single_as_iaddress(state, op1).unwrap();
-            let mut offset: i64 = read_single_as(state, op2).unwrap(); // TODO: Ideally this should work on 64-bit+ platforms
-
-            if !is_add {
-                offset = -offset;
-            }
-            v1.offset(offset as isize);
-            state.store(dst_op.index, v1);
+        MovParams::SignedInt(r, reg_or_constant) => {
+            let num_op = AnyCoherentNumOp::SignedInt(ConsistentNumOp::Single(
+                r.clone(),
+                reg_or_constant.clone(),
+                RegOrConstant::Const(0),
+            ));
+            execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
-        RegisterSet::Vector(_, _) => todo!(),
-    };
-}
-
-pub fn compute_arith(
-    state: &mut RegState,
-    dst_type: &NumRegType,
-    dst_idx: RegIndex,
-    op1: &Operand,
-    op2: &Operand,
-    operation: BinaryArithmeticOp,
-) {
-    fn comp<T>(
-        state: &mut RegState,
-        idx: RegIndex,
-        op1: &Operand,
-        op2: &Operand,
-        operation: BinaryArithmeticOp,
-    ) where
-        RegState: StoreFor<T>,
-        T: Copy + Default + UMCArithmetic + CastSingleAny,
-    {
-        let mut v1: T = read_single_as(state, op1).unwrap();
-        let v2: T = read_single_as(state, op2).unwrap();
-        operation.operate(&mut v1, &v2);
-        state.store(idx, v1);
-    }
-
-    match dst_type {
-        NumRegType::UnsignedInt(u32::BITS) => comp::<u32>(state, dst_idx, op1, op2, operation),
-        NumRegType::UnsignedInt(u64::BITS) => comp::<u64>(state, dst_idx, op1, op2, operation),
-        NumRegType::UnsignedInt(w) => {
-            let mut v1: ArbitraryUnsignedInt = read_single_as(state, op1).unwrap();
-            let v2: ArbitraryUnsignedInt = read_single_as(state, op2).unwrap();
-            operation.operate(&mut v1, &v2);
-            state.store_arb(dst_idx, *w, v1);
+        MovParams::Float(_, _) => todo!(),
+        MovParams::MemAddress(_, _) => todo!(),
+        MovParams::InstrAddress(dst, p) => {
+            let addr = read_iaddr(p, state);
+            state.store(*dst, addr);
         }
-        NumRegType::SignedInt(i32::BITS) => comp::<i32>(state, dst_idx, op1, op2, operation),
-        NumRegType::SignedInt(i64::BITS) => comp::<i64>(state, dst_idx, op1, op2, operation),
-        NumRegType::SignedInt(_) => todo!(),
-        NumRegType::Float(_) => todo!(),
     }
 }
 
-/// Read a single value and cast it to the specified type if required.
-pub fn read_single_as<'a, T>(state: &'a RegState, operand: &Operand) -> Result<T, ()>
-where
-    T: CastSingleAny + Default,
-{
-    match operand {
-        Operand::Reg(reg) => match &reg.set {
-            RegisterSet::Single(RegType::Num(num)) => {
-                Ok(read_single_num_as::<T>(state, &num, reg.index))
-            }
-            RegisterSet::Single(RegType::InstructionAddress) => Err(()),
-            RegisterSet::Single(RegType::MemoryAddress) => Err(()),
-            RegisterSet::Vector(_, _) => Err(()),
+pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, state: &mut RegState) {
+    match params {
+        AnyCoherentNumOp::UnsignedInt(param_kind) => match param_kind {
+            ConsistentNumOp::Single(dst, p1, p2) => match dst.width {
+                u32::BITS => {
+                    let mut p1: u32 = read_uint(&p1, state);
+                    let p2: u32 = read_uint(&p2, state);
+                    op.operate(&mut p1, &p2);
+                    state.store(dst.index, p1);
+                }
+                u64::BITS => {
+                    let mut p1: u64 = read_uint(&p1, state);
+                    let p2: u64 = read_uint(&p2, state);
+                    op.operate(&mut p1, &p2);
+                    state.store(dst.index, p1);
+                }
+                _ => {
+                    let mut p1: ArbitraryUnsignedInt = read_uint(&p1, state);
+                    let p2: ArbitraryUnsignedInt = read_uint(&p2, state);
+                    p1.resize(dst.width);
+                    op.operate(&mut p1, &p2);
+                    state.store_arb(dst.index, dst.width, p1);
+                }
+            },
+            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
+            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
         },
-        Operand::UnsignedConstant(c) => Ok((*c).cast_into()),
-        Operand::LabelConstant(_) => Err(()),
-    }
-}
-
-pub fn read_single_num_as<T>(state: &RegState, op_type: &NumRegType, idx: RegIndex) -> T
-where
-    T: CastSingleAny + Default,
-{
-    match op_type {
-        NumRegType::UnsignedInt(u32::BITS) => {
-            let v: u32 = state.read(idx).unwrap_or_default();
-            v.cast_into()
-        }
-        NumRegType::UnsignedInt(u64::BITS) => {
-            let v: u64 = state.read(idx).unwrap_or_default();
-            v.cast_into()
-        }
-        NumRegType::UnsignedInt(w) => {
-            let v: ArbitraryUnsignedInt = state.read_arb(idx, *w).cloned().unwrap_or_default();
-            v.cast_into()
-        }
-        NumRegType::SignedInt(i32::BITS) => {
-            let v: i32 = state.read(idx).unwrap_or_default();
-            v.cast_into()
-        }
-        NumRegType::SignedInt(i64::BITS) => {
-            let v: i64 = state.read(idx).unwrap_or_default();
-            v.cast_into()
-        }
-        NumRegType::SignedInt(_) => todo!(),
-        NumRegType::Float(_) => todo!(),
-    }
-}
-
-pub fn read_single_as_iaddress(
-    state: &RegState,
-    operand: &Operand,
-) -> Result<InstructionAddress, ()> {
-    match operand {
-        Operand::Reg(reg) => match reg.set {
-            RegisterSet::Single(RegType::InstructionAddress) => {
-                let v: InstructionAddress = state.read(reg.index).unwrap_or_default();
-                Ok(v.cast_into())
-            }
-            _ => Err(()),
+        AnyCoherentNumOp::SignedInt(param_kind) => match param_kind {
+            ConsistentNumOp::Single(dst, p1, p2) => match dst.width {
+                i32::BITS => {
+                    let mut p1: i32 = read_int(&p1, state);
+                    let p2: i32 = read_int(&p2, state);
+                    op.operate(&mut p1, &p2);
+                    state.store(dst.index, p1);
+                }
+                i64::BITS => {
+                    let mut p1: i32 = read_int(&p1, state);
+                    let p2: i32 = read_int(&p2, state);
+                    op.operate(&mut p1, &p2);
+                    state.store(dst.index, p1);
+                }
+                _ => todo!(),
+            },
+            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
+            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
         },
-        Operand::UnsignedConstant(_) => Err(()),
-        Operand::LabelConstant(c) => Ok(InstructionAddress::new(*c)),
+        AnyCoherentNumOp::Float(_) => todo!(),
+    }
+}
+
+fn execute_comparison(comparison: &ConsistentComparison, state: &RegState) -> Option<Ordering> {
+    match comparison {
+        ConsistentComparison::UnsignedCompare(op1, op2) => {
+            let width = op1.width().or(op2.width()).unwrap_or(u64::BITS);
+            match width {
+                w if w <= u32::BITS => {
+                    let v1: u32 = read_uint(op1, state);
+                    let v2: u32 = read_uint(op2, state);
+                    v1.partial_cmp(&v2)
+                }
+                w if w < u64::BITS => {
+                    let v1: u64 = read_uint(op1, state);
+                    let v2: u64 = read_uint(op2, state);
+                    v1.partial_cmp(&v2)
+                }
+                _ => {
+                    let v1: ArbitraryUnsignedInt = read_uint(op1, state);
+                    let v2: ArbitraryUnsignedInt = read_uint(op2, state);
+                    v1.partial_cmp(&v2)
+                }
+            }
+        }
+        ConsistentComparison::SignedCompare(op1, op2) => todo!(),
+        ConsistentComparison::FloatCompare(op1, op2) => todo!(),
+        ConsistentComparison::MemAddressCompare(op1, op2) => todo!(),
+        ConsistentComparison::InstrAddressCompare(op1, op2) => todo!(),
+    }
+}
+
+pub fn execute_not(params: &NotParams, state: &mut RegState) {
+    match params {
+        NotParams::UnsignedInt(d, p1) => match d.width {
+            u32::BITS => {
+                let mut v: u32 = read_uint(p1, state);
+                v.not();
+                state.store(d.index, v);
+            }
+            u64::BITS => {
+                let mut v: u64 = read_uint(p1, state);
+                v.not();
+                state.store(d.index, v);
+            }
+            _ => {
+                let mut v: ArbitraryUnsignedInt = read_uint(p1, state);
+                v.not();
+                state.store_arb(d.index, d.width, v);
+            }
+        },
+        NotParams::SignedInt(..) => todo!(),
+    }
+}
+
+pub fn read_uint<T>(op: &RegOrConstant<NumReg, u64>, state: &RegState) -> T
+where
+    T: CastSingleUnsigned,
+{
+    match op {
+        RegOrConstant::Reg(num_reg) => match num_reg.width {
+            u32::BITS => {
+                let v: u32 = state.read(num_reg.index).unwrap_or_default();
+                v.cast_into()
+            }
+            u64::BITS => {
+                let v: u64 = state.read(num_reg.index).unwrap_or_default();
+                v.cast_into()
+            }
+            _ => {
+                let v: &ArbitraryUnsignedInt = state
+                    .read_arb(num_reg.index, num_reg.width)
+                    .unwrap_or(ArbitraryUnsignedInt::ZERO_REF);
+                v.cast_into()
+            }
+        },
+        RegOrConstant::Const(c) => c.cast_into(),
+    }
+}
+
+pub fn read_int<T>(op: &RegOrConstant<NumReg, i64>, state: &RegState) -> T
+where
+    T: CastSingleSigned,
+{
+    match op {
+        RegOrConstant::Reg(num_reg) => match num_reg.width {
+            i32::BITS => {
+                let v: i32 = state.read(num_reg.index).unwrap_or_default();
+                v.cast_into()
+            }
+            i64::BITS => {
+                let v: i64 = state.read(num_reg.index).unwrap_or_default();
+                v.cast_into()
+            }
+            _ => {
+                todo!();
+            }
+        },
+        RegOrConstant::Const(c) => c.cast_into(),
+    }
+}
+
+pub fn read_iaddr(p: &RegOrConstant<InstrReg, usize>, state: &RegState) -> InstructionAddress {
+    match p {
+        RegOrConstant::Reg(r) => state.read(*r).unwrap_or_default(),
+        RegOrConstant::Const(c) => InstructionAddress::new(*c),
+    }
+}
+
+pub fn is_zero(p: &CompareToZero, state: &RegState) -> bool {
+    match p {
+        CompareToZero::Unsigned(r) => read_uint::<u32>(r, state) == 0,
+        CompareToZero::Signed(r) => read_int::<i32>(r, state) == 0,
     }
 }

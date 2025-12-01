@@ -1,23 +1,23 @@
 .FIB:
-  mov u32:0, #7
-  bz .END, u32:0
+  mov u64:0, #30
+  bz .END, u64:0
 
-  mov u32:1, #0 ; int cur = 0
-  mov u32:2, #1 ; int next = 1
-  mov u32:3, #0 ; int i = 0
+  mov u64:1, #0 ; int cur = 0
+  mov u64:2, #1 ; int next = 1
+  mov u64:3, #0 ; int i = 0
 
-.LOOP: ; u32:3 next (TODO: Allow comment right after label)
-  mov u32:4, u32:2        ; int next2 = next
-  add u32:4, u32:4, u32:1 ; next2 += cur
-  mov u32:1, u32:2        ; cur = next
-  mov u32:2, u32:4        ; next = next2
-  add u32:3, u32:3, #1
+.LOOP: ; u64:3 next (TODO: Allow comment right after label)
+  mov u64:4, u64:2        ; int next2 = next
+  add u64:4, u64:4, u64:1 ; next2 += cur
+  mov u64:1, u64:2        ; cur = next
+  mov u64:2, u64:4        ; next = next2
+  add u64:3, u64:3, #1
 
-  dbg u32:3
-  dbg u32:0
+  dbg u64:3
+  dbg u64:0
 
-  xor u32:8, u32:3, u32:0 ; Compare :3 and :0
-  bnz .LOOP, u32:8
+  xor u64:8, u64:3, u64:0 ; Compare :3 and :0
+  bnz .LOOP, u64:8
 .END:
-  dbg u32:1
+  dbg u64:1
 
