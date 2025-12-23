@@ -5,7 +5,6 @@
 | --------- | --------- | --------- | --------- | ----------- |
 | `mov`     | Reg       | Any       |           | Sets op1 = op2 |
 | `cast`    | Reg       | Any       |           | Sets op1 = op2, casting |
-
 | `bcast`   | Integer Reg | Reg     |           | Bit / Reinterpret cast |
 | `abs`     | Numeric   | Signed Numeric | | Gets positive value |
 
