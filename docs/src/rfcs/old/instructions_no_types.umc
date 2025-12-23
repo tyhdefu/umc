@@ -1,0 +1,34 @@
+
+add  r0:32, $100
+adds r0:32, r1:32, r2:32 $-100
+
+neg r0:32, r0:32
+sub r3:32, r2:32, r1:32 # r3 = r2 - r1, signed/unsigned doesn't matter
+
+mul  r3:32, r2:32, r1:32
+muls r3:32, r2:32, r1:32
+mul  r3:64, r2:32, r2:32
+muls r3:64, r2:32, r2:32
+
+div  u3:32, u2:32, u1:32
+divs u3:32, u2:32, u1:32
+
+; Bitwise - Sign not relevant
+and r3:32, r2:32, r1:32
+not r3:32, r2:32, r1:32
+or  r3:32, r2:32, r1:32
+xor r3:32, r2:32, r1:32
+
+; Shifts
+
+sll r3:32, r2:32, r1:32 ; Logical left shift
+slr r3:32, r2:32, r1:32 ; Logical right shift
+
+sra r3:32, r2:32, r1:32 ; Arithmetic left shift
+; No arithmetic right shift
+
+load  r3:32, 0xDEADBEEF ; Load 32 bits into register
+store 0xDEADBEEF, r3:32 ; Store 32 bits into memory
+
+
+ 

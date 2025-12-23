@@ -1,0 +1,8 @@
+[book]
+authors = ["James Hendry"]
+language = "en"
+src = "src"
+title = "Universal Machine Code Docs"
+
+[output.html]
+mathjax-support = true

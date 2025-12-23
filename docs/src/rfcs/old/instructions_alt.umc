@@ -1,0 +1,49 @@
+;;;; TYPED INSTRUCTION PROTOTYPE
+
+; Pros:
+; No implicit casting since independent register sets
+;  - Vector registers can't be reshaped
+;  - No undefined behaviour
+
+; Cons:
+; %1 and %1 in different instructions, makes it hard to read
+;  - This code is mostly going to be generated anyway
+; Some instructions are supposed to have different types:
+;  - load [u32] a0
+;  - vector broadcast
+
+; Memory leak of registers?
+
+fib:
+  ; i0:32 (n)
+  b   [i32] %0 < #0, .L4
+  mov [u32] %0, #0 ; int cur = 0
+  mov [u32] %1, #1 ; int next = 1
+  mov [u32] %2, #0 ; int i = 0
+.L3:
+  ; u3: next
+  mov [u32] %3, %2     ; int next2 = next
+  add [u32] %3, %3, #0 ; next2 += cur
+  mov [u32] %0, #1     ; cur = next
+  mov [u32] %2, %3     ; next = next2
+  add [u32] %2, %2, #1 ; i++
+.L4:
+  mov [i32] %0, {u0:32}
+  ret
+
+
+sum:
+  ; a0 - Array of integers
+  ; u0 - Length of the array
+  b    [u32] %0 == 0, .L8 ; If empty, terminate
+  mov  [i32] %1, #0       ; int total = 0
+  shl  [u32] %0, %0, #2   ; Multiply by 4 to get the length in bytes
+  add  [a]   %1, %0, {u0:32} ; end address = start address + length
+.L8:
+  load [u32] %2, [a0] ; Load the memory address
+  add  [i32] %1, %1, {u2:32}
+  add  [a]   %1, %0, {u0:32}
+  b    [a]   %0 == %1, .L8
+.L9:
+  mov [i32]  %0, #0
+  ret
