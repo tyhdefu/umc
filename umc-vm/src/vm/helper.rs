@@ -1,15 +1,15 @@
 use std::cmp::Ordering;
 
-use crate::model::RegWidth;
-use crate::model::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, ConsistentNumOp,
-    InstrReg, MovParams, NotParams, NumReg, RegOrConstant,
-};
 use crate::vm::state::{ArbStoreFor, RegState, StoreFor};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
     BinaryArithmeticOp, CastInto, CastSingleSigned, CastSingleUnsigned, UMCArithmetic,
+};
+use umc_model::RegWidth;
+use umc_model::instructions::{
+    AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, ConsistentNumOp,
+    InstrReg, MovParams, NotParams, NumReg, RegOrConstant,
 };
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {

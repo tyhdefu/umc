@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use crate::bytecode::{Operand, RegOperand};
-use crate::model::{NumRegType, RegIndex, RegType, RegWidth, RegisterSet};
+use crate::operand::{Operand, RegOperand};
+use crate::{NumRegType, RegIndex, RegType, RegWidth, RegisterSet};
 
 pub type MemReg = RegIndex;
 pub type InstrReg = RegIndex;

@@ -1,8 +1,8 @@
 use std::{collections::HashMap, hash::Hash};
 
-use crate::model::{RegIndex, RegWidth};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
+use umc_model::{RegIndex, RegWidth};
 
 pub trait StoreFor<T: Copy> {
     fn read(&self, i: RegIndex) -> Option<T>;

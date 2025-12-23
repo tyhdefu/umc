@@ -1,0 +1,21 @@
+[package]
+name = "umcc"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "umcc"
+path = "src/main.rs"
+
+[lib]
+name = "umc_compiler"
+path = "src/lib.rs"
+
+[dependencies]
+umc-model = {path = "../umc-model"}
+lalrpop-util = { version = "0.22.2", features = ["lexer"] }
+annotate-snippets = { version = "0.12.2" }
+
+# Add a build-time dependency on the lalrpop library:
+[build-dependencies]
+lalrpop = "0.22.2"

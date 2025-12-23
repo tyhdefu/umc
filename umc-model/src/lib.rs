@@ -1,10 +1,16 @@
 //! Shared between AST and Bytecode
 
+pub mod binary;
 pub mod instructions;
+pub mod operand;
 pub mod parse;
 
 use std::fmt::Display;
 use std::str::FromStr;
+
+pub struct Program {
+    pub instructions: Vec<instructions::Instruction>,
+}
 
 /// The type used for how large a register can be
 pub type RegWidth = u32;

@@ -2,8 +2,8 @@ use std::num::ParseIntError;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-use crate::model::RegType;
-use crate::model::RegisterSet;
+use umc_model::RegType;
+use umc_model::RegisterSet;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -26,29 +26,25 @@ impl From<ParseIntError> for ParseRegError {
     }
 }
 
-impl FromStr for RegisterSet {
-    type Err = ParseRegError;
-
-    /// Parse a register set:
-    /// - u32
-    /// - i16
-    /// - f64
-    /// - f32x4
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() {
-            return Err(ParseRegError::InvalidRegisterType);
-        }
-        if s.contains('x') {
-            let (reg_type_str, count) = s.split_once('x').ok_or(ParseRegError::InvalidFormat)?;
-            let reg_type: RegType = reg_type_str
-                .parse()
-                .map_err(|_| ParseRegError::InvalidRegisterType)?;
-            let count: u32 = count.parse()?;
-            Ok(RegisterSet::Vector(reg_type, count))
-        } else {
-            let reg_type: RegType = s.parse().map_err(|_| ParseRegError::InvalidRegisterType)?;
-            Ok(RegisterSet::Single(reg_type))
-        }
+/// Parse a register set:
+/// - u32
+/// - i16
+/// - f64
+/// - f32x4
+fn parse_reg_set(s: &str) -> Result<RegisterSet, ParseRegError> {
+    if s.is_empty() {
+        return Err(ParseRegError::InvalidRegisterType);
+    }
+    if s.contains('x') {
+        let (reg_type_str, count) = s.split_once('x').ok_or(ParseRegError::InvalidFormat)?;
+        let reg_type: RegType = reg_type_str
+            .parse()
+            .map_err(|_| ParseRegError::InvalidRegisterType)?;
+        let count: u32 = count.parse()?;
+        Ok(RegisterSet::Vector(reg_type, count))
+    } else {
+        let reg_type: RegType = s.parse().map_err(|_| ParseRegError::InvalidRegisterType)?;
+        Ok(RegisterSet::Single(reg_type))
     }
 }
 
@@ -69,7 +65,7 @@ impl FromStr for ASTRegisterOperand {
             return Ok(Self { set: None, index });
         }
 
-        let reg_set: RegisterSet = reg_set.parse()?;
+        let reg_set: RegisterSet = parse_reg_set(reg_set)?;
         Ok(Self {
             set: Some(reg_set),
             index,
@@ -102,7 +98,7 @@ pub struct Statement {
 #[cfg(test)]
 mod tests {
     use crate::ast::{ASTRegisterOperand, RegType, RegisterSet};
-    use crate::model::NumRegType;
+    use umc_model::NumRegType;
 
     #[test]
     fn parse_reg_operand_inferred() {

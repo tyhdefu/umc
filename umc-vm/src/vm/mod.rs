@@ -6,11 +6,11 @@ mod helper;
 #[cfg(test)]
 mod test;
 
-use crate::model::instructions::{BinaryCondition, Instruction, NumReg, RegOrConstant};
-use crate::model::{NumRegType, RegIndex, RegType, RegWidth, RegisterSet};
 use crate::vm::state::RegState;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{BinaryArithmeticOp, CastSingleSigned, CastSingleUnsigned};
+use umc_model::instructions::{Instruction, NumReg, RegOrConstant};
+use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -19,9 +19,9 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
-    pub fn new(program: Vec<Instruction>) -> Self {
+    pub fn new(program: Program) -> Self {
         Self {
-            program,
+            program: program.instructions,
             pc: 0,
             state: RegState::new(),
         }

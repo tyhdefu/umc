@@ -1,12 +1,12 @@
 //! Translate unvalidated Instruction-Operand form to a form
 //! that is guaranteed to execute
 
-use crate::bytecode::{Operand, RegOperand};
-use crate::model::instructions::{
+use crate::operand::{Operand, RegOperand};
+use crate::instructions::{
     AddParams, AnyCoherentNumOp, ConsistentComparison, ConsistentNumOp, MemReg, MovParams,
     NotParams, NumReg, RegOrConstant,
 };
-use crate::model::{NumRegType, RegIndex, RegType, RegisterSet};
+use crate::{NumRegType, RegIndex, RegType, RegisterSet};
 
 pub enum InstructionValidateError {
     InvalidOpCount {

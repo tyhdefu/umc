@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
 use crate::ast::{self, OperandWithLoc};
-use crate::bytecode as bc;
-use crate::bytecode::{Operand, RegOperand};
-use crate::model::instructions::{
+use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, InstrReg, Instruction,
     MovParams, NotParams, NumReg, RegOrConstant,
 };
-use crate::model::parse::InstructionValidateError;
-use crate::model::{NumRegType, RegType, RegisterSet};
+use umc_model::operand::{Operand, RegOperand};
+use umc_model::parse::InstructionValidateError;
+use umc_model::{NumRegType, RegType, RegisterSet};
+use umc_model::{Program, operand as bc};
 
 type Loc = RangeInclusive<usize>;
 
@@ -81,9 +81,9 @@ fn add_ctx(err: InstructionValidateError, instr: &ast::Instruction) -> AssembleI
     instr_err
 }
 
-pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Vec<Instruction>, Vec<AssembleError>> {
+pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Program, Vec<AssembleError>> {
     let mut labels: HashMap<String, usize> = HashMap::new();
-    let mut prog = Vec::new();
+    let mut instrs = Vec::new();
 
     let mut errors = vec![];
 
@@ -100,14 +100,16 @@ pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Vec<Instruction>, V
 
     for statement in ast_prog.into_iter() {
         match ast_to_bytecode(statement.instr.clone(), &labels) {
-            Ok(bc) => prog.push(bc),
+            Ok(bc) => instrs.push(bc),
             Err(e) => errors.push(AssembleError::bad_instruction(e, &statement.instr)),
         }
     }
     if !errors.is_empty() {
         return Err(errors);
     }
-    Ok(prog)
+    Ok(Program {
+        instructions: instrs,
+    })
 }
 
 fn ops<const N: usize>(

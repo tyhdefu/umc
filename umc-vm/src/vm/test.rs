@@ -1,5 +1,5 @@
 //! End to end tests for the UMC VM
-use crate::assemble_prog;
+use umc_compiler::error_display::assemble_prog;
 
 use super::*;
 

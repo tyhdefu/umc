@@ -2,7 +2,7 @@ use crate::ast::{ASTRegisterOperand, Instruction, Operand};
 use crate::grammar::{
     InstructionParser, OperandParser, ProgramParser, RegOperandParser, StatementParser,
 };
-use crate::model::{NumRegType, RegType, RegisterSet};
+use umc_model::{NumRegType, RegType, RegisterSet};
 
 #[test]
 fn parse_hex_constant() {

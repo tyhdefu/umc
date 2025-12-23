@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::model::RegisterSet;
+use crate::RegisterSet;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RegOperand {
