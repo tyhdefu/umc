@@ -9,6 +9,9 @@ lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 #[cfg(test)]
 mod grammar_tests;
 
+#[cfg(test)]
+mod bytecode_tests;
+
 mod assembler;
 mod error_display;
 

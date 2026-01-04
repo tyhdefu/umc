@@ -3,8 +3,8 @@ use std::ops::RangeInclusive;
 
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, InstrReg, Instruction,
-    MovParams, NotParams, NumReg, RegOrConstant,
+    AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, InstrReg, InstrRegT,
+    Instruction, MovParams, NotParams, NumReg, RegOrConstant,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::InstructionValidateError;
@@ -351,7 +351,7 @@ fn parse_is_zero(operand: &OperandWithLoc) -> Result<CompareToZero, AssembleInst
 fn parse_iaddress_operand(
     operand: &OperandWithLoc,
     labels: &HashMap<String, usize>,
-) -> Result<RegOrConstant<InstrReg, usize>, AssembleInstructionError> {
+) -> Result<RegOrConstant<InstrRegT>, AssembleInstructionError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => match reg.set {
             Some(RegisterSet::Single(RegType::InstructionAddress)) => {

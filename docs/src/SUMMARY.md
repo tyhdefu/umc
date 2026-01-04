@@ -11,3 +11,4 @@
 - [External Calls RFC](./rfcs/ecall.md)
 - [Implicit and Explicit Casts](./rfcs/casting.md)
 - [Memory Model](./rfcs/memory.md)
+- [Binary Format](./rfcs/bytecode.md)

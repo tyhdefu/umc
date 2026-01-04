@@ -17,6 +17,7 @@
 | `sub`     | Numeric Reg | Numeric   | Numeric   | op1 = op2 - op3 |
 | `mul`     | Numeric Reg | Numeric   | Numeric   | op1 = op2 * op3 |
 | `div`     | Numeric Reg | Numeric   | Numeric   | op1 = op2 / op3 |
+| `mod`     | Numeric Reg | Numeric   | Numeric   | op1 = op2 `mod` op3
 
 ## Jumps, Calls and Conditional Branches
 | Mneumonic | Operand 1 | Operand 2 | Description |
@@ -45,8 +46,10 @@ The following bitwise operations work only between integer types.
 | Mneumonic | Operand 1   | Operand 2 | Operand 3 | Description |
 | --------- | ----------- | --------- | --------- | ----------- |
 | `and`     | Integer Reg | Integer   | Integer   | Bitwise AND |
+| `or`      | Integer Reg | Integer   | Integer   | Bitwise OR  |
 | `xor`     | Integer Reg | Integer   | Integer   | Bitwise XOR |
 | `not`     | Integer Reg | Integer   | Integer   | Bitwise NOT |
+
 
 ## Memory
 Blocks of memory can be allocated with the `alloc` instruction.

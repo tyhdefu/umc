@@ -4,6 +4,7 @@ pub mod binary;
 pub mod instructions;
 pub mod operand;
 pub mod parse;
+pub mod unparse;
 
 use std::fmt::Display;
 use std::str::FromStr;
@@ -17,7 +18,7 @@ pub type RegWidth = u32;
 /// The type used for the index of a register set
 pub type RegIndex = u32;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum RegType {
     Num(NumRegType),
     InstructionAddress,
@@ -52,7 +53,7 @@ impl Display for RegType {
 
 /// Number Register
 /// The values from these
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum NumRegType {
     UnsignedInt(RegWidth),
     SignedInt(RegWidth),
@@ -94,7 +95,7 @@ impl Display for NumRegType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum RegisterSet {
     Single(RegType),
     Vector(RegType, RegWidth),

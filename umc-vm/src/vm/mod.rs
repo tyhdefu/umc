@@ -56,6 +56,7 @@ impl VirtualMachine {
         let instr: &Instruction = &self.program[self.pc];
         println!("Executing instruction {}: {}", self.pc, instr);
         match instr {
+            Instruction::Nop => {}
             Instruction::Mov(params) => {
                 helper::execute_mov(params, &mut self.state);
             }

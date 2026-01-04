@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::fmt::Display;
 
 use crate::operand::{Operand, RegOperand};
@@ -6,21 +7,23 @@ use crate::{NumRegType, RegIndex, RegType, RegWidth, RegisterSet};
 pub type MemReg = RegIndex;
 pub type InstrReg = RegIndex;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NumReg {
     pub index: RegIndex,
     pub width: RegWidth,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NumVecReg {
     pub index: RegIndex,
     pub width: RegWidth,
     pub length: RegWidth,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Instruction {
+    /// No-op
+    Nop,
     /// Move the operand into the destination register
     Mov(MovParams),
 
@@ -45,16 +48,16 @@ pub enum Instruction {
     },
 
     /// Jump to the given location unconditionally
-    Jmp(RegOrConstant<InstrReg, usize>),
+    Jmp(RegOrConstant<InstrRegT>),
     /// Conditionally branch to the given location (op1) if the second operand is zero
-    Bz(RegOrConstant<InstrReg, usize>, CompareToZero),
+    Bz(RegOrConstant<InstrRegT>, CompareToZero),
     /// Conditionally branch to the given location (op1) if the second operand is not zero
-    Bnz(RegOrConstant<InstrReg, usize>, CompareToZero),
+    Bnz(RegOrConstant<InstrRegT>, CompareToZero),
     /// Print the given register (debugging)
     Dbg(RegOperand),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BinaryCondition {
     Equal,
     GreaterThan,
@@ -63,13 +66,84 @@ pub enum BinaryCondition {
     LessThanOrEqualTo,
 }
 
-#[derive(Clone, Debug)]
-pub enum RegOrConstant<R, C> {
-    Reg(R),
-    Const(C),
+pub trait RegTypeT {
+    type R: Debug + Clone + PartialEq;
+    type C: Debug + Clone + PartialEq;
+
+    fn reg_type(r: &Self::R) -> RegType;
 }
 
-impl<C> RegOrConstant<NumReg, C> {
+#[derive(Debug, PartialEq)]
+pub struct UnsignedRegT;
+impl RegTypeT for UnsignedRegT {
+    type R = NumReg;
+    type C = u64;
+
+    fn reg_type(r: &Self::R) -> RegType {
+        RegType::Num(NumRegType::UnsignedInt(r.width))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct SignedRegT;
+impl RegTypeT for SignedRegT {
+    type R = NumReg;
+    type C = i64;
+
+    fn reg_type(r: &Self::R) -> RegType {
+        RegType::Num(NumRegType::SignedInt(r.width))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FloatRegT;
+impl RegTypeT for FloatRegT {
+    type R = NumReg;
+    type C = f64;
+
+    fn reg_type(r: &Self::R) -> RegType {
+        RegType::Num(NumRegType::Float(r.width))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct MemRegT;
+impl RegTypeT for MemRegT {
+    type R = RegIndex;
+    type C = usize;
+
+    fn reg_type(_: &Self::R) -> RegType {
+        RegType::MemoryAddress
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct InstrRegT;
+impl RegTypeT for InstrRegT {
+    type R = RegIndex;
+    type C = usize;
+
+    fn reg_type(_: &Self::R) -> RegType {
+        RegType::InstructionAddress
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RegOrConstant<RT: RegTypeT> {
+    Reg(RT::R),
+    Const(RT::C),
+}
+
+impl<RT: RegTypeT> Clone for RegOrConstant<RT> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Reg(r) => Self::Reg(r.clone()),
+            Self::Const(c) => Self::Const(c.clone()),
+        }
+    }
+}
+
+impl<RT: RegTypeT<R = NumReg>> RegOrConstant<RT> {
     pub fn width(&self) -> Option<RegWidth> {
         match self {
             Self::Reg(r) => Some(r.width),
@@ -78,75 +152,66 @@ impl<C> RegOrConstant<NumReg, C> {
     }
 }
 
-#[derive(Debug)]
-pub enum IntReg {
-    Signed(NumReg),
-    Unsigned(NumReg),
-}
-
-#[derive(Debug)]
-pub enum ConsistentNumOp<C> {
-    Single(NumReg, RegOrConstant<NumReg, C>, RegOrConstant<NumReg, C>),
-    VectorBroadcast(NumVecReg, RegIndex, RegOrConstant<NumReg, C>),
+#[derive(Debug, PartialEq)]
+pub enum ConsistentNumOp<RT: RegTypeT<R = NumReg>> {
+    Single(NumReg, RegOrConstant<RT>, RegOrConstant<RT>),
+    VectorBroadcast(NumVecReg, RegIndex, RegOrConstant<RT>),
     VectorVector(NumVecReg, RegIndex, RegIndex),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AnyCoherentNumOp {
-    UnsignedInt(ConsistentNumOp<u64>),
-    SignedInt(ConsistentNumOp<i64>),
-    Float(ConsistentNumOp<f64>),
+    UnsignedInt(ConsistentNumOp<UnsignedRegT>),
+    SignedInt(ConsistentNumOp<SignedRegT>),
+    Float(ConsistentNumOp<FloatRegT>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AddParams {
-    UnsignedInt(ConsistentNumOp<u64>),
-    SignedInt(ConsistentNumOp<i64>),
-    Float(ConsistentNumOp<f64>),
+    UnsignedInt(ConsistentNumOp<UnsignedRegT>),
+    SignedInt(ConsistentNumOp<SignedRegT>),
+    Float(ConsistentNumOp<FloatRegT>),
 
-    MemAddress(MemReg, MemReg, RegOrConstant<IntReg, i64>),
+    MemAddress(MemReg, MemReg, RegOrConstant<SignedRegT>),
     InstrAddress(
         InstrReg,
-        RegOrConstant<InstrReg, usize>,
-        RegOrConstant<IntReg, i64>,
+        RegOrConstant<InstrRegT>,
+        RegOrConstant<SignedRegT>,
     ),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MovParams {
-    UnsignedInt(NumReg, RegOrConstant<NumReg, u64>),
-    SignedInt(NumReg, RegOrConstant<NumReg, i64>),
-    Float(NumReg, RegOrConstant<NumReg, f64>),
+    UnsignedInt(NumReg, RegOrConstant<UnsignedRegT>),
+    SignedInt(NumReg, RegOrConstant<SignedRegT>),
+    Float(NumReg, RegOrConstant<FloatRegT>),
 
     MemAddress(MemReg, MemReg),
-    InstrAddress(InstrReg, RegOrConstant<InstrReg, usize>),
+    InstrAddress(InstrReg, RegOrConstant<InstrRegT>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NotParams {
-    UnsignedInt(NumReg, RegOrConstant<NumReg, u64>),
-    SignedInt(NumReg, RegOrConstant<NumReg, i64>),
+    UnsignedInt(NumReg, RegOrConstant<UnsignedRegT>),
+    SignedInt(NumReg, RegOrConstant<SignedRegT>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ConsistentComparison {
-    UnsignedCompare(RegOrConstant<NumReg, u64>, RegOrConstant<NumReg, u64>),
-    SignedCompare(RegOrConstant<NumReg, i64>, RegOrConstant<NumReg, i64>),
-    FloatCompare(RegOrConstant<NumReg, f64>, RegOrConstant<NumReg, f64>),
+    UnsignedCompare(RegOrConstant<UnsignedRegT>, RegOrConstant<UnsignedRegT>),
+    SignedCompare(RegOrConstant<SignedRegT>, RegOrConstant<SignedRegT>),
+    FloatCompare(RegOrConstant<FloatRegT>, RegOrConstant<FloatRegT>),
     MemAddressCompare(MemReg, MemReg),
-    InstrAddressCompare(
-        RegOrConstant<InstrReg, usize>,
-        RegOrConstant<InstrReg, usize>,
-    ),
+    InstrAddressCompare(RegOrConstant<InstrRegT>, RegOrConstant<InstrRegT>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CompareToZero {
-    Unsigned(RegOrConstant<NumReg, u64>),
-    Signed(RegOrConstant<NumReg, i64>),
+    Unsigned(RegOrConstant<UnsignedRegT>),
+    Signed(RegOrConstant<SignedRegT>),
 }
 
-impl RegOrConstant<NumReg, u64> {
+impl RegOrConstant<UnsignedRegT> {
     pub fn from_unsigned(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
@@ -164,7 +229,7 @@ impl RegOrConstant<NumReg, u64> {
     }
 }
 
-impl RegOrConstant<NumReg, i64> {
+impl RegOrConstant<SignedRegT> {
     pub fn from_signed(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
@@ -183,7 +248,7 @@ impl RegOrConstant<NumReg, i64> {
     }
 }
 
-impl RegOrConstant<NumReg, f64> {
+impl RegOrConstant<FloatRegT> {
     pub fn from_float(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
@@ -201,7 +266,7 @@ impl RegOrConstant<NumReg, f64> {
     }
 }
 
-impl RegOrConstant<MemReg, usize> {
+impl RegOrConstant<MemRegT> {
     pub fn from_mem_addr(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
@@ -216,7 +281,7 @@ impl RegOrConstant<MemReg, usize> {
     }
 }
 
-impl RegOrConstant<InstrReg, usize> {
+impl RegOrConstant<InstrRegT> {
     pub fn from_instr_addr(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
@@ -231,34 +296,10 @@ impl RegOrConstant<InstrReg, usize> {
     }
 }
 
-impl RegOrConstant<IntReg, i64> {
-    pub fn from_int(op: &Operand) -> Result<Self, ()> {
-        match op {
-            Operand::Reg(reg) => Ok(match reg.set {
-                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
-                    Self::Reg(IntReg::Unsigned(NumReg {
-                        index: reg.index,
-                        width,
-                    }))
-                }
-                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
-                    Self::Reg(IntReg::Signed(NumReg {
-                        index: reg.index,
-                        width,
-                    }))
-                }
-                _ => return Err(()),
-            }),
-            Operand::UnsignedConstant(c) => Ok(Self::Const(*c as i64)),
-            Operand::SignedConstant(c) => Ok(Self::Const(*c)),
-            _ => Err(()),
-        }
-    }
-}
-
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Instruction::Nop => write!(f, "nop"),
             Instruction::Mov(params) => write!(f, "mov {}", params),
             Instruction::Add(params) => write!(f, "add {}", params),
             Instruction::Sub(params) => write!(f, "sub {}", params),
@@ -299,7 +340,7 @@ impl Display for NumVecReg {
     }
 }
 
-impl Display for RegOrConstant<NumReg, u64> {
+impl Display for RegOrConstant<UnsignedRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "u{}:{}", r.width, r.index),
@@ -308,7 +349,7 @@ impl Display for RegOrConstant<NumReg, u64> {
     }
 }
 
-impl Display for RegOrConstant<NumReg, i64> {
+impl Display for RegOrConstant<SignedRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "i{}:{}", r.width, r.index),
@@ -317,7 +358,7 @@ impl Display for RegOrConstant<NumReg, i64> {
     }
 }
 
-impl Display for RegOrConstant<NumReg, f64> {
+impl Display for RegOrConstant<FloatRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "f{}:{}", r.width, r.index),
@@ -326,7 +367,7 @@ impl Display for RegOrConstant<NumReg, f64> {
     }
 }
 
-impl Display for RegOrConstant<RegIndex, usize> {
+impl Display for RegOrConstant<InstrRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(index) => write!(f, "n:{}", index),
@@ -383,28 +424,28 @@ impl Display for ConsistentComparison {
 
 impl Display for AnyCoherentNumOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn write_single<R, C>(
+        fn write_single<RT: RegTypeT>(
             f: &mut std::fmt::Formatter<'_>,
             c: char,
             dst: &NumReg,
-            p1: &RegOrConstant<R, C>,
-            p2: &RegOrConstant<R, C>,
+            p1: &RegOrConstant<RT>,
+            p2: &RegOrConstant<RT>,
         ) -> std::fmt::Result
         where
-            RegOrConstant<R, C>: Display,
+            RegOrConstant<RT>: Display,
         {
             write!(f, "{c}{dst}, {p1}, {p2}")
         }
 
-        fn write_broadcast<R, C>(
+        fn write_broadcast<RT: RegTypeT>(
             f: &mut std::fmt::Formatter<'_>,
             c: char,
             dst: &NumVecReg,
             p1: RegIndex,
-            p2: &RegOrConstant<R, C>,
+            p2: &RegOrConstant<RT>,
         ) -> std::fmt::Result
         where
-            RegOrConstant<R, C>: Display,
+            RegOrConstant<RT>: Display,
         {
             write!(
                 f,

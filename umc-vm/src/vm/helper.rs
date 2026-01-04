@@ -9,7 +9,7 @@ use crate::vm::types::{
 use umc_model::RegWidth;
 use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, ConsistentNumOp,
-    InstrReg, MovParams, NotParams, NumReg, RegOrConstant,
+    InstrRegT, MovParams, NotParams, NumReg, RegOrConstant, SignedRegT, UnsignedRegT,
 };
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
@@ -54,8 +54,8 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
     fn compute_unsigned<T>(
         op: BinaryArithmeticOp,
         dst: &NumReg,
-        p1: &RegOrConstant<NumReg, u64>,
-        p2: &RegOrConstant<NumReg, u64>,
+        p1: &RegOrConstant<UnsignedRegT>,
+        p2: &RegOrConstant<UnsignedRegT>,
         state: &mut RegState,
     ) where
         T: UMCArithmetic + CastSingleUnsigned + Copy,
@@ -68,8 +68,8 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
     fn compute_signed<T>(
         op: BinaryArithmeticOp,
         dst: &NumReg,
-        p1: &RegOrConstant<NumReg, i64>,
-        p2: &RegOrConstant<NumReg, i64>,
+        p1: &RegOrConstant<SignedRegT>,
+        p2: &RegOrConstant<SignedRegT>,
         state: &mut RegState,
     ) where
         T: UMCArithmetic + CastSingleSigned + Copy,
@@ -218,7 +218,7 @@ pub fn execute_not(params: &NotParams, state: &mut RegState) {
     }
 }
 
-pub fn read_uint<T>(op: &RegOrConstant<NumReg, u64>, state: &RegState) -> T
+pub fn read_uint<T>(op: &RegOrConstant<UnsignedRegT>, state: &RegState) -> T
 where
     T: CastSingleUnsigned,
 {
@@ -243,7 +243,7 @@ where
     }
 }
 
-pub fn read_int<T>(op: &RegOrConstant<NumReg, i64>, state: &RegState) -> T
+pub fn read_int<T>(op: &RegOrConstant<SignedRegT>, state: &RegState) -> T
 where
     T: CastSingleSigned,
 {
@@ -265,7 +265,7 @@ where
     }
 }
 
-pub fn read_iaddr(p: &RegOrConstant<InstrReg, usize>, state: &RegState) -> InstructionAddress {
+pub fn read_iaddr(p: &RegOrConstant<InstrRegT>, state: &RegState) -> InstructionAddress {
     match p {
         RegOrConstant::Reg(r) => state.read(*r).unwrap_or_default(),
         RegOrConstant::Const(c) => InstructionAddress::new(*c),

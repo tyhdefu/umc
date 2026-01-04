@@ -1,13 +1,14 @@
 //! Translate unvalidated Instruction-Operand form to a form
 //! that is guaranteed to execute
 
-use crate::operand::{Operand, RegOperand};
 use crate::instructions::{
-    AddParams, AnyCoherentNumOp, ConsistentComparison, ConsistentNumOp, MemReg, MovParams,
-    NotParams, NumReg, RegOrConstant,
+    AddParams, AnyCoherentNumOp, ConsistentComparison, ConsistentNumOp, FloatRegT, InstrRegT,
+    MemReg, MovParams, NotParams, NumReg, RegOrConstant, SignedRegT, UnsignedRegT,
 };
+use crate::operand::{Operand, RegOperand};
 use crate::{NumRegType, RegIndex, RegType, RegisterSet};
 
+#[derive(Debug)]
 pub enum InstructionValidateError {
     InvalidOpCount {
         expected: usize,
@@ -49,14 +50,14 @@ impl TryFrom<&[&Operand]> for AddParams {
             RegisterSet::Single(RegType::MemoryAddress) => {
                 let p1 = require_mem_reg(ops[1])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
-                let p2 = RegOrConstant::from_int(ops[2])
+                let p2 = RegOrConstant::from_signed(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
                 Self::MemAddress(reg_op.index, p1, p2)
             }
             RegisterSet::Single(RegType::InstructionAddress) => {
                 let p1 = RegOrConstant::from_instr_addr(ops[1])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
-                let p2 = RegOrConstant::from_int(ops[2])
+                let p2 = RegOrConstant::from_signed(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
                 Self::InstrAddress(reg_op.index, p1, p2)
             }
@@ -223,7 +224,7 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
     fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
         let [p1, p2] = ops(value)?;
 
-        let unsigned = |a: RegOrConstant<NumReg, u64>| {
+        let unsigned = |a: RegOrConstant<UnsignedRegT>| {
             let b = match p2 {
                 Operand::Reg(RegOperand {
                     set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))),
@@ -238,7 +239,7 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Ok(ConsistentComparison::UnsignedCompare(a, b))
         };
 
-        let signed = |a: RegOrConstant<NumReg, i64>| {
+        let signed = |a: RegOrConstant<SignedRegT>| {
             let b = match p2 {
                 Operand::Reg(RegOperand {
                     set: RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))),
@@ -258,7 +259,7 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Ok(ConsistentComparison::SignedCompare(a, b))
         };
 
-        let float = |a: RegOrConstant<NumReg, f64>| {
+        let float = |a: RegOrConstant<FloatRegT>| {
             let b = match p2 {
                 Operand::Reg(RegOperand {
                     set: RegisterSet::Single(RegType::Num(NumRegType::Float(width))),
@@ -273,7 +274,7 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Ok(ConsistentComparison::FloatCompare(a, b))
         };
 
-        let iaddr = |a: RegOrConstant<RegIndex, usize>| {
+        let iaddr = |a: RegOrConstant<InstrRegT>| {
             let b = match p2 {
                 Operand::Reg(RegOperand {
                     set: RegisterSet::Single(RegType::InstructionAddress),
