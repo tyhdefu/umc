@@ -1,9 +1,13 @@
 use std::env;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
+use umc_model::binary::decode;
 use vm::VirtualMachine;
 
 use umc_model::instructions::{
-    AnyCoherentNumOp, ConsistentNumOp, Instruction, MovParams, NumReg, RegOrConstant,
+    AnyCoherentNumOp, ConsistentNumOp, Instruction, MovParams, NumReg, Reg, RegOrConstant,
 };
 use umc_model::operand::RegOperand;
 use umc_model::{NumRegType, RegType};
@@ -14,9 +18,17 @@ mod vm;
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() == 2 {
-        let prog_str = std::fs::read_to_string(&args[1]).expect("Failed to read file");
-        let prog = umc_compiler::error_display::assemble_prog(&prog_str)
-            .expect("Failed to assemble program");
+        let path = Path::new(&args[1]);
+        let prog: Program = if path.extension().is_some_and(|ext| ext == "umc") {
+            let prog_str = std::fs::read_to_string(&args[1]).expect("Failed to read umc file");
+            umc_compiler::error_display::assemble_prog(&prog_str)
+                .expect("Failed to assemble program")
+        } else {
+            let file = File::open(path).expect("Failed to open file");
+            let buf_reader = BufReader::new(file);
+            decode(buf_reader).expect("Invalid UMC Bytecode file")
+        };
+
         println!("Executing program");
         VirtualMachine::new(prog).execute();
     } else {
@@ -41,17 +53,17 @@ fn dummy_program() {
     let prog = Program {
         instructions: vec![
             Instruction::Mov(MovParams::UnsignedInt(
-                reg0.clone(),
+                Reg(reg0.clone()),
                 RegOrConstant::Const(5),
             )),
             Instruction::Mov(MovParams::UnsignedInt(
-                reg1.clone(),
+                Reg(reg1.clone()),
                 RegOrConstant::Const(10),
             )),
             Instruction::Add(AnyCoherentNumOp::UnsignedInt(ConsistentNumOp::Single(
-                reg2,
-                RegOrConstant::Reg(reg1),
-                RegOrConstant::Reg(reg0),
+                Reg(reg2),
+                RegOrConstant::reg(reg1),
+                RegOrConstant::reg(reg0),
             ))),
             Instruction::Dbg(RegOperand {
                 set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(u64::BITS))),

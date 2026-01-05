@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use std::io;
 
 use crate::binary::{DecodeError, EncodeError};
-use crate::instructions::{AnyCoherentNumOp, BinaryCondition, Instruction, MovParams};
+use crate::instructions::{
+    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, InstrRegT, Instruction,
+    MovParams, NotParams, NumReg, RegOrConstant,
+};
 use crate::operand::{Operand, RegOperand};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
@@ -187,6 +190,43 @@ pub fn decode_instruction<R: io::Read>(
             .map_err(|i| DecodeError::Malformed(format!("Invalid Instruction: {:?}", i)))
     }
 
+    fn iaddr_op(operand: &Operand) -> Result<RegOrConstant<InstrRegT>, DecodeError> {
+        RegOrConstant::from_instr_addr(operand).map_err(|_| {
+            DecodeError::Malformed(format!("Expected Instruction Register or Constant"))
+        })
+    }
+
+    fn cmp_zero_op(operand: &Operand) -> Result<CompareToZero, DecodeError> {
+        Ok(match operand {
+            Operand::Reg(reg) => match reg.set {
+                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
+                    CompareToZero::Unsigned(RegOrConstant::reg(NumReg {
+                        index: reg.index,
+                        width,
+                    }))
+                }
+                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
+                    CompareToZero::Signed(RegOrConstant::reg(NumReg {
+                        index: reg.index,
+                        width,
+                    }))
+                }
+                _ => {
+                    return Err(DecodeError::Malformed(format!(
+                        "Expected operand that can be compared to zero"
+                    )));
+                }
+            },
+            Operand::UnsignedConstant(c) => CompareToZero::Unsigned(RegOrConstant::Const(*c)),
+            Operand::SignedConstant(c) => CompareToZero::Signed(RegOrConstant::Const(*c)),
+            _ => {
+                return Err(DecodeError::Malformed(format!(
+                    "Expected operand that can be compared to zero"
+                )));
+            }
+        })
+    }
+
     let opcode = OpCode::from_value(opcode_byte)?;
     Ok(Some(match opcode {
         OpCode::NOP => Instruction::Nop,
@@ -201,16 +241,40 @@ pub fn decode_instruction<R: io::Read>(
         OpCode::MUL => todo!(),
         OpCode::DIV => todo!(),
         OpCode::MOD => todo!(),
-        OpCode::JMP => todo!(),
-        OpCode::BZ => todo!(),
-        OpCode::BNZ => todo!(),
-        OpCode::EQ => todo!(),
-        OpCode::GT => todo!(),
-        OpCode::GTE => todo!(),
+        OpCode::JMP => {
+            let ops = operands::<R, 1>(src, rt_header)?;
+            Instruction::Jmp(iaddr_op(&ops[0])?)
+        }
+        OpCode::BZ => {
+            let ops = operands::<R, 2>(src, rt_header)?;
+            let cmp_zero: CompareToZero = cmp_zero_op(&ops[1])?;
+            Instruction::Bz(iaddr_op(&ops[0])?, cmp_zero)
+        }
+        OpCode::BNZ => {
+            let ops = operands::<R, 2>(src, rt_header)?;
+            let cmp_zero: CompareToZero = cmp_zero_op(&ops[1])?;
+            Instruction::Bnz(iaddr_op(&ops[0])?, cmp_zero)
+        }
+        OpCode::EQ | OpCode::GT | OpCode::GTE => {
+            let ops = operands::<R, 3>(src, rt_header)?;
+            let ops_ref: Vec<&Operand> = ops.iter().collect();
+            let params = CompareParams::try_from(ops_ref.as_slice())?;
+            let cond = match opcode {
+                OpCode::EQ => BinaryCondition::Equal,
+                OpCode::GT => BinaryCondition::GreaterThan,
+                OpCode::GTE => BinaryCondition::GreaterThanOrEqualTo,
+                _ => unreachable!("All branches should be covered"),
+            };
+            Instruction::Compare { cond, params }
+        }
         OpCode::AND => todo!(),
         OpCode::OR => todo!(),
-        OpCode::XOR => todo!(),
-        OpCode::NOT => todo!(),
+        OpCode::XOR => Instruction::Xor(read_3_num_op(src, rt_header)?),
+        OpCode::NOT => {
+            let [dst, op] = operands::<R, 2>(src, rt_header)?;
+            let params = NotParams::try_from([&dst, &op].as_slice())?;
+            Instruction::Not(params)
+        }
         OpCode::DBG => {
             let [op] = operands::<R, 1>(src, rt_header)?;
             match op {
@@ -503,7 +567,7 @@ mod test {
     use crate::binary::v0::{
         OpCode, RTHeader, RTHeaderEntry, decode_instruction, encode_instruction,
     };
-    use crate::instructions::{Instruction, MovParams, NumReg, RegOrConstant};
+    use crate::instructions::{Instruction, MovParams, NumReg, Reg, RegOrConstant};
     use crate::operand::{Operand, RegOperand};
     use crate::{NumRegType, RegType, RegisterSet};
 
@@ -543,10 +607,10 @@ mod test {
         let reg_set_u32 = RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(32)));
 
         let instr = Instruction::Mov(MovParams::UnsignedInt(
-            NumReg {
+            Reg(NumReg {
                 index: 2,
                 width: 32,
-            },
+            }),
             RegOrConstant::Const(39),
         ));
 

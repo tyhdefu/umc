@@ -9,8 +9,18 @@ pub mod unparse;
 use std::fmt::Display;
 use std::str::FromStr;
 
+#[derive(Clone)]
 pub struct Program {
     pub instructions: Vec<instructions::Instruction>,
+}
+
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for i in &self.instructions {
+            write!(f, "{}\n", i)?;
+        }
+        Ok(())
+    }
 }
 
 /// The type used for how large a register can be

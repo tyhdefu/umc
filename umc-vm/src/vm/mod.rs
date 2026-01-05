@@ -39,7 +39,7 @@ impl VirtualMachine {
         T: CastSingleUnsigned,
         T: Default,
     {
-        let reg = RegOrConstant::Reg(NumReg { index, width });
+        let reg = RegOrConstant::reg(NumReg { index, width });
         helper::read_uint::<T>(&reg, &self.state)
     }
 
@@ -48,7 +48,7 @@ impl VirtualMachine {
         T: CastSingleSigned,
         T: Default,
     {
-        let reg = RegOrConstant::Reg(NumReg { index, width });
+        let reg = RegOrConstant::reg(NumReg { index, width });
         helper::read_int::<T>(&reg, &self.state)
     }
 
@@ -75,8 +75,8 @@ impl VirtualMachine {
             Instruction::Not(params) => {
                 helper::execute_not(params, &mut self.state);
             }
-            Instruction::Compare { cond, dst, args } => {
-                helper::execute_comparison(cond, dst, args, &mut self.state);
+            Instruction::Compare { cond, params } => {
+                helper::execute_comparison(cond, params, &mut self.state);
             }
             Instruction::Jmp(p) => {
                 let to = helper::read_iaddr(p, &self.state);
@@ -100,7 +100,7 @@ impl VirtualMachine {
             }
             Instruction::Dbg(reg) => match reg.set {
                 RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w))) => {
-                    let reg_ref = RegOrConstant::Reg(NumReg {
+                    let reg_ref = RegOrConstant::reg(NumReg {
                         index: reg.index,
                         width: w,
                     });
@@ -108,7 +108,7 @@ impl VirtualMachine {
                     println!("{} = {}", reg_ref, x);
                 }
                 RegisterSet::Single(RegType::Num(NumRegType::SignedInt(w))) => {
-                    let reg_ref = RegOrConstant::Reg(NumReg {
+                    let reg_ref = RegOrConstant::reg(NumReg {
                         index: reg.index,
                         width: w,
                     });

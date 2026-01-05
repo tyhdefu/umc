@@ -1,17 +1,20 @@
 use std::io::Cursor;
 
-use crate::binary::v0;
-use crate::instructions::{Instruction, MovParams, NumReg, RegOrConstant};
+use crate::binary::{decode, encode, v0};
+use crate::instructions::{
+    BinaryCondition, CompareParams, CompareToZero, ConsistentComparison, Instruction, MovParams,
+    NotParams, NumReg, Reg, RegOrConstant,
+};
 use crate::operand::RegOperand;
 use crate::{NumRegType, Program, RegType, RegisterSet};
 
 #[test]
 fn encode_basic_program() {
     let instructions = vec![Instruction::Mov(MovParams::UnsignedInt(
-        NumReg {
+        Reg(NumReg {
             index: 1,
             width: 32,
-        },
+        }),
         RegOrConstant::Const(23),
     ))];
 
@@ -36,17 +39,17 @@ fn encode_basic_program() {
 fn encode_mov_add_program() {
     let instructions = vec![
         Instruction::Mov(MovParams::UnsignedInt(
-            NumReg {
+            Reg(NumReg {
                 index: 0,
                 width: 32,
-            },
+            }),
             RegOrConstant::Const(5),
         )),
         Instruction::Mov(MovParams::UnsignedInt(
-            NumReg {
+            Reg(NumReg {
                 index: 1,
                 width: 32,
-            },
+            }),
             RegOrConstant::Const(7),
         )),
         Instruction::Dbg(RegOperand {
@@ -65,4 +68,49 @@ fn encode_mov_add_program() {
 
     let decoded_prog = v0::decode(&mut cursor).expect("Failed to decode program");
     assert_eq!(prog.instructions, decoded_prog.instructions);
+}
+
+#[test]
+fn encode_complex_prog() {
+    let u32_0 = NumReg {
+        index: 0,
+        width: 32,
+    };
+    let u1_0 = NumReg { index: 0, width: 1 };
+
+    let instructions = vec![
+        Instruction::Mov(MovParams::UnsignedInt(
+            Reg(u32_0.clone()),
+            RegOrConstant::Const(5),
+        )),
+        // u1:0 = 0
+        Instruction::Compare {
+            cond: BinaryCondition::Equal,
+            params: CompareParams {
+                dst: Reg(u1_0.clone()),
+                args: ConsistentComparison::UnsignedCompare(
+                    RegOrConstant::reg(u32_0.clone()),
+                    RegOrConstant::Const(10),
+                ),
+            },
+        },
+        Instruction::Not(NotParams::UnsignedInt(
+            Reg(u1_0.clone()),
+            RegOrConstant::reg(u1_0.clone()),
+        )),
+        Instruction::Bz(
+            RegOrConstant::Const(2),
+            CompareToZero::Unsigned(RegOrConstant::reg(u1_0)),
+        ),
+    ];
+
+    let program = Program { instructions };
+
+    let mut buffer = vec![];
+    encode(&program, &mut buffer).expect("Failed to encode program");
+
+    let mut cursor = Cursor::new(buffer);
+    let decoded_prog = decode(&mut cursor).expect("Failed to decode program");
+
+    assert_eq!(program.instructions, decoded_prog.instructions);
 }

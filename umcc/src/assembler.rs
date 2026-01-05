@@ -3,8 +3,8 @@ use std::ops::RangeInclusive;
 
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareToZero, ConsistentComparison, InstrReg, InstrRegT,
-    Instruction, MovParams, NotParams, NumReg, RegOrConstant,
+    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
+    InstrRegT, Instruction, MovParams, NotParams, NumReg, Reg, RegOrConstant,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::InstructionValidateError;
@@ -157,21 +157,16 @@ pub fn ast_to_bytecode(
     fn comparison_op(
         instr: &ast::Instruction,
         labels: &HashMap<String, usize>,
-    ) -> Result<(NumReg, ConsistentComparison), AssembleInstructionError> {
+    ) -> Result<CompareParams, AssembleInstructionError> {
         let [p0, p1, p2] = ops(instr)?;
-        let dst = parse_dst_reg(p0)?;
-        let num_reg = match dst.set {
-            RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => NumReg {
-                index: dst.index,
-                width,
-            },
-            _ => return Err(AssembleInstructionError::invalid_op_type(&p0)),
-        };
+        let dst_op = parse_dst_reg(p0)?;
+        let dst = Reg::from_unsigned(&Operand::Reg(dst_op))
+            .map_err(|_| AssembleInstructionError::invalid_op_type(&p0))?;
         let p1 = parse_reg_or_constant(p1, None, labels)?;
         let p2 = parse_reg_or_constant(p2, None, labels)?;
-        let cmp = ConsistentComparison::try_from([&p1, &p2].as_slice())
+        let args = ConsistentComparison::try_from([&p1, &p2].as_slice())
             .map_err(|e| add_ctx(e, &instr))?;
-        Ok((num_reg, cmp))
+        Ok(CompareParams { dst, args })
     }
 
     match instr.opcode.as_str() {
@@ -204,35 +199,31 @@ pub fn ast_to_bytecode(
             Ok(Instruction::Not(params))
         }
         "gt" => {
-            let (dst, args) = comparison_op(&instr, labels)?;
+            let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::GreaterThan,
-                dst,
-                args,
+                params,
             })
         }
         "ge" => {
-            let (dst, args) = comparison_op(&instr, labels)?;
+            let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::GreaterThanOrEqualTo,
-                dst,
-                args,
+                params,
             })
         }
         "lt" => {
-            let (dst, args) = comparison_op(&instr, labels)?;
+            let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::LessThan,
-                dst,
-                args,
+                params,
             })
         }
         "le" => {
-            let (dst, args) = comparison_op(&instr, labels)?;
+            let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::LessThanOrEqualTo,
-                dst,
-                args,
+                params,
             })
         }
         "jmp" => {
@@ -323,11 +314,11 @@ fn parse_is_zero(operand: &OperandWithLoc) -> Result<CompareToZero, AssembleInst
     match &operand.0 {
         ast::Operand::Reg(reg) => Ok(match &reg.set {
             Some(RegisterSet::Single(RegType::Num(num))) => match num {
-                NumRegType::UnsignedInt(w) => CompareToZero::Unsigned(RegOrConstant::Reg(NumReg {
+                NumRegType::UnsignedInt(w) => CompareToZero::Unsigned(RegOrConstant::reg(NumReg {
                     index: reg.index,
                     width: *w,
                 })),
-                NumRegType::SignedInt(w) => CompareToZero::Signed(RegOrConstant::Reg(NumReg {
+                NumRegType::SignedInt(w) => CompareToZero::Signed(RegOrConstant::reg(NumReg {
                     index: reg.index,
                     width: *w,
                 })),
@@ -355,7 +346,7 @@ fn parse_iaddress_operand(
     match &operand.0 {
         ast::Operand::Reg(reg) => match reg.set {
             Some(RegisterSet::Single(RegType::InstructionAddress)) => {
-                Ok(RegOrConstant::Reg(reg.index))
+                Ok(RegOrConstant::reg(reg.index))
             }
             Some(_) => Err(AssembleInstructionError::invalid_op(
                 InvalidOperandError::InvalidType,

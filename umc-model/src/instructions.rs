@@ -20,7 +20,7 @@ pub struct NumVecReg {
     pub length: RegWidth,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     /// No-op
     Nop,
@@ -43,8 +43,7 @@ pub enum Instruction {
     /// Stores 1 into destination if true else 0
     Compare {
         cond: BinaryCondition,
-        dst: NumReg,
-        args: ConsistentComparison,
+        params: CompareParams,
     },
 
     /// Jump to the given location unconditionally
@@ -57,7 +56,7 @@ pub enum Instruction {
     Dbg(RegOperand),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BinaryCondition {
     Equal,
     GreaterThan,
@@ -67,6 +66,7 @@ pub enum BinaryCondition {
 }
 
 pub trait RegTypeT {
+    const LETTER: char;
     type R: Debug + Clone + PartialEq;
     type C: Debug + Clone + PartialEq;
 
@@ -76,6 +76,7 @@ pub trait RegTypeT {
 #[derive(Debug, PartialEq)]
 pub struct UnsignedRegT;
 impl RegTypeT for UnsignedRegT {
+    const LETTER: char = 'u';
     type R = NumReg;
     type C = u64;
 
@@ -87,6 +88,7 @@ impl RegTypeT for UnsignedRegT {
 #[derive(Debug, PartialEq)]
 pub struct SignedRegT;
 impl RegTypeT for SignedRegT {
+    const LETTER: char = 'i';
     type R = NumReg;
     type C = i64;
 
@@ -98,6 +100,7 @@ impl RegTypeT for SignedRegT {
 #[derive(Debug, PartialEq)]
 pub struct FloatRegT;
 impl RegTypeT for FloatRegT {
+    const LETTER: char = 'f';
     type R = NumReg;
     type C = f64;
 
@@ -109,6 +112,7 @@ impl RegTypeT for FloatRegT {
 #[derive(Debug, PartialEq)]
 pub struct MemRegT;
 impl RegTypeT for MemRegT {
+    const LETTER: char = 'm';
     type R = RegIndex;
     type C = usize;
 
@@ -120,6 +124,7 @@ impl RegTypeT for MemRegT {
 #[derive(Debug, PartialEq)]
 pub struct InstrRegT;
 impl RegTypeT for InstrRegT {
+    const LETTER: char = 'n';
     type R = RegIndex;
     type C = usize;
 
@@ -128,9 +133,20 @@ impl RegTypeT for InstrRegT {
     }
 }
 
+/// Type-safe Register
+#[derive(Debug, PartialEq)]
+pub struct Reg<RT: RegTypeT>(pub RT::R);
+
+impl<RT: RegTypeT> Clone for Reg<RT> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+/// Type-safe Register or Constant Operand
 #[derive(Debug, PartialEq)]
 pub enum RegOrConstant<RT: RegTypeT> {
-    Reg(RT::R),
+    Reg(Reg<RT>),
     Const(RT::C),
 }
 
@@ -143,10 +159,17 @@ impl<RT: RegTypeT> Clone for RegOrConstant<RT> {
     }
 }
 
+impl<RT: RegTypeT> RegOrConstant<RT> {
+    /// Wrap register value in type-safe wrapper
+    pub fn reg(reg: RT::R) -> Self {
+        Self::Reg(Reg(reg))
+    }
+}
+
 impl<RT: RegTypeT<R = NumReg>> RegOrConstant<RT> {
     pub fn width(&self) -> Option<RegWidth> {
         match self {
-            Self::Reg(r) => Some(r.width),
+            Self::Reg(r) => Some(r.0.width),
             Self::Const(_) => None,
         }
     }
@@ -154,12 +177,28 @@ impl<RT: RegTypeT<R = NumReg>> RegOrConstant<RT> {
 
 #[derive(Debug, PartialEq)]
 pub enum ConsistentNumOp<RT: RegTypeT<R = NumReg>> {
-    Single(NumReg, RegOrConstant<RT>, RegOrConstant<RT>),
+    Single(Reg<RT>, RegOrConstant<RT>, RegOrConstant<RT>),
     VectorBroadcast(NumVecReg, RegIndex, RegOrConstant<RT>),
     VectorVector(NumVecReg, RegIndex, RegIndex),
 }
 
-#[derive(Debug, PartialEq)]
+impl<RT: RegTypeT<R = NumReg>> Clone for ConsistentNumOp<RT> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Single(arg0, arg1, arg2) => {
+                Self::Single(arg0.clone(), arg1.clone(), arg2.clone())
+            }
+            Self::VectorBroadcast(arg0, arg1, arg2) => {
+                Self::VectorBroadcast(arg0.clone(), arg1.clone(), arg2.clone())
+            }
+            Self::VectorVector(arg0, arg1, arg2) => {
+                Self::VectorVector(arg0.clone(), arg1.clone(), arg2.clone())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum AnyCoherentNumOp {
     UnsignedInt(ConsistentNumOp<UnsignedRegT>),
     SignedInt(ConsistentNumOp<SignedRegT>),
@@ -172,43 +211,60 @@ pub enum AddParams {
     SignedInt(ConsistentNumOp<SignedRegT>),
     Float(ConsistentNumOp<FloatRegT>),
 
-    MemAddress(MemReg, MemReg, RegOrConstant<SignedRegT>),
+    MemAddress(Reg<MemRegT>, Reg<MemRegT>, RegOrConstant<SignedRegT>),
     InstrAddress(
-        InstrReg,
+        Reg<InstrRegT>,
         RegOrConstant<InstrRegT>,
         RegOrConstant<SignedRegT>,
     ),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MovParams {
-    UnsignedInt(NumReg, RegOrConstant<UnsignedRegT>),
-    SignedInt(NumReg, RegOrConstant<SignedRegT>),
-    Float(NumReg, RegOrConstant<FloatRegT>),
+    UnsignedInt(Reg<UnsignedRegT>, RegOrConstant<UnsignedRegT>),
+    SignedInt(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
+    Float(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
 
-    MemAddress(MemReg, MemReg),
-    InstrAddress(InstrReg, RegOrConstant<InstrRegT>),
+    MemAddress(Reg<MemRegT>, Reg<MemRegT>),
+    InstrAddress(Reg<InstrRegT>, RegOrConstant<InstrRegT>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NotParams {
-    UnsignedInt(NumReg, RegOrConstant<UnsignedRegT>),
-    SignedInt(NumReg, RegOrConstant<SignedRegT>),
+    UnsignedInt(Reg<UnsignedRegT>, RegOrConstant<UnsignedRegT>),
+    SignedInt(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompareParams {
+    /// Unsigned integer register
+    pub dst: Reg<UnsignedRegT>,
+    /// The operands being compared
+    pub args: ConsistentComparison,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConsistentComparison {
     UnsignedCompare(RegOrConstant<UnsignedRegT>, RegOrConstant<UnsignedRegT>),
     SignedCompare(RegOrConstant<SignedRegT>, RegOrConstant<SignedRegT>),
     FloatCompare(RegOrConstant<FloatRegT>, RegOrConstant<FloatRegT>),
-    MemAddressCompare(MemReg, MemReg),
+    MemAddressCompare(Reg<MemRegT>, Reg<MemRegT>),
     InstrAddressCompare(RegOrConstant<InstrRegT>, RegOrConstant<InstrRegT>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CompareToZero {
     Unsigned(RegOrConstant<UnsignedRegT>),
     Signed(RegOrConstant<SignedRegT>),
+}
+
+impl Reg<UnsignedRegT> {
+    pub fn from_unsigned(op: &Operand) -> Result<Self, ()> {
+        match RegOrConstant::from_unsigned(op)? {
+            RegOrConstant::Reg(reg) => Ok(reg),
+            RegOrConstant::Const(_) => Err(()),
+        }
+    }
 }
 
 impl RegOrConstant<UnsignedRegT> {
@@ -216,15 +272,24 @@ impl RegOrConstant<UnsignedRegT> {
         match op {
             Operand::Reg(reg) => {
                 if let RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) = reg.set {
-                    return Ok(Self::Reg(NumReg {
+                    return Ok(RegOrConstant::reg(NumReg {
                         index: reg.index,
                         width,
                     }));
                 }
                 return Err(());
             }
-            Operand::UnsignedConstant(x) => Ok(Self::Const(*x)),
-            _ => return Err(()),
+            Operand::UnsignedConstant(c) => Ok(RegOrConstant::Const(*c)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Reg<SignedRegT> {
+    pub fn from_signed(op: &Operand) -> Result<Self, ()> {
+        match RegOrConstant::from_signed(op)? {
+            RegOrConstant::Reg(reg) => Ok(reg),
+            RegOrConstant::Const(_) => Err(()),
         }
     }
 }
@@ -234,7 +299,7 @@ impl RegOrConstant<SignedRegT> {
         match op {
             Operand::Reg(reg) => {
                 if let RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) = reg.set {
-                    return Ok(Self::Reg(NumReg {
+                    return Ok(Self::reg(NumReg {
                         index: reg.index,
                         width,
                     }));
@@ -248,12 +313,21 @@ impl RegOrConstant<SignedRegT> {
     }
 }
 
+impl Reg<FloatRegT> {
+    pub fn from_float(op: &Operand) -> Result<Self, ()> {
+        match RegOrConstant::from_float(op)? {
+            RegOrConstant::Reg(reg) => Ok(reg),
+            RegOrConstant::Const(_) => Err(()),
+        }
+    }
+}
+
 impl RegOrConstant<FloatRegT> {
     pub fn from_float(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
                 if let RegisterSet::Single(RegType::Num(NumRegType::Float(width))) = reg.set {
-                    return Ok(Self::Reg(NumReg {
+                    return Ok(Self::reg(NumReg {
                         index: reg.index,
                         width,
                     }));
@@ -266,12 +340,21 @@ impl RegOrConstant<FloatRegT> {
     }
 }
 
+impl Reg<MemRegT> {
+    pub fn from_mem_reg(op: &Operand) -> Result<Self, ()> {
+        match RegOrConstant::from_mem_addr(op)? {
+            RegOrConstant::Reg(reg) => Ok(reg),
+            RegOrConstant::Const(_) => Err(()),
+        }
+    }
+}
+
 impl RegOrConstant<MemRegT> {
     pub fn from_mem_addr(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
                 if let RegisterSet::Single(RegType::MemoryAddress) = reg.set {
-                    return Ok(Self::Reg(reg.index));
+                    return Ok(Self::reg(reg.index));
                 }
                 return Err(());
             }
@@ -281,12 +364,21 @@ impl RegOrConstant<MemRegT> {
     }
 }
 
+impl Reg<InstrRegT> {
+    pub fn from_instr_addr(op: &Operand) -> Result<Self, ()> {
+        match RegOrConstant::from_instr_addr(op)? {
+            RegOrConstant::Reg(reg) => Ok(reg),
+            RegOrConstant::Const(_) => Err(()),
+        }
+    }
+}
+
 impl RegOrConstant<InstrRegT> {
     pub fn from_instr_addr(op: &Operand) -> Result<Self, ()> {
         match op {
             Operand::Reg(reg) => {
                 if let RegisterSet::Single(RegType::InstructionAddress) = reg.set {
-                    return Ok(Self::Reg(reg.index));
+                    return Ok(Self::reg(reg.index));
                 }
                 Err(())
             }
@@ -306,7 +398,7 @@ impl Display for Instruction {
             Instruction::And(params) => write!(f, "and {}", params),
             Instruction::Xor(params) => write!(f, "xor {}", params),
             Instruction::Not(params) => write!(f, "not {}", params),
-            Instruction::Compare { cond, dst, args } => {
+            Instruction::Compare { cond, params } => {
                 let opcode = match cond {
                     BinaryCondition::Equal => "eq",
                     BinaryCondition::GreaterThan => "gt",
@@ -314,7 +406,7 @@ impl Display for Instruction {
                     BinaryCondition::LessThan => "lt",
                     BinaryCondition::LessThanOrEqualTo => "le",
                 };
-                write!(f, "{opcode} u{dst}, {args}")
+                write!(f, "{opcode} {params}")
             }
             Instruction::Jmp(reg_or_constant) => write!(f, "jmp {}", reg_or_constant),
             Instruction::Bz(reg_or_constant, compare_to_zero) => {
@@ -340,10 +432,19 @@ impl Display for NumVecReg {
     }
 }
 
+impl<RT: RegTypeT> Display for Reg<RT>
+where
+    RT::R: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", RT::LETTER, self.0)
+    }
+}
+
 impl Display for RegOrConstant<UnsignedRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegOrConstant::Reg(r) => write!(f, "u{}:{}", r.width, r.index),
+            RegOrConstant::Reg(r) => write!(f, "{}", r),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
@@ -352,7 +453,7 @@ impl Display for RegOrConstant<UnsignedRegT> {
 impl Display for RegOrConstant<SignedRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegOrConstant::Reg(r) => write!(f, "i{}:{}", r.width, r.index),
+            RegOrConstant::Reg(r) => write!(f, "{}", r),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
@@ -361,7 +462,7 @@ impl Display for RegOrConstant<SignedRegT> {
 impl Display for RegOrConstant<FloatRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegOrConstant::Reg(r) => write!(f, "f{}:{}", r.width, r.index),
+            RegOrConstant::Reg(r) => write!(f, "{}", r),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
@@ -370,7 +471,7 @@ impl Display for RegOrConstant<FloatRegT> {
 impl Display for RegOrConstant<InstrRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegOrConstant::Reg(index) => write!(f, "n:{}", index),
+            RegOrConstant::Reg(reg) => write!(f, "{}", reg),
             RegOrConstant::Const(c) => write!(f, "0x{}", c),
         }
     }
@@ -388,11 +489,11 @@ impl Display for CompareToZero {
 impl Display for MovParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MovParams::UnsignedInt(num_reg, p) => write!(f, "u{}, {}", num_reg, p),
-            MovParams::SignedInt(num_reg, p) => write!(f, "i{}, {}", num_reg, p),
-            MovParams::Float(num_reg, p) => write!(f, "f{}, {}", num_reg, p),
-            MovParams::MemAddress(to, from) => write!(f, "a:{}, a:{}", to, from),
-            MovParams::InstrAddress(to, p) => write!(f, "n:{}, {}", to, p),
+            MovParams::UnsignedInt(reg, p) => write!(f, "{}, {}", reg, p),
+            MovParams::SignedInt(reg, p) => write!(f, "{}, {}", reg, p),
+            MovParams::Float(reg, p) => write!(f, "{}, {}", reg, p),
+            MovParams::MemAddress(to, from) => write!(f, "{}, {}", to, from),
+            MovParams::InstrAddress(to, p) => write!(f, "{}, {}", to, p),
         }
     }
 }
@@ -400,13 +501,19 @@ impl Display for MovParams {
 impl Display for NotParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NotParams::UnsignedInt(num_reg, reg_or_constant) => {
-                write!(f, "u{}, {}", num_reg, reg_or_constant)
+            NotParams::UnsignedInt(reg, reg_or_constant) => {
+                write!(f, "{}, {}", reg, reg_or_constant)
             }
-            NotParams::SignedInt(num_reg, reg_or_constant) => {
-                write!(f, "i{}, {}", num_reg, reg_or_constant)
+            NotParams::SignedInt(reg, reg_or_constant) => {
+                write!(f, "{}, {}", reg, reg_or_constant)
             }
         }
+    }
+}
+
+impl Display for CompareParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}, {}", self.dst, self.args)
     }
 }
 
@@ -416,7 +523,7 @@ impl Display for ConsistentComparison {
             Self::UnsignedCompare(p1, p2) => write!(f, "{p1}, {p2}"),
             Self::SignedCompare(p1, p2) => write!(f, "{p1}, {p2}"),
             Self::FloatCompare(p1, p2) => write!(f, "{p1}, {p2}"),
-            Self::MemAddressCompare(i1, i2) => write!(f, "a:{i1}, a:{i2}"),
+            Self::MemAddressCompare(i1, i2) => write!(f, "{i1}, {i2}"),
             Self::InstrAddressCompare(p1, p2) => write!(f, "{p1}, {p2}"),
         }
     }
@@ -426,20 +533,19 @@ impl Display for AnyCoherentNumOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn write_single<RT: RegTypeT>(
             f: &mut std::fmt::Formatter<'_>,
-            c: char,
-            dst: &NumReg,
+            dst: &Reg<RT>,
             p1: &RegOrConstant<RT>,
             p2: &RegOrConstant<RT>,
         ) -> std::fmt::Result
         where
             RegOrConstant<RT>: Display,
+            Reg<RT>: Display,
         {
-            write!(f, "{c}{dst}, {p1}, {p2}")
+            write!(f, "{dst}, {p1}, {p2}")
         }
 
         fn write_broadcast<RT: RegTypeT>(
             f: &mut std::fmt::Formatter<'_>,
-            c: char,
             dst: &NumVecReg,
             p1: RegIndex,
             p2: &RegOrConstant<RT>,
@@ -450,7 +556,9 @@ impl Display for AnyCoherentNumOp {
             write!(
                 f,
                 "{0}{dst}, {0}{1}x{2}:{p1}, {p2}",
-                c, dst.width, dst.length
+                RT::LETTER,
+                dst.width,
+                dst.length
             )
         }
 
@@ -470,25 +578,25 @@ impl Display for AnyCoherentNumOp {
 
         match self {
             AnyCoherentNumOp::UnsignedInt(num_op) => match num_op {
-                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, 'u', dst, p1, p2),
-                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => {
-                    write_broadcast(f, 'u', dst, *p1, p2)
+                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
+                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => write_broadcast(f, dst, *p1, p2),
+                ConsistentNumOp::VectorVector(dst, p1, p2) => {
+                    write_vec_vec(f, UnsignedRegT::LETTER, dst, *p1, *p2)
                 }
-                ConsistentNumOp::VectorVector(dst, p1, p2) => write_vec_vec(f, 'u', dst, *p1, *p2),
             },
             AnyCoherentNumOp::SignedInt(num_op) => match num_op {
-                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, 'i', dst, p1, p2),
-                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => {
-                    write_broadcast(f, 'i', dst, *p1, p2)
+                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
+                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => write_broadcast(f, dst, *p1, p2),
+                ConsistentNumOp::VectorVector(dst, p1, p2) => {
+                    write_vec_vec(f, SignedRegT::LETTER, dst, *p1, *p2)
                 }
-                ConsistentNumOp::VectorVector(dst, p1, p2) => write_vec_vec(f, 'u', dst, *p1, *p2),
             },
             AnyCoherentNumOp::Float(num_op) => match num_op {
-                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, 'f', dst, p1, p2),
-                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => {
-                    write_broadcast(f, 'f', dst, *p1, p2)
+                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
+                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => write_broadcast(f, dst, *p1, p2),
+                ConsistentNumOp::VectorVector(dst, p1, p2) => {
+                    write_vec_vec(f, FloatRegT::LETTER, dst, *p1, *p2)
                 }
-                ConsistentNumOp::VectorVector(dst, p1, p2) => write_vec_vec(f, 'f', dst, *p1, *p2),
             },
         }
     }

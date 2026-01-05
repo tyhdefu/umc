@@ -6,7 +6,7 @@
   mov u64:2, #1 ; int next = 1
   mov u64:3, #0 ; int i = 0
 
-.LOOP: ; u64:3 next (TODO: Allow comment right after label)
+.LOOP: ; u64:3 next
   mov u64:4, u64:2        ; int next2 = next
   add u64:4, u64:4, u64:1 ; next2 += cur
   mov u64:1, u64:2        ; cur = next
