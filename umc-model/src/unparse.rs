@@ -1,9 +1,11 @@
 use crate::instructions::{
     AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentNumOp,
-    FloatRegT, InstrRegT, Instruction, MemRegT, MovParams, NotParams, NumReg, Reg, RegOrConstant,
-    RegTypeT, SignedRegT, UnsignedRegT,
+    Instruction, MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
+use crate::reg_model::{
+    FloatRegT, InstrRegT, MemRegT, NumReg, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
+};
 use crate::{NumRegType, RegType, RegisterSet};
 
 pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {

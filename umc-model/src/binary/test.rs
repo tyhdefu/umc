@@ -3,9 +3,10 @@ use std::io::Cursor;
 use crate::binary::{decode, encode, v0};
 use crate::instructions::{
     BinaryCondition, CompareParams, CompareToZero, ConsistentComparison, Instruction, MovParams,
-    NotParams, NumReg, Reg, RegOrConstant,
+    NotParams,
 };
 use crate::operand::RegOperand;
+use crate::reg_model::{NumReg, Reg, RegOrConstant};
 use crate::{NumRegType, Program, RegType, RegisterSet};
 
 #[test]

@@ -2,10 +2,13 @@
 //! that is guaranteed to execute
 
 use crate::instructions::{
-    AddParams, AnyCoherentNumOp, CompareParams, ConsistentComparison, ConsistentNumOp, FloatRegT,
-    InstrRegT, MovParams, NotParams, NumReg, Reg, RegOrConstant, SignedRegT, UnsignedRegT,
+    AddParams, AnyCoherentNumOp, CompareParams, ConsistentComparison, ConsistentNumOp, MovParams,
+    NotParams,
 };
 use crate::operand::{Operand, RegOperand};
+use crate::reg_model::{
+    FloatRegT, InstrRegT, NumReg, Reg, RegOrConstant, SignedRegT, UnsignedRegT,
+};
 use crate::{NumRegType, RegType, RegisterSet};
 
 #[derive(Debug)]

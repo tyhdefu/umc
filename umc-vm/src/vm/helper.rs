@@ -9,8 +9,9 @@ use crate::vm::types::{
 use umc_model::RegWidth;
 use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
-    ConsistentNumOp, InstrRegT, MovParams, NotParams, Reg, RegOrConstant, SignedRegT, UnsignedRegT,
+    ConsistentNumOp, MovParams, NotParams,
 };
+use umc_model::reg_model::{InstrRegT, Reg, RegOrConstant, SignedRegT, UnsignedRegT};
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     match params {

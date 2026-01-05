@@ -4,10 +4,11 @@ use std::io;
 
 use crate::binary::{DecodeError, EncodeError};
 use crate::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, InstrRegT, Instruction,
-    MovParams, NotParams, NumReg, RegOrConstant,
+    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction, MovParams,
+    NotParams,
 };
 use crate::operand::{Operand, RegOperand};
+use crate::reg_model::{InstrRegT, NumReg, RegOrConstant};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
@@ -567,8 +568,9 @@ mod test {
     use crate::binary::v0::{
         OpCode, RTHeader, RTHeaderEntry, decode_instruction, encode_instruction,
     };
-    use crate::instructions::{Instruction, MovParams, NumReg, Reg, RegOrConstant};
+    use crate::instructions::{Instruction, MovParams};
     use crate::operand::{Operand, RegOperand};
+    use crate::reg_model::{NumReg, Reg, RegOrConstant};
     use crate::{NumRegType, RegType, RegisterSet};
 
     #[test]

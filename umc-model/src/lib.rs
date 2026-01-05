@@ -4,6 +4,7 @@ pub mod binary;
 pub mod instructions;
 pub mod operand;
 pub mod parse;
+pub mod reg_model;
 pub mod unparse;
 
 use std::fmt::Display;

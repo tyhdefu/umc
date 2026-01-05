@@ -4,11 +4,10 @@ use std::io::BufReader;
 use std::path::Path;
 
 use umc_model::binary::decode;
+use umc_model::reg_model::{NumReg, Reg, RegOrConstant};
 use vm::VirtualMachine;
 
-use umc_model::instructions::{
-    AnyCoherentNumOp, ConsistentNumOp, Instruction, MovParams, NumReg, Reg, RegOrConstant,
-};
+use umc_model::instructions::{AnyCoherentNumOp, ConsistentNumOp, Instruction, MovParams};
 use umc_model::operand::RegOperand;
 use umc_model::{NumRegType, RegType};
 use umc_model::{Program, RegisterSet};

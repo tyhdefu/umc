@@ -9,7 +9,8 @@ mod test;
 use crate::vm::state::RegState;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{BinaryArithmeticOp, CastSingleSigned, CastSingleUnsigned};
-use umc_model::instructions::{Instruction, NumReg, RegOrConstant};
+use umc_model::instructions::Instruction;
+use umc_model::reg_model::{NumReg, RegOrConstant};
 use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
 pub struct VirtualMachine {

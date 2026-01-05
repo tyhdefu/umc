@@ -4,10 +4,11 @@ use std::ops::RangeInclusive;
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
-    InstrRegT, Instruction, MovParams, NotParams, NumReg, Reg, RegOrConstant,
+    Instruction, MovParams, NotParams,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::InstructionValidateError;
+use umc_model::reg_model::{InstrRegT, NumReg, Reg, RegOrConstant};
 use umc_model::{NumRegType, RegType, RegisterSet};
 use umc_model::{Program, operand as bc};
 
