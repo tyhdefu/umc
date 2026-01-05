@@ -8,7 +8,7 @@ use crate::instructions::{
     NotParams,
 };
 use crate::operand::{Operand, RegOperand};
-use crate::reg_model::{InstrRegT, NumReg, RegOrConstant};
+use crate::reg_model::{InstrRegT, RegOrConstant};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
@@ -198,33 +198,8 @@ pub fn decode_instruction<R: io::Read>(
     }
 
     fn cmp_zero_op(operand: &Operand) -> Result<CompareToZero, DecodeError> {
-        Ok(match operand {
-            Operand::Reg(reg) => match reg.set {
-                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
-                    CompareToZero::Unsigned(RegOrConstant::reg(NumReg {
-                        index: reg.index,
-                        width,
-                    }))
-                }
-                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
-                    CompareToZero::Signed(RegOrConstant::reg(NumReg {
-                        index: reg.index,
-                        width,
-                    }))
-                }
-                _ => {
-                    return Err(DecodeError::Malformed(format!(
-                        "Expected operand that can be compared to zero"
-                    )));
-                }
-            },
-            Operand::UnsignedConstant(c) => CompareToZero::Unsigned(RegOrConstant::Const(*c)),
-            Operand::SignedConstant(c) => CompareToZero::Signed(RegOrConstant::Const(*c)),
-            _ => {
-                return Err(DecodeError::Malformed(format!(
-                    "Expected operand that can be compared to zero"
-                )));
-            }
+        CompareToZero::try_from(operand).map_err(|_| {
+            DecodeError::Malformed(format!("Expected operand that can be compared to zero"))
         })
     }
 

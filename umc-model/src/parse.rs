@@ -2,8 +2,8 @@
 //! that is guaranteed to execute
 
 use crate::instructions::{
-    AddParams, AnyCoherentNumOp, CompareParams, ConsistentComparison, ConsistentNumOp, MovParams,
-    NotParams,
+    AddParams, AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison,
+    ConsistentNumOp, MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -345,6 +345,33 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Operand::FloatConstant(c) => float(RegOrConstant::Const(*c)),
             Operand::LabelConstant(c) => iaddr(RegOrConstant::Const(*c)),
         }
+    }
+}
+
+impl TryFrom<&Operand> for CompareToZero {
+    type Error = ();
+
+    fn try_from(value: &Operand) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Operand::Reg(reg) => match reg.set {
+                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
+                    Self::Unsigned(RegOrConstant::reg(NumReg {
+                        index: reg.index,
+                        width,
+                    }))
+                }
+                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
+                    Self::Signed(RegOrConstant::reg(NumReg {
+                        index: reg.index,
+                        width,
+                    }))
+                }
+                _ => return Err(()),
+            },
+            Operand::UnsignedConstant(c) => Self::Unsigned(RegOrConstant::Const(*c)),
+            Operand::SignedConstant(c) => Self::Signed(RegOrConstant::Const(*c)),
+            _ => return Err(()),
+        })
     }
 }
 
