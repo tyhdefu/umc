@@ -10,7 +10,7 @@ use crate::{RegIndex, RegWidth};
 pub type MemReg = RegIndex;
 pub type InstrReg = RegIndex;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct NumReg {
     pub index: RegIndex,
     pub width: RegWidth,
@@ -94,6 +94,8 @@ impl RegTypeT for InstrRegT {
 /// Type-safe Register
 #[derive(Debug, PartialEq)]
 pub struct Reg<RT: RegTypeT>(pub RT::R);
+
+impl<RT: RegTypeT> Copy for Reg<RT> where RT::R: Copy {}
 
 impl<RT: RegTypeT> Clone for Reg<RT> {
     fn clone(&self) -> Self {
