@@ -4,14 +4,15 @@ use crate::vm::state::{RegState, StoreFor, StorePrim};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
-    BinaryArithmeticOp, CastInto, CastSingleSigned, CastSingleUnsigned, UMCArithmetic,
+    BinaryArithmeticOp, BinaryBitwiseOp, BinaryOp, CastInto, CastSingleFloat, CastSingleSigned,
+    CastSingleUnsigned, UMCArithmetic, UMCBitwise,
 };
 use umc_model::RegWidth;
 use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
     ConsistentNumOp, MovParams, NotParams,
 };
-use umc_model::reg_model::{InstrRegT, Reg, RegOrConstant, SignedRegT, UnsignedRegT};
+use umc_model::reg_model::{FloatRegT, InstrRegT, Reg, RegOrConstant, SignedRegT, UnsignedRegT};
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     match params {
@@ -31,7 +32,14 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             ));
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
-        MovParams::Float(_, _) => todo!(),
+        MovParams::Float(r, reg_or_constant) => {
+            let num_op = AnyCoherentNumOp::Float(ConsistentNumOp::Single(
+                r.clone(),
+                reg_or_constant.clone(),
+                RegOrConstant::Const(0.0),
+            ));
+            execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
+        }
         MovParams::MemAddress(_, _) => todo!(),
         MovParams::InstrAddress(dst, p) => {
             let addr = read_iaddr(p, state);
@@ -40,51 +48,68 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     }
 }
 
+fn compute_binary<T, F, R, O>(op: O, read: F, p1: &R, p2: &R) -> T
+where
+    O: BinaryOp<T>,
+    F: Fn(&R) -> T,
+{
+    let mut p1: T = read(p1);
+    let p2: T = read(p2);
+    op.operate(&mut p1, &p2);
+    p1
+}
+
+fn compute_unsigned<O, T>(
+    op: O,
+    dst: &Reg<UnsignedRegT>,
+    p1: &RegOrConstant<UnsignedRegT>,
+    p2: &RegOrConstant<UnsignedRegT>,
+    state: &mut RegState,
+) where
+    O: BinaryOp<T>,
+    T: CastSingleUnsigned + Copy,
+    RegState: StorePrim<T, UnsignedRegT>,
+{
+    let result: T = compute_binary(op, |r| read_uint(r, state), p1, p2);
+    state.store_prim(*dst, result);
+}
+
+fn compute_signed<O, T>(
+    op: O,
+    dst: &Reg<SignedRegT>,
+    p1: &RegOrConstant<SignedRegT>,
+    p2: &RegOrConstant<SignedRegT>,
+    state: &mut RegState,
+) where
+    O: BinaryOp<T>,
+    T: CastSingleSigned + Copy,
+    RegState: StorePrim<T, SignedRegT>,
+{
+    let result: T = compute_binary(op, |r| read_int(r, state), p1, p2);
+    state.store_prim(*dst, result);
+}
+
+fn compute_float<O, T>(
+    op: O,
+    dst: &Reg<FloatRegT>,
+    p1: &RegOrConstant<FloatRegT>,
+    p2: &RegOrConstant<FloatRegT>,
+    state: &mut RegState,
+) where
+    O: BinaryOp<T>,
+    T: CastSingleFloat + Copy,
+    RegState: StorePrim<T, FloatRegT>,
+{
+    let result: T = compute_binary(op, |r| read_float(r, state), p1, p2);
+    state.store_prim(*dst, result);
+}
+
 pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, state: &mut RegState) {
-    fn compute_binary<T, F, R>(op: BinaryArithmeticOp, read: F, p1: &R, p2: &R) -> T
-    where
-        T: UMCArithmetic,
-        F: Fn(&R) -> T,
-    {
-        let mut p1: T = read(p1);
-        let p2: T = read(p2);
-        op.operate(&mut p1, &p2);
-        p1
-    }
-
-    fn compute_unsigned<T>(
-        op: BinaryArithmeticOp,
-        dst: &Reg<UnsignedRegT>,
-        p1: &RegOrConstant<UnsignedRegT>,
-        p2: &RegOrConstant<UnsignedRegT>,
-        state: &mut RegState,
-    ) where
-        T: UMCArithmetic + CastSingleUnsigned + Copy,
-        RegState: StorePrim<T, UnsignedRegT>,
-    {
-        let result: T = compute_binary(op, |r| read_uint(r, state), p1, p2);
-        state.store_prim(*dst, result);
-    }
-
-    fn compute_signed<T>(
-        op: BinaryArithmeticOp,
-        dst: &Reg<SignedRegT>,
-        p1: &RegOrConstant<SignedRegT>,
-        p2: &RegOrConstant<SignedRegT>,
-        state: &mut RegState,
-    ) where
-        T: UMCArithmetic + CastSingleSigned + Copy,
-        RegState: StorePrim<T, SignedRegT>,
-    {
-        let result: T = compute_binary(op, |r| read_int(r, state), p1, p2);
-        state.store_prim(*dst, result);
-    }
-
     match params {
         AnyCoherentNumOp::UnsignedInt(param_kind) => match param_kind {
             ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
-                u32::BITS => compute_unsigned::<u32>(op, dst, p1, p2, state),
-                u64::BITS => compute_unsigned::<u64>(op, dst, p1, p2, state),
+                u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
+                u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
                 _ => {
                     let mut p1: ArbitraryUnsignedInt = read_uint(&p1, state);
                     let p2: ArbitraryUnsignedInt = read_uint(&p2, state);
@@ -98,14 +123,52 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
         },
         AnyCoherentNumOp::SignedInt(param_kind) => match param_kind {
             ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
-                i32::BITS => compute_signed::<i32>(op, dst, p1, p2, state),
-                i64::BITS => compute_signed::<i64>(op, dst, p1, p2, state),
+                i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
+                i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
                 _ => todo!(),
             },
             ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
             ConsistentNumOp::VectorVector(_, _, _) => todo!(),
         },
-        AnyCoherentNumOp::Float(_) => todo!(),
+        AnyCoherentNumOp::Float(param_kind) => match param_kind {
+            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+                32 => compute_float::<_, f32>(op, dst, p1, p2, state),
+                64 => compute_float::<_, f64>(op, dst, p1, p2, state),
+                _ => panic!("Floats must be 32 or 64-bit"),
+            },
+            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
+            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+        },
+    }
+}
+
+pub fn execute_bitwise(params: &AnyCoherentNumOp, op: BinaryBitwiseOp, state: &mut RegState) {
+    match params {
+        AnyCoherentNumOp::UnsignedInt(num_op) => match num_op {
+            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+                u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
+                u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
+                _ => {
+                    let mut p1: ArbitraryUnsignedInt = read_uint(&p1, state);
+                    let p2: ArbitraryUnsignedInt = read_uint(&p2, state);
+                    p1.set_bits(dst.0.width);
+                    op.operate(&mut p1, &p2);
+                    state.store(*dst, p1);
+                }
+            },
+            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
+            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+        },
+        AnyCoherentNumOp::SignedInt(num_op) => match num_op {
+            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+                i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
+                i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
+                _ => todo!(),
+            },
+            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
+            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+        },
+        AnyCoherentNumOp::Float(_) => panic!("TODO: Make new num op for bitwise"),
     }
 }
 
@@ -129,7 +192,6 @@ pub fn execute_comparison(cond: &BinaryCondition, params: &CompareParams, state:
         }
         _ => {
             let v: ArbitraryUnsignedInt = (result as u32).cast_into();
-            println!("Storing: {}", v);
             state.store(*dst, v);
         }
     }
@@ -155,7 +217,6 @@ pub fn compare(comparison: &ConsistentComparison, state: &RegState) -> Option<Or
                 w if w <= u32::BITS => {
                     let v1: u32 = read_uint(op1, state);
                     let v2: u32 = read_uint(op2, state);
-                    println!("{v1} vs {v2}");
                     v1.partial_cmp(&v2)
                 }
                 w if w <= u64::BITS => {
@@ -186,7 +247,22 @@ pub fn compare(comparison: &ConsistentComparison, state: &RegState) -> Option<Or
                 _ => todo!(),
             }
         }
-        ConsistentComparison::FloatCompare(_, _) => todo!(),
+        ConsistentComparison::FloatCompare(op1, op2) => {
+            let width = op1.width().or(op2.width()).unwrap_or(64);
+            match width {
+                w if w <= 32 => {
+                    let v1: f32 = read_float(op1, state);
+                    let v2: f32 = read_float(op2, state);
+                    v1.partial_cmp(&v2)
+                }
+                w if w <= 64 => {
+                    let v1: f64 = read_float(op1, state);
+                    let v2: f64 = read_float(op2, state);
+                    v1.partial_cmp(&v2)
+                }
+                _ => panic!("Only 32-bit or 64-bit floats supported"),
+            }
+        }
         ConsistentComparison::MemAddressCompare(_, _) => todo!(),
         ConsistentComparison::InstrAddressCompare(_, _) => todo!(),
     }
@@ -257,6 +333,26 @@ where
             _ => {
                 todo!();
             }
+        },
+        RegOrConstant::Const(c) => c.cast_into(),
+    }
+}
+
+pub fn read_float<T>(op: &RegOrConstant<FloatRegT>, state: &RegState) -> T
+where
+    T: CastSingleFloat,
+{
+    match op {
+        RegOrConstant::Reg(num_reg) => match num_reg.0.width {
+            32 => {
+                let v: f32 = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
+            64 => {
+                let v: f64 = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
+            _ => panic!("Floats can only be 32-bit or 64-bit"),
         },
         RegOrConstant::Const(c) => c.cast_into(),
     }

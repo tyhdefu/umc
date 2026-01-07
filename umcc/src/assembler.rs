@@ -209,6 +209,18 @@ pub fn ast_to_bytecode(
             let params = coherent_num_op(&instr, labels)?;
             Ok(Instruction::Sub(params))
         }
+        "mul" => {
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Mul(params))
+        }
+        "div" => {
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Div(params))
+        }
+        "mod" => {
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Mod(params))
+        }
         "xor" => {
             let params = coherent_num_op(&instr, labels)?;
             Ok(Instruction::Xor(params))
@@ -315,6 +327,7 @@ fn parse_reg_or_constant(
             }
         },
         ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
+        ast::Operand::FloatConstant(x) => Ok(bc::Operand::FloatConstant(*x)),
         ast::Operand::Label(label) => {
             let pc = labels.get(label).ok_or_else(|| {
                 AssembleInstructionError::invalid_op(

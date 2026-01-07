@@ -1,6 +1,7 @@
 use std::ops::{BitAndAssign, BitXorAssign};
 
-use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, uint::ArbitraryUnsignedInt};
+use crate::vm::types::uint::ArbitraryUnsignedInt;
+use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 
 #[derive(PartialEq)]
 pub struct ArbitraryInt {}
@@ -14,6 +15,20 @@ impl UMCArithmetic for ArbitraryInt {
         todo!()
     }
 
+    fn modulo(&mut self, rhs: &Self) {
+        todo!()
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        todo!()
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        todo!()
+    }
+}
+
+impl UMCBitwise for ArbitraryInt {
     fn and(&mut self, rhs: &Self) {
         todo!()
     }
@@ -36,6 +51,20 @@ impl UMCArithmetic for i32 {
         *self = self.wrapping_sub(*rhs);
     }
 
+    fn modulo(&mut self, rhs: &Self) {
+        *self = *self % *rhs;
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        *self = self.wrapping_mul(*rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        *self = *self / *rhs;
+    }
+}
+
+impl UMCBitwise for i32 {
     fn and(&mut self, rhs: &Self) {
         self.bitand_assign(*rhs);
     }
@@ -58,6 +87,20 @@ impl UMCArithmetic for i64 {
         *self = self.wrapping_sub(*rhs);
     }
 
+    fn modulo(&mut self, rhs: &Self) {
+        *self = *self % *rhs;
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        *self = self.wrapping_mul(*rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        *self = *self / *rhs;
+    }
+}
+
+impl UMCBitwise for i64 {
     fn and(&mut self, rhs: &Self) {
         self.bitand_assign(*rhs);
     }

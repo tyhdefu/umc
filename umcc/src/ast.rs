@@ -77,6 +77,7 @@ impl FromStr for ASTRegisterOperand {
 pub enum Operand {
     Reg(ASTRegisterOperand),
     Constant(u64),
+    FloatConstant(f64),
     Label(String),
 }
 

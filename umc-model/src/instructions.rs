@@ -16,6 +16,13 @@ pub enum Instruction {
     Add(AnyCoherentNumOp),
     /// Subtract the second operand from the first register
     Sub(AnyCoherentNumOp),
+    /// Multiply two registers
+    Mul(AnyCoherentNumOp),
+    /// Divide the first register by the second register
+    Div(AnyCoherentNumOp),
+    /// Remainder of the first operand when divided by the second
+    Mod(AnyCoherentNumOp),
+
     /// Bitwise AND
     And(AnyCoherentNumOp),
 
@@ -140,6 +147,9 @@ impl Display for Instruction {
             Instruction::Mov(params) => write!(f, "mov {}", params),
             Instruction::Add(params) => write!(f, "add {}", params),
             Instruction::Sub(params) => write!(f, "sub {}", params),
+            Instruction::Mul(params) => write!(f, "mul {}", params),
+            Instruction::Div(params) => write!(f, "div {}", params),
+            Instruction::Mod(params) => write!(f, "mod {}", params),
             Instruction::And(params) => write!(f, "and {}", params),
             Instruction::Xor(params) => write!(f, "xor {}", params),
             Instruction::Not(params) => write!(f, "not {}", params),

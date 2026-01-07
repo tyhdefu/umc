@@ -87,7 +87,7 @@ fn encode_instruction<W: io::Write>(
                     .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(
                         NumRegType::UnsignedInt(u64::BITS),
                     )))
-                    .expect("No matching register set for unsigned constant");
+                    .expect("No matching rt entry for unsigned constant");
                 let rs_index_byte: u8 = rs_index
                     .try_into()
                     .expect("Constant Register doesn't fit into byte");
@@ -96,7 +96,16 @@ fn encode_instruction<W: io::Write>(
                 dst.write(&c.to_le_bytes())?;
             }
             Operand::SignedConstant(_) => todo!(),
-            Operand::FloatConstant(_) => todo!(),
+            Operand::FloatConstant(c) => {
+                let rs_index = rt_header
+                    .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(NumRegType::Float(64))))
+                    .expect("No matching rt entry for 64-bit float");
+                let rs_index_byte: u8 = rs_index
+                    .try_into()
+                    .expect("Constant Register doesn't fit into byte");
+                dst.write(&[rs_index_byte])?;
+                dst.write(&c.to_le_bytes())?;
+            }
             Operand::LabelConstant(c) => {
                 let rs_index = rt_header
                     .reverse_lookup(RTHeaderEntry::Constant(RegType::InstructionAddress))
@@ -189,8 +198,9 @@ pub fn decode_instruction<R: io::Read>(
     ) -> Result<AnyCoherentNumOp, DecodeError> {
         let ops = operands::<R, 3>(src, rt_header)?;
         let ops_ref: Vec<&Operand> = ops.iter().collect();
-        AnyCoherentNumOp::try_from(ops_ref.as_slice())
-            .map_err(|i| DecodeError::Malformed(format!("Invalid Instruction: {:?}", i)))
+        AnyCoherentNumOp::try_from(ops_ref.as_slice()).map_err(|i| {
+            DecodeError::Malformed(format!("Invalid Instruction: {:?} for {:?}", i, ops))
+        })
     }
 
     fn iaddr_op(operand: &Operand) -> Result<RegOrConstant<InstrRegT>, DecodeError> {
@@ -216,9 +226,9 @@ pub fn decode_instruction<R: io::Read>(
 
         OpCode::ADD => Instruction::Add(read_3_num_op(src, rt_header)?),
         OpCode::SUB => Instruction::Sub(read_3_num_op(src, rt_header)?),
-        OpCode::MUL => todo!(),
-        OpCode::DIV => todo!(),
-        OpCode::MOD => todo!(),
+        OpCode::MUL => Instruction::Mul(read_3_num_op(src, rt_header)?),
+        OpCode::DIV => Instruction::Div(read_3_num_op(src, rt_header)?),
+        OpCode::MOD => Instruction::Mod(read_3_num_op(src, rt_header)?),
         OpCode::JMP => {
             let ops = operands::<R, 1>(src, rt_header)?;
             Instruction::Jmp(iaddr_op(&ops[0])?)
@@ -236,7 +246,9 @@ pub fn decode_instruction<R: io::Read>(
         OpCode::EQ | OpCode::GT | OpCode::GTE => {
             let ops = operands::<R, 3>(src, rt_header)?;
             let ops_ref: Vec<&Operand> = ops.iter().collect();
-            let params = CompareParams::try_from(ops_ref.as_slice())?;
+            let params = CompareParams::try_from(ops_ref.as_slice()).map_err(|i| {
+                DecodeError::Malformed(format!("Invalid Instruction: {:?} | {:?}", i, ops))
+            })?;
             let cond = match opcode {
                 OpCode::EQ => BinaryCondition::Equal,
                 OpCode::GT => BinaryCondition::GreaterThan,
@@ -274,6 +286,9 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Mov(_) => OpCode::MOV,
         Instruction::Add(_) => OpCode::ADD,
         Instruction::Sub(_) => OpCode::SUB,
+        Instruction::Mul(_) => OpCode::MUL,
+        Instruction::Div(_) => OpCode::DIV,
+        Instruction::Mod(_) => OpCode::MOD,
         Instruction::And(_) => OpCode::AND,
         Instruction::Xor(_) => OpCode::XOR,
         Instruction::Not(_) => OpCode::NOT,
@@ -282,11 +297,11 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
             BinaryCondition::GreaterThan => OpCode::GT,
             BinaryCondition::GreaterThanOrEqualTo => OpCode::GTE,
             BinaryCondition::LessThan => {
-                ops.reverse();
+                ops.swap(1, 2);
                 OpCode::GTE
             }
             BinaryCondition::LessThanOrEqualTo => {
-                ops.reverse();
+                ops.swap(1, 2);
                 OpCode::GT
             }
         },
@@ -543,12 +558,14 @@ mod test {
     use std::io::Cursor;
 
     use crate::binary::v0::{
-        OpCode, RTHeader, RTHeaderEntry, decode_instruction, encode_instruction,
+        OpCode, RTHeader, RTHeaderEntry, decode, decode_instruction, encode, encode_instruction,
     };
-    use crate::instructions::{Instruction, MovParams};
+    use crate::instructions::{
+        BinaryCondition, CompareParams, ConsistentComparison, Instruction, MovParams,
+    };
     use crate::operand::{Operand, RegOperand};
     use crate::reg_model::{NumReg, Reg, RegOrConstant};
-    use crate::{NumRegType, RegType, RegisterSet};
+    use crate::{NumRegType, Program, RegType, RegisterSet};
 
     #[test]
     fn encode_debug_instruction() {
@@ -641,5 +658,67 @@ mod test {
         let decoded_rt_header = RTHeader::read(&mut cursor).expect("Failed to decode RT Header");
 
         assert_eq!(rt_header, decoded_rt_header);
+    }
+
+    #[test]
+    fn encode_float_constant() {
+        let instr = Instruction::Mov(MovParams::Float(
+            Reg(NumReg {
+                index: 1,
+                width: 64,
+            }),
+            RegOrConstant::Const(12.5),
+        ));
+        let prog = Program {
+            instructions: vec![instr],
+        };
+
+        let mut buf = vec![];
+        encode(&prog, &mut buf).expect("Failed to encode program");
+
+        let mut cursor = Cursor::new(buf);
+        let decoded_prog = decode(&mut cursor).expect("Failed to decode program");
+        assert_eq!(prog.instructions, decoded_prog.instructions);
+    }
+
+    #[test]
+    fn encode_lt_as_gte() {
+        let instr = Instruction::Compare {
+            cond: BinaryCondition::LessThan,
+            params: CompareParams {
+                dst: Reg(NumReg { index: 0, width: 1 }),
+                args: ConsistentComparison::UnsignedCompare(
+                    RegOrConstant::reg(NumReg {
+                        index: 0,
+                        width: 32,
+                    }),
+                    RegOrConstant::Const(100),
+                ),
+            },
+        };
+
+        let prog = Program {
+            instructions: vec![instr],
+        };
+
+        let mut buf = vec![];
+        encode(&prog, &mut buf).expect("Failed to encode program");
+
+        let expected_instr = Instruction::Compare {
+            cond: BinaryCondition::GreaterThanOrEqualTo,
+            params: CompareParams {
+                dst: Reg(NumReg { index: 0, width: 1 }),
+                args: ConsistentComparison::UnsignedCompare(
+                    RegOrConstant::Const(100),
+                    RegOrConstant::reg(NumReg {
+                        index: 0,
+                        width: 32,
+                    }),
+                ),
+            },
+        };
+        let mut cursor = Cursor::new(buf);
+        let decoded_prog = decode(&mut cursor).expect("Failed to decode program");
+        assert_eq!(expected_instr, decoded_prog.instructions[0]);
     }
 }

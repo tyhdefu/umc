@@ -1,6 +1,7 @@
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 
 pub mod address;
+pub mod float;
 pub mod int;
 pub mod uint;
 
@@ -17,35 +18,71 @@ pub trait UMCArithmetic: PartialEq {
     /// Silently and safely underflow if needed
     fn sub(&mut self, rhs: &Self);
 
+    /// Perform multiplication according to the UMC rules
+    /// Silently and safely overflow if needed
+    fn mul(&mut self, rhs: &Self);
+
+    /// Peform multiplication according to the UMC rules
+    fn div(&mut self, rhs: &Self);
+
+    /// Modulo operation
+    fn modulo(&mut self, rhs: &Self);
+}
+
+pub trait UMCBitwise: PartialEq {
     /// Bitwise AND
     fn and(&mut self, rhs: &Self);
     /// Bitwise XOR
     fn xor(&mut self, rhs: &Self);
-
     /// Logical bitwise NOT
     fn not(&mut self);
+}
+
+pub trait BinaryOp<V> {
+    fn operate(&self, a: &mut V, b: &V);
 }
 
 pub enum BinaryArithmeticOp {
     Add,
     Sub,
+    Mul,
+    Div,
+    Modulo,
+}
+
+pub enum BinaryBitwiseOp {
     And,
     Xor,
 }
 
-impl BinaryArithmeticOp {
-    pub fn operate<T>(&self, a: &mut T, b: &T)
-    where
-        T: UMCArithmetic,
-    {
+impl<V> BinaryOp<V> for BinaryArithmeticOp
+where
+    V: UMCArithmetic,
+{
+    fn operate(&self, a: &mut V, b: &V) {
         match &self {
             Self::Add => a.add(b),
             Self::Sub => a.sub(b),
-            Self::And => a.and(b),
-            Self::Xor => a.xor(b),
+            Self::Mul => a.mul(b),
+            Self::Div => a.div(b),
+            Self::Modulo => a.modulo(b),
         }
     }
 }
+
+impl<V> BinaryOp<V> for BinaryBitwiseOp
+where
+    V: UMCBitwise,
+{
+    fn operate(&self, a: &mut V, b: &V) {
+        match &self {
+            BinaryBitwiseOp::And => a.and(b),
+            BinaryBitwiseOp::Xor => a.xor(b),
+        }
+    }
+}
+
+impl BinaryBitwiseOp {}
 
 /// Any non-vector type that can be cast into from an unsigned integer
 pub trait CastSingleUnsigned:
@@ -60,6 +97,9 @@ impl<T> CastSingleUnsigned for T where
 /// Any non-vector type that can be cast into from a signed integer
 pub trait CastSingleSigned: CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/ {}
 impl<T> CastSingleSigned for T where T: CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/ {}
+
+pub trait CastSingleFloat: CastFrom<f32> + CastFrom<f64> {}
+impl<T> CastSingleFloat for T where T: CastFrom<f32> + CastFrom<f64> {}
 
 /// Any non-vector type that can be cast between all other types
 pub trait CastSingleAny: CastSingleUnsigned + CastSingleSigned {}

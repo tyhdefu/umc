@@ -173,36 +173,39 @@ fn consistent_operand(
 ) -> Result<MovParams, InstructionValidateError> {
     match &dst.set {
         RegisterSet::Single(RegType::Num(num_type)) => match num_type {
-            NumRegType::UnsignedInt(w) => match p {
-                Operand::Reg(RegOperand {
-                    index: i2,
-                    set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w2))),
-                }) => {
-                    if w2 > w {
-                        return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
-                    }
-                    Ok(MovParams::UnsignedInt(
-                        Reg(NumReg {
-                            index: dst.index,
-                            width: *w,
-                        }),
-                        RegOrConstant::reg(NumReg {
-                            index: *i2,
-                            width: *w,
-                        }),
-                    ))
+            NumRegType::UnsignedInt(w) => {
+                let p_unsigned = RegOrConstant::from_unsigned(p)
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+
+                // Don't allow narrowing
+                if p_unsigned.width().is_some_and(|w2| w2 > *w) {
+                    return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
                 }
-                Operand::UnsignedConstant(c) => Ok(MovParams::UnsignedInt(
+                Ok(MovParams::UnsignedInt(
                     Reg(NumReg {
                         index: dst.index,
                         width: *w,
                     }),
-                    RegOrConstant::Const(*c),
-                )),
-                _ => Err(InstructionValidateError::InconsistentOperand { op_index: 1 }),
-            },
+                    p_unsigned,
+                ))
+            }
             NumRegType::SignedInt(_) => todo!("signed operands not implemented yet"),
-            NumRegType::Float(_) => todo!(),
+            NumRegType::Float(w) => {
+                let p_float = RegOrConstant::from_float(p)
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+
+                // Don't allow narrowing
+                if p_float.width().is_some_and(|w2| w2 > *w) {
+                    return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
+                }
+                Ok(MovParams::Float(
+                    Reg(NumReg {
+                        index: dst.index,
+                        width: *w,
+                    }),
+                    p_float,
+                ))
+            }
         },
         RegisterSet::Single(RegType::InstructionAddress) => match p {
             Operand::Reg(r) => Ok(MovParams::InstrAddress(

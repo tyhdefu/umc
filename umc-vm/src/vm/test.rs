@@ -179,6 +179,22 @@ fn compare_uints() {
 }
 
 #[test]
+fn add_floats() {
+    const PROG: &str = "
+        mov f64:0, #0.5
+        dbg f64:0
+        mov f64:1, #1.5
+        dbg f64:1
+
+        add f64:2, f64:0, f64:1
+        dbg f64:2
+    ";
+    let vm = compile_and_run(PROG);
+    let f64_2: f64 = vm.inspect_float(2, 64);
+    assert_eq!(2.0f64, f64_2);
+}
+
+#[test]
 fn fib_encode_and_decode() {
     // 1, 1, 2, 3, 5, 8, 13
     const PROG: &str = "

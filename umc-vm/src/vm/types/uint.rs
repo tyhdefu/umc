@@ -2,7 +2,7 @@ use std::iter::repeat_n;
 use std::ops::BitAndAssign;
 use std::{fmt::Display, ops::BitXorAssign};
 
-use crate::vm::types::{CastFrom, CastInto, UMCArithmetic};
+use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 
 #[derive(Clone, Debug)]
 pub struct ArbitraryUnsignedInt {
@@ -121,6 +121,20 @@ impl UMCArithmetic for u32 {
         *self = self.wrapping_sub(*rhs)
     }
 
+    fn modulo(&mut self, rhs: &Self) {
+        *self = *self % *rhs;
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        *self = self.wrapping_mul(*rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl UMCBitwise for u32 {
     fn not(&mut self) {
         *self = !*self
     }
@@ -143,6 +157,20 @@ impl UMCArithmetic for u64 {
         *self = self.wrapping_sub(*rhs)
     }
 
+    fn modulo(&mut self, rhs: &Self) {
+        *self = *self % *rhs;
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        *self = self.wrapping_mul(*rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl UMCBitwise for u64 {
     fn not(&mut self) {
         *self = !*self
     }
@@ -182,6 +210,20 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
         todo!()
     }
 
+    fn modulo(&mut self, rhs: &Self) {
+        todo!()
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        todo!()
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        todo!()
+    }
+}
+
+impl UMCBitwise for ArbitraryUnsignedInt {
     fn not(&mut self) {
         // Any sparse 0s will become non-zero, so fill vec first:
         self.grow_to_max();

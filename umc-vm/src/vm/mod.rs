@@ -8,7 +8,9 @@ mod test;
 
 use crate::vm::state::RegState;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
-use crate::vm::types::{BinaryArithmeticOp, CastSingleSigned, CastSingleUnsigned};
+use crate::vm::types::{
+    BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
+};
 use umc_model::instructions::Instruction;
 use umc_model::reg_model::{NumReg, RegOrConstant};
 use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
@@ -53,6 +55,14 @@ impl VirtualMachine {
         helper::read_int::<T>(&reg, &self.state)
     }
 
+    pub fn inspect_float<T>(&self, index: RegIndex, width: RegWidth) -> T
+    where
+        T: CastSingleFloat,
+    {
+        let reg = RegOrConstant::reg(NumReg { index, width });
+        helper::read_float(&reg, &self.state)
+    }
+
     fn execute_step(&mut self) {
         let instr: &Instruction = &self.program[self.pc];
         println!("Executing instruction {}: {}", self.pc, instr);
@@ -67,11 +77,20 @@ impl VirtualMachine {
             Instruction::Sub(num_op) => {
                 helper::execute_arithmetic(num_op, BinaryArithmeticOp::Sub, &mut self.state);
             }
+            Instruction::Mul(num_op) => {
+                helper::execute_arithmetic(num_op, BinaryArithmeticOp::Mul, &mut self.state);
+            }
+            Instruction::Div(num_op) => {
+                helper::execute_arithmetic(num_op, BinaryArithmeticOp::Div, &mut self.state);
+            }
+            Instruction::Mod(num_op) => {
+                helper::execute_arithmetic(num_op, BinaryArithmeticOp::Modulo, &mut self.state);
+            }
             Instruction::And(num_op) => {
-                helper::execute_arithmetic(num_op, BinaryArithmeticOp::And, &mut self.state);
+                helper::execute_bitwise(num_op, BinaryBitwiseOp::And, &mut self.state);
             }
             Instruction::Xor(num_op) => {
-                helper::execute_arithmetic(num_op, BinaryArithmeticOp::Xor, &mut self.state);
+                helper::execute_bitwise(num_op, BinaryBitwiseOp::Xor, &mut self.state);
             }
             Instruction::Not(params) => {
                 helper::execute_not(params, &mut self.state);
@@ -115,6 +134,14 @@ impl VirtualMachine {
                     });
                     let x: i64 = helper::read_int(&reg_ref, &self.state);
                     println!("{} = {:X}", reg_ref, x);
+                }
+                RegisterSet::Single(RegType::Num(NumRegType::Float(w))) => {
+                    let reg_ref = RegOrConstant::reg(NumReg {
+                        index: reg.index,
+                        width: w,
+                    });
+                    let x: f64 = helper::read_float(&reg_ref, &self.state);
+                    println!("{} = {}", reg_ref, x);
                 }
                 _ => todo!("debug on this register not yet supported"),
             },

@@ -4,7 +4,7 @@ use std::hash::Hash;
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use umc_model::RegIndex;
-use umc_model::reg_model::{InstrRegT, NumReg, Reg, RegTypeT, SignedRegT, UnsignedRegT};
+use umc_model::reg_model::{FloatRegT, InstrRegT, NumReg, Reg, RegTypeT, SignedRegT, UnsignedRegT};
 
 pub trait StoreFor<V, RT: RegTypeT>
 where
@@ -44,6 +44,8 @@ pub struct RegState {
     uas: HashMapStore<NumReg, ArbitraryUnsignedInt>,
     i32s: HashMapStore<RegIndex, i32>,
     i64s: HashMapStore<RegIndex, i64>,
+    f32s: HashMapStore<RegIndex, f32>,
+    f64s: HashMapStore<RegIndex, f64>,
     addresses: HashMapStore<RegIndex, InstructionAddress>,
 }
 
@@ -55,6 +57,8 @@ impl RegState {
             uas: HashMapStore::new(),
             i32s: HashMapStore::new(),
             i64s: HashMapStore::new(),
+            f32s: HashMapStore::new(),
+            f64s: HashMapStore::new(),
             addresses: HashMapStore::new(),
         }
     }
@@ -242,6 +246,30 @@ impl PrimNumStoreFor<SignedRegT, i64> for RegState {
 
     fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, i64> {
         &mut self.i64s
+    }
+}
+
+impl PrimNumStoreFor<FloatRegT, f32> for RegState {
+    const BITS: u32 = 32;
+
+    fn get_store(&self) -> &HashMapStore<RegIndex, f32> {
+        &self.f32s
+    }
+
+    fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, f32> {
+        &mut self.f32s
+    }
+}
+
+impl PrimNumStoreFor<FloatRegT, f64> for RegState {
+    const BITS: u32 = 64;
+
+    fn get_store(&self) -> &HashMapStore<RegIndex, f64> {
+        &self.f64s
+    }
+
+    fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, f64> {
+        &mut self.f64s
     }
 }
 

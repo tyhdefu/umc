@@ -1,4 +1,4 @@
-use crate::ast::{ASTRegisterOperand, Instruction, Operand};
+use crate::ast::{ASTRegisterOperand, Instruction, Operand, Statement};
 use crate::grammar::{
     InstructionParser, OperandParser, ProgramParser, RegOperandParser, StatementParser,
 };
@@ -133,4 +133,14 @@ fn parse_simple_prog() {
     let prog_str = "mov u32:0, #1\n";
 
     parser.parse(prog_str).unwrap();
+}
+
+#[test]
+fn parse_float_constant() {
+    let parser = InstructionParser::new();
+    let instr_str = "mov f64:0, #0.5";
+
+    let instr_ast = parser.parse(instr_str).unwrap();
+    assert_eq!("mov", instr_ast.opcode);
+    assert_eq!(Operand::FloatConstant(0.5f64), instr_ast.operands[1].0);
 }
