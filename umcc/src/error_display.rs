@@ -96,44 +96,54 @@ fn format_syntax_error<'a, T>(
                     ),
             ]
         }
-        lalrpop_util::ParseError::User { error } => match error {
-            ast::ParseError::RegErr(reg_err, range) => {
-                let span = *range.start()..range.end() + 1;
-                match reg_err {
-                    ast::ParseRegError::InvalidInt(e) => vec![
-                        Level::ERROR
-                            .primary_title("Invalid integer in register operand")
-                            .element(
+        lalrpop_util::ParseError::User { error } => {
+            match error {
+                ast::ParseError::RegErr(reg_err, range) => {
+                    let span = *range.start()..range.end() + 1;
+                    match reg_err {
+                        ast::ParseRegError::InvalidInt(e) => vec![
+                            Level::ERROR
+                                .primary_title("Invalid integer in register operand")
+                                .element(
+                                    Snippet::source(prog).annotation(
+                                        AnnotationKind::Primary
+                                            .span(span)
+                                            .label(format!("Invalid integer: {}", e)),
+                                    ),
+                                ),
+                        ],
+                        ast::ParseRegError::InvalidFormat => vec![
+                            Level::ERROR
+                                .primary_title("Malformed register operand")
+                                .element(
+                                    Snippet::source(prog).annotation(
+                                        AnnotationKind::Primary
+                                            .span(span)
+                                            .label("Incorrect register operand syntax"),
+                                    ),
+                                ),
+                        ],
+                        ast::ParseRegError::InvalidRegisterType => vec![
+                            Level::ERROR.primary_title("Unknown register type").element(
                                 Snippet::source(prog).annotation(
                                     AnnotationKind::Primary
                                         .span(span)
-                                        .label(format!("Invalid integer: {}", e)),
+                                        .label("Not a valid register type"),
                                 ),
                             ),
-                    ],
-                    ast::ParseRegError::InvalidFormat => vec![
-                        Level::ERROR
-                            .primary_title("Malformed register operand")
-                            .element(
-                                Snippet::source(prog).annotation(
-                                    AnnotationKind::Primary
-                                        .span(span)
-                                        .label("Incorrect register operand syntax"),
-                                ),
-                            ),
-                    ],
-                    ast::ParseRegError::InvalidRegisterType => vec![
-                        Level::ERROR.primary_title("Unknown register type").element(
-                            Snippet::source(prog).annotation(
-                                AnnotationKind::Primary
-                                    .span(span)
-                                    .label("Not a valid register type"),
-                            ),
+                        ],
+                    }
+                }
+                ast::ParseError::InvalidConstant(range) => {
+                    let span = *range.start()..range.end() + 1;
+                    vec![Level::ERROR.primary_title("Invalid constant").element(
+                        Snippet::source(prog).annotation(
+                            AnnotationKind::Primary.span(span).label("Invalid Constant"),
                         ),
-                    ],
+                    )]
                 }
             }
-        },
+        }
     }
 }
 

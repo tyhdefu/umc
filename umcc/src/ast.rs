@@ -8,6 +8,7 @@ use umc_model::RegisterSet;
 #[derive(Debug)]
 pub enum ParseError {
     RegErr(ParseRegError, RangeInclusive<usize>),
+    InvalidConstant(RangeInclusive<usize>),
 }
 
 #[derive(Debug)]
@@ -76,9 +77,41 @@ impl FromStr for ASTRegisterOperand {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operand {
     Reg(ASTRegisterOperand),
-    Constant(u64),
+    UnsignedConstant(u64),
+    NegativeConstant(i64),
     FloatConstant(f64),
     Label(String),
+}
+
+impl Operand {
+    pub fn parse_constant(s: &str, range: RangeInclusive<usize>) -> Result<Self, ParseError> {
+        if let Some(s) = s.strip_prefix('#') {
+            if s.contains('.') {
+                return f64::from_str(s)
+                    .map(|c| Self::FloatConstant(c))
+                    .map_err(|_| ParseError::InvalidConstant(range));
+            } else if s.starts_with('-') {
+                return i64::from_str(s)
+                    .map(|c| Operand::NegativeConstant(c))
+                    .map_err(|_| ParseError::InvalidConstant(range));
+            } else {
+                return u64::from_str(s)
+                    .map(|c| Self::UnsignedConstant(c))
+                    .map_err(|_| ParseError::InvalidConstant(range));
+            }
+        }
+        if let Some(s) = s.strip_prefix("0b") {
+            return u64::from_str_radix(s, 2)
+                .map(|c| Self::UnsignedConstant(c))
+                .map_err(|_| ParseError::InvalidConstant(range));
+        }
+        if let Some(s) = s.strip_prefix("0x") {
+            return u64::from_str_radix(s, 16)
+                .map(|c| Self::UnsignedConstant(c))
+                .map_err(|_| ParseError::InvalidConstant(range));
+        }
+        Err(ParseError::InvalidConstant(range))
+    }
 }
 
 pub type OperandWithLoc = (Operand, usize, RangeInclusive<usize>);

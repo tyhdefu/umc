@@ -326,7 +326,8 @@ fn parse_reg_or_constant(
                 }))
             }
         },
-        ast::Operand::Constant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
+        ast::Operand::UnsignedConstant(x) => Ok(bc::Operand::UnsignedConstant(*x)),
+        ast::Operand::NegativeConstant(x) => Ok(bc::Operand::SignedConstant(*x)),
         ast::Operand::FloatConstant(x) => Ok(bc::Operand::FloatConstant(*x)),
         ast::Operand::Label(label) => {
             let pc = labels.get(label).ok_or_else(|| {

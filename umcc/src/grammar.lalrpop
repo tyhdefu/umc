@@ -30,7 +30,8 @@ match {
 	// Constants
 	r"0x[0-9A-F]+" => HEX_CONSTANT,
 	r"0b[0-1]+" => BINARY_CONSTANT,
-	r"#[0-9]+\.[0-9]+" => FLOAT_CONSTANT,
+	r"#(-?)[0-9]+\.[0-9]+" => FLOAT_CONSTANT,
+	r"#-[0-9]+" => NEGATIVE_DECIMAL_CONSTANT,
 	r"#[0-9]+" => DECIMAL_CONSTANT,
 } else {
 	r"\s+" => {},
@@ -55,10 +56,11 @@ Operands: Vec<ast::OperandWithLoc> = {
 };
 
 pub Operand: ast::Operand = {
-	<s:HEX_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 16).unwrap())),
-	<s:BINARY_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str_radix(&s[2..], 2).unwrap())),
-	<s:FLOAT_CONSTANT> =>? Ok(ast::Operand::FloatConstant(f64::from_str(&s[1..]).unwrap())),
-	<s:DECIMAL_CONSTANT> =>? Ok(ast::Operand::Constant(u64::from_str(&s[1..]).unwrap())),
+	<start: @L> <s:HEX_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
+	<start: @L> <s:BINARY_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
+	<start: @L> <s:FLOAT_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
+	<start: @L> <s:NEGATIVE_DECIMAL_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
+	<start: @L> <s:DECIMAL_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
 	<l:LABEL_PARAM> =>? Ok(ast::Operand::Label(l[1..].to_string())),
 	<o:RegOperand> => ast::Operand::Reg(o),
 };

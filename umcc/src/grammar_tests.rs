@@ -7,22 +7,43 @@ use umc_model::{NumRegType, RegType, RegisterSet};
 #[test]
 fn parse_hex_constant() {
     let parser = OperandParser::new();
-    let exp = Operand::Constant(0x1A);
+    let exp = Operand::UnsignedConstant(0x1A);
     assert_eq!(exp, parser.parse("0x1A").unwrap())
 }
 
 #[test]
 fn parse_binary_constant() {
     let parser = OperandParser::new();
-    let exp = Operand::Constant(0b101);
+    let exp = Operand::UnsignedConstant(0b101);
     assert_eq!(exp, parser.parse("0b101").unwrap())
 }
 
 #[test]
 fn parse_base_10_constant() {
     let parser = OperandParser::new();
-    let exp = Operand::Constant(303);
+    let exp = Operand::UnsignedConstant(303);
     assert_eq!(exp, parser.parse("#303").unwrap());
+}
+
+#[test]
+fn parse_negative_constant() {
+    let parser = OperandParser::new();
+    let exp = Operand::NegativeConstant(-3);
+    assert_eq!(exp, parser.parse("#-3").unwrap());
+}
+
+#[test]
+fn parse_float_constant() {
+    let parser = OperandParser::new();
+    let exp = Operand::FloatConstant(0.5);
+    assert_eq!(exp, parser.parse("#0.5").unwrap());
+}
+
+#[test]
+fn parse_negative_float_constant() {
+    let parser = OperandParser::new();
+    let exp = Operand::FloatConstant(-1.5);
+    assert_eq!(exp, parser.parse("#-1.5").unwrap());
 }
 
 #[test]
@@ -81,7 +102,7 @@ fn parse_mov_constant_instruction() {
                 0,
                 4..=8,
             ),
-            (Operand::Constant(100), 1, 11..=INSTR.len() - 1),
+            (Operand::UnsignedConstant(100), 1, 11..=INSTR.len() - 1),
         ],
         loc: 0..=INSTR.len() - 1,
     };
@@ -112,7 +133,7 @@ fn parse_add_instruction() {
                 1,
                 11..=15,
             ),
-            (Operand::Constant(100), 2, 18..=21),
+            (Operand::UnsignedConstant(100), 2, 18..=21),
         ],
         loc: 0..=INSTR.len() - 1,
     };
@@ -133,14 +154,4 @@ fn parse_simple_prog() {
     let prog_str = "mov u32:0, #1\n";
 
     parser.parse(prog_str).unwrap();
-}
-
-#[test]
-fn parse_float_constant() {
-    let parser = InstructionParser::new();
-    let instr_str = "mov f64:0, #0.5";
-
-    let instr_ast = parser.parse(instr_str).unwrap();
-    assert_eq!("mov", instr_ast.opcode);
-    assert_eq!(Operand::FloatConstant(0.5f64), instr_ast.operands[1].0);
 }
