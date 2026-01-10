@@ -88,7 +88,7 @@ struct BinaryHeader {
 
 impl BinaryHeader {
     pub const MAGIC_NUMBER_LEN: usize = 16;
-    pub const MAGIC_NUMBER: &[u8; Self::MAGIC_NUMBER_LEN] = b"UMC Bytecode\0\0\0\0";
+    pub const MAGIC_NUMBER: &[u8; Self::MAGIC_NUMBER_LEN] = b"\x7FUMC Bytecode\0\0\0";
 
     fn write<W: io::Write>(&self, dst: &mut W) -> Result<(), EncodeError> {
         dst.write_all(Self::MAGIC_NUMBER)?;
