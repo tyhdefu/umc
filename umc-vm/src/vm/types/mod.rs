@@ -32,6 +32,8 @@ pub trait UMCArithmetic: PartialEq {
 pub trait UMCBitwise: PartialEq {
     /// Bitwise AND
     fn and(&mut self, rhs: &Self);
+    /// Bitwise OR
+    fn or(&mut self, rhs: &Self);
     /// Bitwise XOR
     fn xor(&mut self, rhs: &Self);
     /// Logical bitwise NOT
@@ -52,6 +54,7 @@ pub enum BinaryArithmeticOp {
 
 pub enum BinaryBitwiseOp {
     And,
+    Or,
     Xor,
 }
 
@@ -77,6 +80,7 @@ where
     fn operate(&self, a: &mut V, b: &V) {
         match &self {
             BinaryBitwiseOp::And => a.and(b),
+            BinaryBitwiseOp::Or => a.or(b),
             BinaryBitwiseOp::Xor => a.xor(b),
         }
     }
@@ -138,6 +142,13 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_format() {
+        let mut x = ArbitraryUnsignedInt::new(64);
+        x.add(&u64::MAX.cast_into());
+        assert_eq!("0xFFFFFFFFFFFFFFFF", format!("{}", x));
+    }
+
+    #[test]
     fn test_add_arbitrary_uint() {
         let mut x = ArbitraryUnsignedInt::new(128);
         x.add(&u64::MAX.cast_into());
@@ -153,5 +164,19 @@ mod test {
         x.add(&5u32.cast_into());
 
         assert_eq!(x.data(), &[2])
+    }
+
+    #[test]
+    fn test_sub_arbitrary_uint() {
+        let mut x = ArbitraryUnsignedInt::new(128);
+        x.add(&u64::MAX.cast_into());
+        x.add(&10u64.cast_into());
+        assert_eq!("0x10000000000000009", format!("{}", x));
+
+        x.sub(&5u64.cast_into());
+        assert_eq!("0x10000000000000004", format!("{}", x));
+
+        x.sub(&6u64.cast_into());
+        assert_eq!("0xFFFFFFFFFFFFFFFE", format!("{}", x));
     }
 }

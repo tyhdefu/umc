@@ -33,6 +33,10 @@ impl UMCBitwise for ArbitraryInt {
         todo!()
     }
 
+    fn or(&mut self, rhs: &Self) {
+        todo!()
+    }
+
     fn xor(&mut self, rhs: &Self) {
         todo!()
     }
@@ -69,6 +73,10 @@ impl UMCBitwise for i32 {
         self.bitand_assign(*rhs);
     }
 
+    fn or(&mut self, rhs: &Self) {
+        todo!()
+    }
+
     fn xor(&mut self, rhs: &Self) {
         self.bitxor_assign(*rhs);
     }
@@ -103,6 +111,10 @@ impl UMCArithmetic for i64 {
 impl UMCBitwise for i64 {
     fn and(&mut self, rhs: &Self) {
         self.bitand_assign(*rhs);
+    }
+
+    fn or(&mut self, rhs: &Self) {
+        todo!()
     }
 
     fn xor(&mut self, rhs: &Self) {

@@ -18,6 +18,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Div(num_op) => num_op_to_raw(num_op),
         Instruction::Mod(num_op) => num_op_to_raw(num_op),
         Instruction::And(num_op) => num_op_to_raw(num_op),
+        Instruction::Or(num_op) => num_op_to_raw(num_op),
         Instruction::Xor(num_op) => num_op_to_raw(num_op),
         Instruction::Not(not_params) => not_to_raw(not_params),
         Instruction::Compare { cond: _, params } => cmp_to_raw(params),

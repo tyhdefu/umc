@@ -25,7 +25,8 @@ pub enum Instruction {
 
     /// Bitwise AND
     And(AnyCoherentNumOp),
-
+    /// Bitwise OR
+    Or(AnyCoherentNumOp),
     /// Bitwise XOR
     Xor(AnyCoherentNumOp),
     /// Bitwise Logical NOT
@@ -151,6 +152,7 @@ impl Display for Instruction {
             Instruction::Div(params) => write!(f, "div {}", params),
             Instruction::Mod(params) => write!(f, "mod {}", params),
             Instruction::And(params) => write!(f, "and {}", params),
+            Instruction::Or(params) => write!(f, "or {}", params),
             Instruction::Xor(params) => write!(f, "xor {}", params),
             Instruction::Not(params) => write!(f, "not {}", params),
             Instruction::Compare { cond, params } => {

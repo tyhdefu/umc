@@ -1,6 +1,8 @@
+use std::fmt::Display;
 use std::iter::repeat_n;
-use std::ops::BitAndAssign;
-use std::{fmt::Display, ops::BitXorAssign};
+use std::ops::BitXorAssign;
+use std::ops::{BitAndAssign, BitOrAssign};
+use std::usize;
 
 use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 
@@ -15,6 +17,7 @@ impl ArbitraryUnsignedInt {
     pub const ZERO: ArbitraryUnsignedInt = ArbitraryUnsignedInt::new(0);
     pub const ZERO_REF: &'static ArbitraryUnsignedInt = &Self::ZERO;
 
+    /// Creates a zero-value
     pub const fn new(bits: u32) -> Self {
         Self { bits, data: vec![] }
     }
@@ -50,10 +53,19 @@ impl ArbitraryUnsignedInt {
         }
     }
 
+    /// The maximum size of the data vector when fully populated
+    fn max_size(&self) -> usize {
+        self.bits.div_ceil(usize::BITS) as usize
+    }
+
+    /// Grows the data vector to the maximum size, filling with zeros
     fn grow_to_max(&mut self) {
-        let full_len = self.bits.div_ceil(usize::BITS);
-        let extra_len = full_len as usize - self.data.len();
-        self.data.extend(repeat_n(0, extra_len));
+        self.grow_to_max_with(0);
+    }
+
+    fn grow_to_max_with(&mut self, v: usize) {
+        let extra_len = self.max_size() - self.data.len();
+        self.data.extend(repeat_n(v, extra_len));
     }
 }
 
@@ -94,13 +106,14 @@ impl Ord for ArbitraryUnsignedInt {
 
 impl Display for ArbitraryUnsignedInt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.data.is_empty() {
-            return write!(f, "0x0");
-        }
-        write!(f, "0x")?;
+        // Start with the most significant chunks, skipping leading zeros
+        let mut iter = self.data.iter().rev().skip_while(|x| **x == 0);
+        write!(f, "{:#X}", iter.next().copied().unwrap_or(0))?;
 
-        for v in self.data.iter().rev() {
-            write!(f, "{:X}", v)?;
+        for v in iter {
+            /// Two Hex digits per byte
+            const ALIGNMENT: usize = size_of::<usize>() * 2;
+            write!(f, "{v:0ALIGNMENT$X}")?;
         }
         Ok(())
     }
@@ -139,6 +152,10 @@ impl UMCBitwise for u32 {
         *self = !*self
     }
 
+    fn or(&mut self, rhs: &Self) {
+        self.bitor_assign(rhs);
+    }
+
     fn and(&mut self, rhs: &Self) {
         self.bitand_assign(rhs);
     }
@@ -175,6 +192,10 @@ impl UMCBitwise for u64 {
         *self = !*self
     }
 
+    fn or(&mut self, rhs: &Self) {
+        self.bitor_assign(rhs);
+    }
+
     fn and(&mut self, rhs: &Self) {
         self.bitand_assign(rhs);
     }
@@ -188,7 +209,7 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
     fn add(&mut self, rhs: &Self) {
         self.data.reserve(rhs.data.len() - self.data.len());
         let mut carry = false;
-        for (i, v) in rhs.data.iter().enumerate() {
+        for (i, v) in rhs.data.iter().enumerate().take(self.max_size()) {
             if i < self.data.len() {
                 let (res, c) = self.data[i].carrying_add(*v, carry);
                 self.data[i] = res;
@@ -197,17 +218,55 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
                 self.data.push(*v);
             }
         }
-        let used_bits = self.used_bits();
-        if carry && self.bits > used_bits {
-            self.data.push(1); // Free to expand adding the carry
-            return;
+        // Carry through until we find non-max or simply overflow (never put the carry anywhere)
+        for i in (rhs.data.len())..(self.max_size()) {
+            if !carry {
+                break;
+            }
+            if i >= self.data.len() {
+                // Full overflow
+                self.data.push(1);
+                break;
+            }
+
+            let (res, c) = self.data[i].carrying_add(0, true);
+            carry = c;
+            self.data[i] = res;
         }
 
         self.mask_top();
     }
 
     fn sub(&mut self, rhs: &Self) {
-        todo!()
+        let mut borrow = false;
+        for (i, v) in rhs.data.iter().enumerate().take(self.max_size()) {
+            if i < self.data.len() {
+                let (res, b) = self.data[i].borrowing_sub(*v, borrow);
+                self.data[i] = res;
+                borrow = b;
+            } else {
+                let (res, b) = 0usize.borrowing_sub(*v, borrow);
+                self.data.push(res);
+                borrow = b;
+            }
+        }
+        // Carry borrow through until we find non-zero or simply underflow (never borrow)
+        for i in (rhs.data.len())..(self.max_size()) {
+            if !borrow {
+                break;
+            }
+            if i >= self.data.len() {
+                // Full underflow
+                self.grow_to_max_with(usize::MAX);
+                break;
+            }
+
+            let (res, b) = self.data[i].borrowing_sub(0, true);
+            borrow = b;
+            self.data[i] = res;
+        }
+
+        self.mask_top();
     }
 
     fn modulo(&mut self, rhs: &Self) {
@@ -246,6 +305,16 @@ impl UMCBitwise for ArbitraryUnsignedInt {
             let y = rhs.data.get(i).copied().unwrap_or(0);
             x.bitand_assign(y);
         }
+        self.mask_top();
+    }
+
+    fn or(&mut self, rhs: &Self) {
+        self.grow_to_max(); // TODO: Could copy from other as needed beyond end
+        for (i, x) in self.data.iter_mut().enumerate() {
+            let y = rhs.data.get(i).copied().unwrap_or(0);
+            x.bitor_assign(y);
+        }
+        self.mask_top();
     }
 
     fn xor(&mut self, rhs: &Self) {

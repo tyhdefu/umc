@@ -95,7 +95,18 @@ fn encode_instruction<W: io::Write>(
 
                 dst.write(&c.to_le_bytes())?;
             }
-            Operand::SignedConstant(_) => todo!(),
+            Operand::SignedConstant(c) => {
+                let rs_index = rt_header
+                    .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(
+                        NumRegType::UnsignedInt(64),
+                    )))
+                    .expect("No matching rt entry for 64-bit signed constant");
+                let rs_index_byte: u8 = rs_index
+                    .try_into()
+                    .expect("Constant register doesn't fit into a byte");
+                dst.write(&[rs_index_byte])?;
+                dst.write(&c.to_le_bytes())?;
+            }
             Operand::FloatConstant(c) => {
                 let rs_index = rt_header
                     .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(NumRegType::Float(64))))
@@ -257,8 +268,8 @@ pub fn decode_instruction<R: io::Read>(
             };
             Instruction::Compare { cond, params }
         }
-        OpCode::AND => todo!(),
-        OpCode::OR => todo!(),
+        OpCode::AND => Instruction::And(read_3_num_op(src, rt_header)?),
+        OpCode::OR => Instruction::Or(read_3_num_op(src, rt_header)?),
         OpCode::XOR => Instruction::Xor(read_3_num_op(src, rt_header)?),
         OpCode::NOT => {
             let [dst, op] = operands::<R, 2>(src, rt_header)?;
@@ -290,6 +301,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Div(_) => OpCode::DIV,
         Instruction::Mod(_) => OpCode::MOD,
         Instruction::And(_) => OpCode::AND,
+        Instruction::Or(_) => OpCode::OR,
         Instruction::Xor(_) => OpCode::XOR,
         Instruction::Not(_) => OpCode::NOT,
         Instruction::Compare { cond, .. } => match cond {

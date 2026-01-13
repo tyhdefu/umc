@@ -89,6 +89,9 @@ impl VirtualMachine {
             Instruction::And(num_op) => {
                 helper::execute_bitwise(num_op, BinaryBitwiseOp::And, &mut self.state);
             }
+            Instruction::Or(num_op) => {
+                helper::execute_bitwise(num_op, BinaryBitwiseOp::Or, &mut self.state);
+            }
             Instruction::Xor(num_op) => {
                 helper::execute_bitwise(num_op, BinaryBitwiseOp::Xor, &mut self.state);
             }

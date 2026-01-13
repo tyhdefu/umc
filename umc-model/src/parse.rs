@@ -189,7 +189,21 @@ fn consistent_operand(
                     p_unsigned,
                 ))
             }
-            NumRegType::SignedInt(_) => todo!("signed operands not implemented yet"),
+            NumRegType::SignedInt(w) => {
+                let p_signed = RegOrConstant::from_signed(p)
+                    .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+                // Don't allow narrowing
+                if p_signed.width().is_some_and(|w2| w2 > *w) {
+                    return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
+                }
+                Ok(MovParams::SignedInt(
+                    Reg(NumReg {
+                        index: dst.index,
+                        width: *w,
+                    }),
+                    p_signed,
+                ))
+            }
             NumRegType::Float(w) => {
                 let p_float = RegOrConstant::from_float(p)
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
