@@ -195,6 +195,14 @@ fn add_floats() {
 }
 
 #[test]
+fn unsigned_vector() {
+    const PROG: &str = "
+        dbg u32x6:0
+    ";
+    let _ = compile_and_run(PROG);
+}
+
+#[test]
 fn fib_encode_and_decode() {
     // 1, 1, 2, 3, 5, 8, 13
     const PROG: &str = "

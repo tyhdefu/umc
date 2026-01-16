@@ -1,18 +1,22 @@
 use std::cmp::Ordering;
+use std::iter::repeat_n;
 
 use crate::vm::state::{RegState, StoreFor, StorePrim};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, BinaryOp, CastInto, CastSingleFloat, CastSingleSigned,
-    CastSingleUnsigned, UMCArithmetic, UMCBitwise,
+    CastSingleUnsigned, UMCBitwise,
 };
-use umc_model::RegWidth;
 use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
     ConsistentNumOp, MovParams, NotParams,
 };
-use umc_model::reg_model::{FloatRegT, InstrRegT, Reg, RegOrConstant, SignedRegT, UnsignedRegT};
+use umc_model::operand::RegOperand;
+use umc_model::reg_model::{
+    FloatRegT, InstrRegT, NumReg, Reg, RegOrConstant, SignedRegT, UnsignedRegT,
+};
+use umc_model::{NumRegType, RegType, RegWidth, RegisterSet};
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     match params {
@@ -291,6 +295,46 @@ pub fn execute_not(params: &NotParams, state: &mut RegState) {
     }
 }
 
+pub fn execute_debug(reg: &RegOperand, state: &RegState) {
+    match reg.set {
+        RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w))) => {
+            let reg_ref = RegOrConstant::reg(NumReg {
+                index: reg.index,
+                width: w,
+            });
+            let x: ArbitraryUnsignedInt = read_uint(&reg_ref, state);
+            println!("{} = {}", reg_ref, x);
+        }
+        RegisterSet::Vector(RegType::Num(NumRegType::UnsignedInt(w)), l) => {
+            let reg = Reg(NumReg {
+                index: reg.index,
+                width: w,
+            });
+            let x: Vec<ArbitraryUnsignedInt> = read_uint_vec(&reg, l, state).unwrap_or_else(|| {
+                repeat_n(ArbitraryUnsignedInt::ZERO.clone(), l as usize).collect()
+            });
+            println!()
+        }
+        RegisterSet::Single(RegType::Num(NumRegType::SignedInt(w))) => {
+            let reg_ref = RegOrConstant::reg(NumReg {
+                index: reg.index,
+                width: w,
+            });
+            let x: i64 = read_int(&reg_ref, state);
+            println!("{} = {:X}", reg_ref, x);
+        }
+        RegisterSet::Single(RegType::Num(NumRegType::Float(w))) => {
+            let reg_ref = RegOrConstant::reg(NumReg {
+                index: reg.index,
+                width: w,
+            });
+            let x: f64 = read_float(&reg_ref, state);
+            println!("{} = {}", reg_ref, x);
+        }
+        _ => todo!("debug on this register not yet supported"),
+    }
+}
+
 pub fn read_uint<T>(op: &RegOrConstant<UnsignedRegT>, state: &RegState) -> T
 where
     T: CastSingleUnsigned,
@@ -314,6 +358,30 @@ where
         },
         RegOrConstant::Const(c) => c.cast_into(),
     }
+}
+
+pub fn read_uint_vec<T>(
+    reg: &Reg<UnsignedRegT>,
+    length: RegWidth,
+    state: &RegState,
+) -> Option<Vec<T>>
+where
+    T: CastSingleUnsigned,
+{
+    Some(match reg.0.width {
+        u32::BITS => {
+            let v: &[u32] = state.read_multi_prim(*reg, length as usize)?;
+            v.iter().map(|x| x.cast_into()).collect()
+        }
+        u64::BITS => {
+            let v: &[u64] = state.read_multi_prim(*reg, length as usize)?;
+            v.iter().map(|x| x.cast_into()).collect()
+        }
+        _ => {
+            let v: &[ArbitraryUnsignedInt] = state.read_multi(*reg, length as usize)?;
+            v.iter().map(|x| x.cast_into()).collect()
+        }
+    })
 }
 
 pub fn read_int<T>(op: &RegOrConstant<SignedRegT>, state: &RegState) -> T

@@ -6,13 +6,15 @@ mod helper;
 #[cfg(test)]
 mod test;
 
-use crate::vm::state::RegState;
+use std::iter::repeat_n;
+
+use crate::vm::state::{RegState, StoreFor};
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
 };
 use umc_model::instructions::Instruction;
-use umc_model::reg_model::{NumReg, RegOrConstant};
+use umc_model::reg_model::{NumReg, Reg, RegOrConstant};
 use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
 pub struct VirtualMachine {
@@ -121,33 +123,7 @@ impl VirtualMachine {
                     return;
                 }
             }
-            Instruction::Dbg(reg) => match reg.set {
-                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w))) => {
-                    let reg_ref = RegOrConstant::reg(NumReg {
-                        index: reg.index,
-                        width: w,
-                    });
-                    let x: ArbitraryUnsignedInt = helper::read_uint(&reg_ref, &self.state);
-                    println!("{} = {}", reg_ref, x);
-                }
-                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(w))) => {
-                    let reg_ref = RegOrConstant::reg(NumReg {
-                        index: reg.index,
-                        width: w,
-                    });
-                    let x: i64 = helper::read_int(&reg_ref, &self.state);
-                    println!("{} = {:X}", reg_ref, x);
-                }
-                RegisterSet::Single(RegType::Num(NumRegType::Float(w))) => {
-                    let reg_ref = RegOrConstant::reg(NumReg {
-                        index: reg.index,
-                        width: w,
-                    });
-                    let x: f64 = helper::read_float(&reg_ref, &self.state);
-                    println!("{} = {}", reg_ref, x);
-                }
-                _ => todo!("debug on this register not yet supported"),
-            },
+            Instruction::Dbg(reg) => helper::execute_debug(reg, &self.state),
         };
         self.pc += 1;
     }
