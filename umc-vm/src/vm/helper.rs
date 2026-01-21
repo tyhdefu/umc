@@ -4,24 +4,25 @@ use std::iter::repeat_n;
 use crate::vm::state::{RegState, StoreFor, StorePrim};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
+use crate::vm::types::vector::VecValue;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, BinaryOp, CastInto, CastSingleFloat, CastSingleSigned,
     CastSingleUnsigned, UMCBitwise,
 };
 use umc_model::instructions::{
     AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
-    ConsistentNumOp, MovParams, NotParams,
+    ConsistentOp, MovParams, NotParams, VectorBroadcastParams, VectorVectorParams,
 };
 use umc_model::operand::RegOperand;
 use umc_model::reg_model::{
-    FloatRegT, InstrRegT, NumReg, Reg, RegOrConstant, SignedRegT, UnsignedRegT,
+    FloatRegT, InstrRegT, NumReg, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
 use umc_model::{NumRegType, RegType, RegWidth, RegisterSet};
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     match params {
         MovParams::UnsignedInt(r, reg_or_constant) => {
-            let num_op = AnyCoherentNumOp::UnsignedInt(ConsistentNumOp::Single(
+            let num_op = AnyCoherentNumOp::UnsignedInt(ConsistentOp::Single(
                 r.clone(),
                 reg_or_constant.clone(),
                 RegOrConstant::Const(0),
@@ -29,7 +30,7 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
         MovParams::SignedInt(r, reg_or_constant) => {
-            let num_op = AnyCoherentNumOp::SignedInt(ConsistentNumOp::Single(
+            let num_op = AnyCoherentNumOp::SignedInt(ConsistentOp::Single(
                 r.clone(),
                 reg_or_constant.clone(),
                 RegOrConstant::Const(0),
@@ -37,7 +38,7 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
         MovParams::Float(r, reg_or_constant) => {
-            let num_op = AnyCoherentNumOp::Float(ConsistentNumOp::Single(
+            let num_op = AnyCoherentNumOp::Float(ConsistentOp::Single(
                 r.clone(),
                 reg_or_constant.clone(),
                 RegOrConstant::Const(0.0),
@@ -78,6 +79,59 @@ fn compute_unsigned<O, T>(
     state.store_prim(*dst, result);
 }
 
+fn compute_unsigned_broadcast<O, T>(
+    op: O,
+    params: &VectorBroadcastParams<UnsignedRegT>,
+    state: &mut RegState,
+) where
+    O: BinaryOp<T>,
+    T: CastSingleUnsigned + Copy + Default,
+    RegState: StorePrim<T, UnsignedRegT>,
+{
+    let mut x: VecValue<T> = state
+        .read_multi_prim(params.vec_param(), params.length() as usize)
+        .cloned()
+        .unwrap_or_else(|| VecValue::from_repeated_default(params.length() as usize));
+
+    let v: T = read_uint(params.value_param(), state);
+
+    if params.is_reversed() {
+        x.broadcast_op_reversed(&v, |a, b| op.operate(a, b));
+    } else {
+        x.broadcast_op(&v, |a, b| op.operate(a, b));
+    }
+
+    state.store_multi_copy_prim(*params.dst(), x.as_slice());
+}
+
+fn compute_vec<O, RT, T>(op: O, params: &VectorVectorParams<RT>, state: &mut RegState)
+where
+    O: BinaryOp<T>,
+    RT: RegTypeT,
+    T: Copy + Default,
+    RegState: StorePrim<T, RT>,
+{
+    let mut x: VecValue<T> = state
+        .read_multi_prim(params.p1(), params.length() as usize)
+        .cloned()
+        .unwrap_or_else(|| VecValue::from_repeated_default(params.length() as usize));
+    let y: Option<&VecValue<T>> = state.read_multi_prim(params.p2(), params.length() as usize);
+
+    match y {
+        Some(y) => {
+            x.vector_op(y, |a, b| op.operate(a, b));
+        }
+        None => {
+            let zero = Default::default();
+            for v in x.as_slice_mut() {
+                op.operate(v, &zero);
+            }
+        }
+    }
+
+    state.store_multi_copy_prim(params.dst().clone(), x.as_slice());
+}
+
 fn compute_signed<O, T>(
     op: O,
     dst: &Reg<SignedRegT>,
@@ -111,7 +165,7 @@ fn compute_float<O, T>(
 pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, state: &mut RegState) {
     match params {
         AnyCoherentNumOp::UnsignedInt(param_kind) => match param_kind {
-            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+            ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
                 u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
                 _ => {
@@ -122,26 +176,34 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
                     state.store(*dst, p1);
                 }
             },
-            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
-            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+            ConsistentOp::VectorBroadcast(params) => match params.width() {
+                u32::BITS => compute_unsigned_broadcast::<_, u32>(op, params, state),
+                u64::BITS => compute_unsigned_broadcast::<_, u32>(op, params, state),
+                _ => todo!("Unsigned Arbitrary Vectors todo"),
+            },
+            ConsistentOp::VectorVector(params) => match params.width() {
+                u32::BITS => compute_vec::<_, _, u32>(op, params, state),
+                u64::BITS => compute_vec::<_, _, u64>(op, params, state),
+                _ => todo!("Unsigned Arbitrary Vectors todo"),
+            },
         },
         AnyCoherentNumOp::SignedInt(param_kind) => match param_kind {
-            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+            ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
                 i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
                 _ => todo!(),
             },
-            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
-            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+            ConsistentOp::VectorBroadcast(_) => todo!(),
+            ConsistentOp::VectorVector(_) => todo!(),
         },
         AnyCoherentNumOp::Float(param_kind) => match param_kind {
-            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+            ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 32 => compute_float::<_, f32>(op, dst, p1, p2, state),
                 64 => compute_float::<_, f64>(op, dst, p1, p2, state),
                 _ => panic!("Floats must be 32 or 64-bit"),
             },
-            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
-            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+            ConsistentOp::VectorBroadcast(_) => todo!(),
+            ConsistentOp::VectorVector(_) => todo!(),
         },
     }
 }
@@ -149,7 +211,7 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
 pub fn execute_bitwise(params: &AnyCoherentNumOp, op: BinaryBitwiseOp, state: &mut RegState) {
     match params {
         AnyCoherentNumOp::UnsignedInt(num_op) => match num_op {
-            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+            ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
                 u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
                 _ => {
@@ -160,17 +222,17 @@ pub fn execute_bitwise(params: &AnyCoherentNumOp, op: BinaryBitwiseOp, state: &m
                     state.store(*dst, p1);
                 }
             },
-            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
-            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+            ConsistentOp::VectorBroadcast(_) => todo!(),
+            ConsistentOp::VectorVector(_) => todo!(),
         },
         AnyCoherentNumOp::SignedInt(num_op) => match num_op {
-            ConsistentNumOp::Single(dst, p1, p2) => match dst.0.width {
+            ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
                 i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
                 _ => todo!(),
             },
-            ConsistentNumOp::VectorBroadcast(_, _, _) => todo!(),
-            ConsistentNumOp::VectorVector(_, _, _) => todo!(),
+            ConsistentOp::VectorBroadcast(_) => todo!(),
+            ConsistentOp::VectorVector(_) => todo!(),
         },
         AnyCoherentNumOp::Float(_) => panic!("TODO: Make new num op for bitwise"),
     }
@@ -313,7 +375,7 @@ pub fn execute_debug(reg: &RegOperand, state: &RegState) {
             let x: Vec<ArbitraryUnsignedInt> = read_uint_vec(&reg, l, state).unwrap_or_else(|| {
                 repeat_n(ArbitraryUnsignedInt::ZERO.clone(), l as usize).collect()
             });
-            println!()
+            println!("{}", VecValue::from_vec(x));
         }
         RegisterSet::Single(RegType::Num(NumRegType::SignedInt(w))) => {
             let reg_ref = RegOrConstant::reg(NumReg {
@@ -370,16 +432,16 @@ where
 {
     Some(match reg.0.width {
         u32::BITS => {
-            let v: &[u32] = state.read_multi_prim(*reg, length as usize)?;
-            v.iter().map(|x| x.cast_into()).collect()
+            let v: &VecValue<u32> = state.read_multi_prim(*reg, length as usize)?;
+            v.as_slice().iter().map(|x| x.cast_into()).collect()
         }
         u64::BITS => {
-            let v: &[u64] = state.read_multi_prim(*reg, length as usize)?;
-            v.iter().map(|x| x.cast_into()).collect()
+            let v: &VecValue<u64> = state.read_multi_prim(*reg, length as usize)?;
+            v.as_slice().iter().map(|x| x.cast_into()).collect()
         }
         _ => {
-            let v: &[ArbitraryUnsignedInt] = state.read_multi(*reg, length as usize)?;
-            v.iter().map(|x| x.cast_into()).collect()
+            let v: &VecValue<ArbitraryUnsignedInt> = state.read_multi(*reg, length as usize)?;
+            v.as_slice().iter().map(|x| x.cast_into()).collect()
         }
     })
 }

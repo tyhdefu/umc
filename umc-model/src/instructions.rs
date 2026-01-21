@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::fmt::Display;
 
 use crate::RegIndex;
+use crate::RegWidth;
 use crate::operand::RegOperand;
 use crate::reg_model::*;
 
@@ -58,41 +59,124 @@ pub enum BinaryCondition {
     LessThanOrEqualTo,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum ConsistentNumOp<RT: RegTypeT<R = NumReg>> {
+#[derive(Debug, PartialEq, Clone)]
+pub enum ConsistentOp<RT: RegTypeT> {
     Single(Reg<RT>, RegOrConstant<RT>, RegOrConstant<RT>),
-    VectorBroadcast(NumVecReg, RegIndex, RegOrConstant<RT>),
-    VectorVector(NumVecReg, RegIndex, RegIndex),
+    VectorBroadcast(VectorBroadcastParams<RT>),
+    VectorVector(VectorVectorParams<RT>),
 }
 
-impl<RT: RegTypeT<R = NumReg>> Clone for ConsistentNumOp<RT> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Single(arg0, arg1, arg2) => {
-                Self::Single(arg0.clone(), arg1.clone(), arg2.clone())
-            }
-            Self::VectorBroadcast(arg0, arg1, arg2) => {
-                Self::VectorBroadcast(arg0.clone(), arg1.clone(), arg2.clone())
-            }
-            Self::VectorVector(arg0, arg1, arg2) => {
-                Self::VectorVector(arg0.clone(), arg1.clone(), arg2.clone())
-            }
+#[derive(Debug, PartialEq, Clone)]
+pub struct VectorBroadcastParams<RT: RegTypeT> {
+    dst_full_index: Reg<RT>,
+    length: RegWidth,
+
+    reversed: bool,
+    p_index: RegIndex,
+    value: RegOrConstant<RT>,
+}
+
+impl<RT: RegTypeT> VectorBroadcastParams<RT> {
+    pub fn new(
+        dst: Reg<RT>,
+        length: RegWidth,
+        vec_param: RegIndex,
+        single: RegOrConstant<RT>,
+        reversed: bool,
+    ) -> Self {
+        Self {
+            dst_full_index: dst,
+            length: length,
+            p_index: vec_param,
+            value: single,
+            reversed,
         }
+    }
+
+    pub fn dst(&self) -> &Reg<RT> {
+        &self.dst_full_index
+    }
+
+    pub fn vec_param(&self) -> Reg<RT> {
+        self.dst_full_index.with_index(self.p_index)
+    }
+
+    pub fn length(&self) -> RegWidth {
+        self.length
+    }
+
+    pub fn value_param(&self) -> &RegOrConstant<RT> {
+        &self.value
+    }
+
+    /// If this operation takes the form
+    // shl u32x4:0, u32x4:0, #2 (normal)
+    // shl u32x4:0, #2, u32x4:0 (reverse)
+    pub fn is_reversed(&self) -> bool {
+        self.reversed
+    }
+}
+
+impl<RT: RegTypeT<R = NumReg>> VectorBroadcastParams<RT> {
+    pub fn width(&self) -> RegWidth {
+        self.dst_full_index.0.width
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct VectorVectorParams<RT: RegTypeT> {
+    dst_full_index: Reg<RT>,
+    length: RegWidth,
+
+    p1_index: RegIndex,
+    p2_index: RegIndex,
+}
+
+impl<RT: RegTypeT> VectorVectorParams<RT> {
+    pub fn new(dst: Reg<RT>, length: RegWidth, p1: RegIndex, p2: RegIndex) -> Self {
+        Self {
+            dst_full_index: dst,
+            length: length,
+            p1_index: p1,
+            p2_index: p2,
+        }
+    }
+
+    pub fn dst(&self) -> &Reg<RT> {
+        &self.dst_full_index
+    }
+
+    pub fn length(&self) -> RegWidth {
+        self.length
+    }
+
+    pub fn p1(&self) -> Reg<RT> {
+        self.dst_full_index.with_index(self.p1_index)
+    }
+
+    pub fn p2(&self) -> Reg<RT> {
+        self.dst_full_index.with_index(self.p2_index)
+    }
+}
+
+impl<RT: RegTypeT<R = NumReg>> VectorVectorParams<RT> {
+    pub fn width(&self) -> RegWidth {
+        self.dst_full_index.0.width
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AnyCoherentNumOp {
-    UnsignedInt(ConsistentNumOp<UnsignedRegT>),
-    SignedInt(ConsistentNumOp<SignedRegT>),
-    Float(ConsistentNumOp<FloatRegT>),
+    UnsignedInt(ConsistentOp<UnsignedRegT>),
+    SignedInt(ConsistentOp<SignedRegT>),
+    Float(ConsistentOp<FloatRegT>),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum AddParams {
-    UnsignedInt(ConsistentNumOp<UnsignedRegT>),
-    SignedInt(ConsistentNumOp<SignedRegT>),
-    Float(ConsistentNumOp<FloatRegT>),
+    UnsignedInt(ConsistentOp<UnsignedRegT>),
+    SignedInt(ConsistentOp<SignedRegT>),
+    Float(ConsistentOp<FloatRegT>),
 
     MemAddress(Reg<MemRegT>, Reg<MemRegT>, RegOrConstant<SignedRegT>),
     InstrAddress(
@@ -256,60 +340,62 @@ impl Display for AnyCoherentNumOp {
             write!(f, "{dst}, {p1}, {p2}")
         }
 
-        fn write_broadcast<RT: RegTypeT>(
-            f: &mut std::fmt::Formatter<'_>,
-            dst: &NumVecReg,
-            p1: RegIndex,
-            p2: &RegOrConstant<RT>,
-        ) -> std::fmt::Result
-        where
-            RegOrConstant<RT>: Display,
-        {
-            write!(
-                f,
-                "{0}{dst}, {0}{1}x{2}:{p1}, {p2}",
-                RT::LETTER,
-                dst.width,
-                dst.length
-            )
-        }
-
-        fn write_vec_vec(
-            f: &mut std::fmt::Formatter<'_>,
-            c: char,
-            dst: &NumVecReg,
-            p1: RegIndex,
-            p2: RegIndex,
-        ) -> std::fmt::Result {
-            write!(
-                f,
-                "{0}{dst}, {0}{1}x{2}:{p1}, {0}{1}x{2}:{p2}",
-                c, dst.width, dst.length
-            )
-        }
-
         match self {
             AnyCoherentNumOp::UnsignedInt(num_op) => match num_op {
-                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
-                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => write_broadcast(f, dst, *p1, p2),
-                ConsistentNumOp::VectorVector(dst, p1, p2) => {
-                    write_vec_vec(f, UnsignedRegT::LETTER, dst, *p1, *p2)
+                ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
+                ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
+                ConsistentOp::VectorVector(params) => {
+                    write!(f, "{}", params)
                 }
             },
             AnyCoherentNumOp::SignedInt(num_op) => match num_op {
-                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
-                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => write_broadcast(f, dst, *p1, p2),
-                ConsistentNumOp::VectorVector(dst, p1, p2) => {
-                    write_vec_vec(f, SignedRegT::LETTER, dst, *p1, *p2)
+                ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
+                ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
+                ConsistentOp::VectorVector(params) => {
+                    write!(f, "{}", params)
                 }
             },
             AnyCoherentNumOp::Float(num_op) => match num_op {
-                ConsistentNumOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
-                ConsistentNumOp::VectorBroadcast(dst, p1, p2) => write_broadcast(f, dst, *p1, p2),
-                ConsistentNumOp::VectorVector(dst, p1, p2) => {
-                    write_vec_vec(f, FloatRegT::LETTER, dst, *p1, *p2)
+                ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
+                ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
+                ConsistentOp::VectorVector(params) => {
+                    write!(f, "{}", params)
                 }
             },
         }
+    }
+}
+
+impl<RT: RegTypeT<R = NumReg>> Display for VectorBroadcastParams<RT>
+where
+    RegOrConstant<RT>: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dst = self.dst_full_index.0.index;
+        let p1 = self.p_index;
+        let p2 = self.value_param();
+        write!(
+            f,
+            "{0}{1}x{2}:{dst}, {0}{1}x{2}:{p1}, {p2}",
+            RT::LETTER,
+            self.dst_full_index.0.width,
+            self.length
+        )
+    }
+}
+
+impl<RT: RegTypeT<R = NumReg>> Display for VectorVectorParams<RT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dst = self.dst_full_index.0.index;
+        let p1 = self.p1_index;
+        let p2 = self.p2_index;
+
+        write!(
+            f,
+            "{0}{1}x{2}:{dst}, {0}{1}x{2}:{p1}, {0}{1}x{2}:{p2}",
+            RT::LETTER,
+            self.dst_full_index.0.width,
+            self.length
+        )
     }
 }

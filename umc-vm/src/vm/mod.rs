@@ -6,16 +6,13 @@ mod helper;
 #[cfg(test)]
 mod test;
 
-use std::iter::repeat_n;
-
-use crate::vm::state::{RegState, StoreFor};
-use crate::vm::types::uint::ArbitraryUnsignedInt;
+use crate::vm::state::RegState;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
 };
 use umc_model::instructions::Instruction;
-use umc_model::reg_model::{NumReg, Reg, RegOrConstant};
-use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
+use umc_model::reg_model::{NumReg, Reg, RegOrConstant, UnsignedRegT};
+use umc_model::{Program, RegIndex, RegWidth};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -24,6 +21,7 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
+    /// Initialise a new VM with the given program
     pub fn new(program: Program) -> Self {
         Self {
             program: program.instructions,
@@ -32,6 +30,7 @@ impl VirtualMachine {
         }
     }
 
+    /// Begin execution of the program until it completes
     pub fn execute(&mut self) {
         let program_len = self.program.len();
         while self.pc < program_len {
@@ -46,6 +45,20 @@ impl VirtualMachine {
     {
         let reg = RegOrConstant::reg(NumReg { index, width });
         helper::read_uint::<T>(&reg, &self.state)
+    }
+
+    pub fn inspect_uint_vec<T>(
+        &self,
+        index: RegIndex,
+        width: RegWidth,
+        length: RegWidth,
+    ) -> Option<Vec<T>>
+    where
+        T: CastSingleUnsigned,
+        T: Default,
+    {
+        let reg: Reg<UnsignedRegT> = Reg(NumReg { index, width });
+        helper::read_uint_vec(&reg, length, &self.state)
     }
 
     pub fn inspect_int<T>(&self, index: RegIndex, width: RegWidth) -> T

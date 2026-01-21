@@ -4,6 +4,7 @@ pub mod address;
 pub mod float;
 pub mod int;
 pub mod uint;
+pub mod vector;
 
 pub trait UMCOffset {
     fn offset(&mut self, offset: isize);

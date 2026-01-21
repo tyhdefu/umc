@@ -2,14 +2,14 @@
 //! that is guaranteed to execute
 
 use crate::instructions::{
-    AddParams, AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison,
-    ConsistentNumOp, MovParams, NotParams,
+    AddParams, AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentOp,
+    MovParams, NotParams, VectorBroadcastParams, VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
-    FloatRegT, InstrRegT, NumReg, Reg, RegOrConstant, SignedRegT, UnsignedRegT,
+    FloatRegT, InstrRegT, MemRegT, NumReg, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
-use crate::{NumRegType, RegType, RegisterSet};
+use crate::{NumRegType, RegType, RegWidth, RegisterSet};
 
 #[derive(Debug)]
 pub enum InstructionValidateError {
@@ -80,9 +80,73 @@ impl TryFrom<&[&Operand]> for AddParams {
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
                 Self::InstrAddress(Reg(reg_op.index), p1, p2)
             }
-            RegisterSet::Vector(_, _) => todo!(),
+            RegisterSet::Vector(RegType::MemoryAddress, _) => todo!(),
+            RegisterSet::Vector(RegType::InstructionAddress, _) => todo!(),
         })
     }
+}
+
+fn parse_vector_op<RT: RegTypeT>(
+    dst_reg: Reg<RT>,
+    dst_length: RegWidth,
+    p1: &Operand,
+    p2: &Operand,
+) -> Result<ConsistentOp<RT>, InstructionValidateError>
+where
+    VecOperand<RT>: for<'x> TryFrom<&'x Operand>,
+{
+    let p1: VecOperand<RT> = p1
+        .try_into()
+        .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+
+    let p2: VecOperand<RT> = p2
+        .try_into()
+        .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
+
+    let num_op = match (p1, p2) {
+        (VecOperand::Single(_), VecOperand::Single(_)) => {
+            return Err(InstructionValidateError::InconsistentOperand { op_index: 1 });
+        }
+        (VecOperand::Vector(r1, l1), VecOperand::Single(single)) => {
+            if l1 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r1.clone())) {
+                return Err(InstructionValidateError::InconsistentOperand { op_index: 1 });
+            }
+            ConsistentOp::VectorBroadcast(VectorBroadcastParams::new(
+                dst_reg,
+                dst_length,
+                RT::index(&r1),
+                single,
+                false,
+            ))
+        }
+        (VecOperand::Single(single), VecOperand::Vector(r2, l2)) => {
+            if l2 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r2.clone())) {
+                return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
+            }
+            ConsistentOp::VectorBroadcast(VectorBroadcastParams::new(
+                dst_reg,
+                dst_length,
+                RT::index(&r2),
+                single,
+                true,
+            ))
+        }
+        (VecOperand::Vector(r1, l1), VecOperand::Vector(r2, l2)) => {
+            if l1 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r1.clone())) {
+                return Err(InstructionValidateError::InconsistentOperand { op_index: 1 });
+            }
+            if l2 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r2.clone())) {
+                return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
+            }
+            ConsistentOp::VectorVector(VectorVectorParams::new(
+                dst_reg,
+                dst_length,
+                RT::index(&r1),
+                RT::index(&r2),
+            ))
+        }
+    };
+    Ok(num_op)
 }
 
 impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
@@ -94,6 +158,7 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
             Operand::Reg(reg_op) => reg_op,
             _ => return Err(InstructionValidateError::ExpectedDstReg),
         };
+
         match &reg_op.set {
             RegisterSet::Single(reg_type) => match reg_type {
                 RegType::Num(num_reg) => match num_reg {
@@ -102,7 +167,7 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 1 })?;
                         let p2 = RegOrConstant::from_unsigned(ops[2])
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
-                        Ok(Self::UnsignedInt(ConsistentNumOp::Single(
+                        Ok(Self::UnsignedInt(ConsistentOp::Single(
                             Reg(NumReg {
                                 index: reg_op.index,
                                 width: *w,
@@ -116,7 +181,7 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 1 })?;
                         let p2 = RegOrConstant::from_signed(ops[2])
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
-                        Ok(Self::SignedInt(ConsistentNumOp::Single(
+                        Ok(Self::SignedInt(ConsistentOp::Single(
                             Reg(NumReg {
                                 index: reg_op.index,
                                 width: *w,
@@ -130,7 +195,7 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 1 })?;
                         let p2 = RegOrConstant::from_float(ops[2])
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
-                        Ok(Self::Float(ConsistentNumOp::Single(
+                        Ok(Self::Float(ConsistentOp::Single(
                             Reg(NumReg {
                                 index: reg_op.index,
                                 width: *w,
@@ -142,12 +207,40 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
                 },
                 _ => Err(Self::Error::InvalidRegType { op_index: 0 }),
             },
-            RegisterSet::Vector(reg_type, _) => match reg_type {
-                RegType::Num(num_reg) => match num_reg {
-                    NumRegType::UnsignedInt(_) => todo!(),
-                    NumRegType::SignedInt(_) => todo!(),
-                    NumRegType::Float(_) => todo!(),
-                },
+            RegisterSet::Vector(reg_type, l) => match reg_type {
+                RegType::Num(num_reg) => Ok(match num_reg {
+                    NumRegType::UnsignedInt(w) => {
+                        AnyCoherentNumOp::UnsignedInt(parse_vector_op::<UnsignedRegT>(
+                            Reg(NumReg {
+                                index: reg_op.index,
+                                width: *w,
+                            }),
+                            *l,
+                            ops[1],
+                            ops[2],
+                        )?)
+                    }
+                    NumRegType::SignedInt(w) => {
+                        AnyCoherentNumOp::SignedInt(parse_vector_op::<SignedRegT>(
+                            Reg(NumReg {
+                                index: reg_op.index,
+                                width: *w,
+                            }),
+                            *l,
+                            ops[1],
+                            ops[2],
+                        )?)
+                    }
+                    NumRegType::Float(w) => AnyCoherentNumOp::Float(parse_vector_op::<FloatRegT>(
+                        Reg(NumReg {
+                            index: reg_op.index,
+                            width: *w,
+                        }),
+                        *l,
+                        ops[1],
+                        ops[2],
+                    )?),
+                }),
                 _ => Err(Self::Error::InvalidRegType { op_index: 0 }),
             },
         }
@@ -401,4 +494,125 @@ fn ops<'a, const N: usize>(
             expected: N,
             got: slice.len(),
         })
+}
+
+enum VecOperand<RT: RegTypeT> {
+    Single(RegOrConstant<RT>),
+    Vector(RT::R, RegWidth),
+}
+
+impl TryFrom<&Operand> for VecOperand<UnsignedRegT> {
+    type Error = ();
+
+    fn try_from(value: &Operand) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Operand::Reg(reg_op) => match reg_op.set {
+                RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w))) => {
+                    Self::Single(RegOrConstant::reg(NumReg {
+                        index: reg_op.index,
+                        width: w,
+                    }))
+                }
+                RegisterSet::Vector(RegType::Num(NumRegType::UnsignedInt(w)), l) => Self::Vector(
+                    NumReg {
+                        index: reg_op.index,
+                        width: w,
+                    },
+                    l,
+                ),
+                _ => return Err(()),
+            },
+            Operand::UnsignedConstant(c) => VecOperand::Single(RegOrConstant::Const(*c)),
+            _ => return Err(()),
+        })
+    }
+}
+
+impl TryFrom<&Operand> for VecOperand<SignedRegT> {
+    type Error = ();
+
+    fn try_from(value: &Operand) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Operand::Reg(reg_op) => match reg_op.set {
+                RegisterSet::Single(RegType::Num(NumRegType::SignedInt(w))) => {
+                    Self::Single(RegOrConstant::reg(NumReg {
+                        index: reg_op.index,
+                        width: w,
+                    }))
+                }
+                RegisterSet::Vector(RegType::Num(NumRegType::SignedInt(w)), l) => Self::Vector(
+                    NumReg {
+                        index: reg_op.index,
+                        width: w,
+                    },
+                    l,
+                ),
+                _ => return Err(()),
+            },
+            Operand::SignedConstant(c) => VecOperand::Single(RegOrConstant::Const(*c)),
+            _ => return Err(()),
+        })
+    }
+}
+
+impl TryFrom<&Operand> for VecOperand<FloatRegT> {
+    type Error = ();
+
+    fn try_from(value: &Operand) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Operand::Reg(reg_op) => match reg_op.set {
+                RegisterSet::Single(RegType::Num(NumRegType::Float(w))) => {
+                    Self::Single(RegOrConstant::reg(NumReg {
+                        index: reg_op.index,
+                        width: w,
+                    }))
+                }
+                RegisterSet::Vector(RegType::Num(NumRegType::Float(w)), l) => Self::Vector(
+                    NumReg {
+                        index: reg_op.index,
+                        width: w,
+                    },
+                    l,
+                ),
+                _ => return Err(()),
+            },
+            Operand::FloatConstant(c) => VecOperand::Single(RegOrConstant::Const(*c)),
+            _ => return Err(()),
+        })
+    }
+}
+
+impl TryFrom<&Operand> for VecOperand<MemRegT> {
+    type Error = ();
+
+    fn try_from(value: &Operand) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Operand::Reg(reg_op) => match reg_op.set {
+                RegisterSet::Single(RegType::MemoryAddress) => {
+                    Self::Single(RegOrConstant::reg(reg_op.index))
+                }
+                RegisterSet::Vector(RegType::MemoryAddress, l) => Self::Vector(reg_op.index, l),
+                _ => return Err(()),
+            },
+            _ => return Err(()),
+        })
+    }
+}
+
+impl TryFrom<&Operand> for VecOperand<InstrRegT> {
+    type Error = ();
+
+    fn try_from(value: &Operand) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Operand::Reg(reg_op) => match reg_op.set {
+                RegisterSet::Single(RegType::MemoryAddress) => {
+                    Self::Single(RegOrConstant::reg(reg_op.index))
+                }
+                RegisterSet::Vector(RegType::MemoryAddress, l) => Self::Vector(reg_op.index, l),
+                _ => return Err(()),
+            },
+            Operand::LabelConstant(c) => Self::Single(RegOrConstant::Const(*c)),
+            _ => return Err(()),
+        })
+    }
 }

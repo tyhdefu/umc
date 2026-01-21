@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
+use crate::vm::types::vector::VecValue;
 use umc_model::RegIndex;
 use umc_model::reg_model::{FloatRegT, InstrRegT, NumReg, Reg, RegTypeT, SignedRegT, UnsignedRegT};
 
@@ -14,7 +15,7 @@ where
 
     fn store(&mut self, k: Reg<RT>, val: V);
 
-    fn read_multi(&self, k: Reg<RT>, count: usize) -> Option<&[V]>;
+    fn read_multi(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<V>>;
 
     fn store_multi_copy(&mut self, k: Reg<RT>, vals: &[V])
     where
@@ -33,7 +34,7 @@ where
 
     fn store_prim(&mut self, k: Reg<RT>, val: V);
 
-    fn read_multi_prim(&self, k: Reg<RT>, count: usize) -> Option<&[V]>;
+    fn read_multi_prim(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<V>>;
 
     fn store_multi_copy_prim(&mut self, k: Reg<RT>, vals: &[V]);
 }
@@ -91,7 +92,7 @@ where
         DStoreFor::get_store_mut(self).store(k.0, val);
     }
 
-    fn read_multi(&self, k: Reg<RT>, count: usize) -> Option<&[V]> {
+    fn read_multi(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<V>> {
         DStoreFor::get_store(self).read_multi(k.0, count)
     }
 
@@ -126,7 +127,7 @@ where
         PrimNumStoreFor::get_store_mut(self).store(k.0.index, val);
     }
 
-    fn read_multi_prim(&self, k: Reg<RT>, count: usize) -> Option<&[P]> {
+    fn read_multi_prim(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<P>> {
         debug_assert!(k.0.width <= Self::BITS);
         PrimNumStoreFor::get_store(self).read_multi(k.0.index, count)
     }
@@ -140,7 +141,7 @@ where
 /// Store based on HashMaps
 struct HashMapStore<K: Hash + Eq, V> {
     single: HashMap<K, V>,
-    vector: HashMap<(K, usize), Box<[V]>>,
+    vector: HashMap<(K, usize), VecValue<V>>,
 }
 
 impl<K, V> HashMapStore<K, V>
@@ -162,8 +163,8 @@ where
         self.single.insert(k, val);
     }
 
-    fn read_multi(&self, k: K, count: usize) -> Option<&[V]> {
-        self.vector.get(&(k, count)).map(|b| &b[..])
+    fn read_multi(&self, k: K, count: usize) -> Option<&VecValue<V>> {
+        self.vector.get(&(k, count))
     }
 
     fn store_multi_copy(&mut self, k: K, vals: &[V])
@@ -177,8 +178,7 @@ where
                 o.into_mut().copy_from_slice(vals);
             }
             Entry::Vacant(v) => {
-                let b: Box<[V]> = Box::from(vals);
-                v.insert(b);
+                v.insert(VecValue::from_vec(vals.to_vec()));
             }
         };
     }
@@ -194,8 +194,7 @@ where
                 o.into_mut().clone_from_slice(vals);
             }
             Entry::Vacant(v) => {
-                let b: Box<[V]> = Box::from(vals);
-                v.insert(b);
+                v.insert(VecValue::from_vec(vals.to_vec()));
             }
         };
     }

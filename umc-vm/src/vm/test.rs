@@ -4,6 +4,8 @@ use std::io::Cursor;
 use umc_compiler::error_display::assemble_prog;
 use umc_model::binary::{decode, encode};
 
+use crate::vm::types::uint::ArbitraryUnsignedInt;
+
 use super::*;
 
 fn compile_and_run(s: &str) -> VirtualMachine {
@@ -197,9 +199,13 @@ fn add_floats() {
 #[test]
 fn unsigned_vector() {
     const PROG: &str = "
-        dbg u32x6:0
+        ; abuse the default value for now
+        add u32x6:0, u32x6:0, #10
+        ; Double
+        add u32x6:0, u32x6:0, u32x6:0
     ";
-    let _ = compile_and_run(PROG);
+    let vm = compile_and_run(PROG);
+    assert_eq!(vec![20; 6], vm.inspect_uint_vec(0, u32::BITS, 6).unwrap());
 }
 
 #[test]

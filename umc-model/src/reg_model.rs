@@ -16,6 +16,15 @@ pub struct NumReg {
     pub width: RegWidth,
 }
 
+impl NumReg {
+    pub fn with_index(&self, i: RegIndex) -> Self {
+        Self {
+            index: i,
+            width: self.width,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumVecReg {
     pub index: RegIndex,
@@ -23,15 +32,19 @@ pub struct NumVecReg {
     pub length: RegWidth,
 }
 
-pub trait RegTypeT {
+pub trait RegTypeT: Clone {
     const LETTER: char;
     type R: Debug + Clone + PartialEq;
     type C: Debug + Clone + PartialEq;
 
     fn reg_type(r: &Self::R) -> RegType;
+
+    fn index(r: &Self::R) -> RegIndex;
+
+    fn with_index(reg_set: &Self::R, r: RegIndex) -> Self::R;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct UnsignedRegT;
 impl RegTypeT for UnsignedRegT {
     const LETTER: char = 'u';
@@ -41,9 +54,17 @@ impl RegTypeT for UnsignedRegT {
     fn reg_type(r: &Self::R) -> RegType {
         RegType::Num(NumRegType::UnsignedInt(r.width))
     }
+
+    fn index(r: &Self::R) -> RegIndex {
+        r.index
+    }
+
+    fn with_index(reg_set: &Self::R, i: RegIndex) -> Self::R {
+        reg_set.with_index(i)
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct SignedRegT;
 impl RegTypeT for SignedRegT {
     const LETTER: char = 'i';
@@ -53,9 +74,17 @@ impl RegTypeT for SignedRegT {
     fn reg_type(r: &Self::R) -> RegType {
         RegType::Num(NumRegType::SignedInt(r.width))
     }
+
+    fn index(r: &Self::R) -> RegIndex {
+        r.index
+    }
+
+    fn with_index(reg_set: &Self::R, i: RegIndex) -> Self::R {
+        reg_set.with_index(i)
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FloatRegT;
 impl RegTypeT for FloatRegT {
     const LETTER: char = 'f';
@@ -65,21 +94,37 @@ impl RegTypeT for FloatRegT {
     fn reg_type(r: &Self::R) -> RegType {
         RegType::Num(NumRegType::Float(r.width))
     }
+
+    fn index(r: &Self::R) -> RegIndex {
+        r.index
+    }
+
+    fn with_index(reg_set: &Self::R, i: RegIndex) -> Self::R {
+        reg_set.with_index(i)
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MemRegT;
 impl RegTypeT for MemRegT {
     const LETTER: char = 'm';
     type R = RegIndex;
-    type C = usize;
+    type C = std::convert::Infallible;
 
     fn reg_type(_: &Self::R) -> RegType {
         RegType::MemoryAddress
     }
+
+    fn index(r: &Self::R) -> RegIndex {
+        *r
+    }
+
+    fn with_index(_: &Self::R, i: RegIndex) -> Self::R {
+        i
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct InstrRegT;
 impl RegTypeT for InstrRegT {
     const LETTER: char = 'n';
@@ -89,34 +134,43 @@ impl RegTypeT for InstrRegT {
     fn reg_type(_: &Self::R) -> RegType {
         RegType::InstructionAddress
     }
+
+    fn index(r: &Self::R) -> RegIndex {
+        *r
+    }
+
+    fn with_index(_: &Self::R, i: RegIndex) -> Self::R {
+        i
+    }
 }
 
 /// Type-safe Register
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Reg<RT: RegTypeT>(pub RT::R);
+
+impl<RT: RegTypeT> Reg<RT> {
+    pub fn index(&self) -> RegIndex {
+        RT::index(&self.0)
+    }
+
+    pub fn with_index(&self, i: RegIndex) -> Self {
+        Reg(RT::with_index(&self.0, i))
+    }
+
+    /// Check if the two registers are equal ignoring their indices
+    pub fn eq_ignoring_index(&self, other: &Reg<RT>) -> bool {
+        const DUMMY_INDEX: RegIndex = 0;
+        RT::with_index(&self.0, DUMMY_INDEX) == RT::with_index(&other.0, DUMMY_INDEX)
+    }
+}
 
 impl<RT: RegTypeT> Copy for Reg<RT> where RT::R: Copy {}
 
-impl<RT: RegTypeT> Clone for Reg<RT> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
 /// Type-safe Register or Constant Operand
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RegOrConstant<RT: RegTypeT> {
     Reg(Reg<RT>),
     Const(RT::C),
-}
-
-impl<RT: RegTypeT> Clone for RegOrConstant<RT> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Reg(r) => Self::Reg(r.clone()),
-            Self::Const(c) => Self::Const(c.clone()),
-        }
-    }
 }
 
 impl<RT: RegTypeT> RegOrConstant<RT> {
@@ -280,7 +334,6 @@ impl RegOrConstant<MemRegT> {
                 }
                 return Err(());
             }
-            Operand::LabelConstant(l) => Ok(Self::Const(*l)),
             _ => Err(()),
         }
     }

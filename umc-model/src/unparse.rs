@@ -1,5 +1,5 @@
 use crate::instructions::{
-    AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentNumOp,
+    AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentOp,
     Instruction, MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
@@ -52,57 +52,33 @@ fn mov_to_raw(mov_params: &MovParams) -> Vec<Operand> {
 }
 
 fn num_op_to_raw(num_op: &AnyCoherentNumOp) -> Vec<Operand> {
-    fn to_raw<'a, RT>(c: &'a ConsistentNumOp<RT>) -> Vec<Operand>
+    fn to_raw<'a, RT>(c: &'a ConsistentOp<RT>) -> Vec<Operand>
     where
-        RT: RegTypeT<R = NumReg>,
-        Operand: From<&'a RegOrConstant<RT>>,
-        RegOperand: From<&'a Reg<RT>>,
+        RT: RegTypeT<R = NumReg> + 'static,
+        for<'x> &'x RegOrConstant<RT>: Into<Operand>,
+        for<'x> &'x Reg<RT>: Into<RegOperand>,
     {
         match c {
-            ConsistentNumOp::Single(reg, reg_or_constant1, reg_or_constant2) => {
+            ConsistentOp::Single(reg, reg_or_constant1, reg_or_constant2) => {
                 vec![
                     Operand::Reg(reg.into()),
                     reg_or_constant1.into(),
                     reg_or_constant2.into(),
                 ]
             }
-            ConsistentNumOp::VectorBroadcast(num_vec_reg, i, reg_or_constant) => {
-                let reg_type = RT::reg_type(&NumReg {
-                    index: num_vec_reg.index,
-                    width: num_vec_reg.width,
-                });
-                let reg_set = RegisterSet::Vector(reg_type, num_vec_reg.length);
+            ConsistentOp::VectorBroadcast(params) => {
+                let p1 = params.vec_param();
                 vec![
-                    Operand::Reg(RegOperand {
-                        set: reg_set.clone(),
-                        index: num_vec_reg.index,
-                    }),
-                    Operand::Reg(RegOperand {
-                        set: reg_set,
-                        index: *i,
-                    }),
-                    reg_or_constant.into(),
+                    Operand::Reg(params.dst().into()),
+                    Operand::Reg((&p1).into()),
+                    params.value_param().into(),
                 ]
             }
-            ConsistentNumOp::VectorVector(num_vec_reg, i1, i2) => {
-                let reg_type = RT::reg_type(&NumReg {
-                    index: num_vec_reg.index,
-                    width: num_vec_reg.width,
-                });
-                let reg_set = RegisterSet::Vector(reg_type, num_vec_reg.length);
+            ConsistentOp::VectorVector(params) => {
                 vec![
-                    Operand::Reg(RegOperand {
-                        set: reg_set.clone(),
-                        index: num_vec_reg.index,
-                    }),
-                    Operand::Reg(RegOperand {
-                        set: reg_set.clone(),
-                        index: *i1,
-                    }),
-                    Operand::Reg(RegOperand {
-                        set: reg_set,
-                        index: *i2,
-                    }),
+                    Operand::Reg(params.dst().into()),
+                    Operand::Reg((&params.p1()).into()),
+                    Operand::Reg((&params.p2()).into()),
                 ]
             }
         }

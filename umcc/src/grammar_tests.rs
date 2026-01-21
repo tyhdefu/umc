@@ -1,4 +1,4 @@
-use crate::ast::{ASTRegisterOperand, Instruction, Operand, Statement};
+use crate::ast::{ASTRegisterOperand, Instruction, Operand};
 use crate::grammar::{
     InstructionParser, OperandParser, ProgramParser, RegOperandParser, StatementParser,
 };
