@@ -1,5 +1,5 @@
 use crate::instructions::{
-    AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentOp,
+    AnyConsistentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentOp,
     Instruction, MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
@@ -51,7 +51,7 @@ fn mov_to_raw(mov_params: &MovParams) -> Vec<Operand> {
     }
 }
 
-fn num_op_to_raw(num_op: &AnyCoherentNumOp) -> Vec<Operand> {
+fn num_op_to_raw(num_op: &AnyConsistentNumOp) -> Vec<Operand> {
     fn to_raw<'a, RT>(c: &'a ConsistentOp<RT>) -> Vec<Operand>
     where
         RT: RegTypeT<R = NumReg> + 'static,
@@ -84,9 +84,9 @@ fn num_op_to_raw(num_op: &AnyCoherentNumOp) -> Vec<Operand> {
         }
     }
     match num_op {
-        AnyCoherentNumOp::UnsignedInt(c) => to_raw(c),
-        AnyCoherentNumOp::SignedInt(c) => to_raw(c),
-        AnyCoherentNumOp::Float(c) => to_raw(c),
+        AnyConsistentNumOp::UnsignedInt(c) => to_raw(c),
+        AnyConsistentNumOp::SignedInt(c) => to_raw(c),
+        AnyConsistentNumOp::Float(c) => to_raw(c),
     }
 }
 

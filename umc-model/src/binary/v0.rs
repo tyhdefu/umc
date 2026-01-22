@@ -4,7 +4,7 @@ use std::io;
 
 use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction, MovParams,
+    AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction, MovParams,
     NotParams,
 };
 use crate::operand::{Operand, RegOperand};
@@ -206,10 +206,10 @@ pub fn decode_instruction<R: io::Read>(
     fn read_3_num_op<R: io::Read>(
         src: &mut R,
         rt_header: &RTHeader,
-    ) -> Result<AnyCoherentNumOp, DecodeError> {
+    ) -> Result<AnyConsistentNumOp, DecodeError> {
         let ops = operands::<R, 3>(src, rt_header)?;
         let ops_ref: Vec<&Operand> = ops.iter().collect();
-        AnyCoherentNumOp::try_from(ops_ref.as_slice()).map_err(|i| {
+        AnyConsistentNumOp::try_from(ops_ref.as_slice()).map_err(|i| {
             DecodeError::Malformed(format!("Invalid Instruction: {:?} for {:?}", i, ops))
         })
     }

@@ -2,8 +2,8 @@
 //! that is guaranteed to execute
 
 use crate::instructions::{
-    AddParams, AnyCoherentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentOp,
-    MovParams, NotParams, VectorBroadcastParams, VectorVectorParams,
+    AddParams, AnyConsistentNumOp, CompareParams, CompareToZero, ConsistentComparison,
+    ConsistentOp, MovParams, NotParams, VectorBroadcastParams, VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -60,10 +60,10 @@ impl TryFrom<&[&Operand]> for AddParams {
         };
         Ok(match &reg_op.set {
             RegisterSet::Single(RegType::Num(_)) | RegisterSet::Vector(RegType::Num(_), _) => {
-                match AnyCoherentNumOp::try_from(value)? {
-                    AnyCoherentNumOp::UnsignedInt(num_op) => Self::UnsignedInt(num_op),
-                    AnyCoherentNumOp::SignedInt(num_op) => Self::SignedInt(num_op),
-                    AnyCoherentNumOp::Float(num_op) => Self::Float(num_op),
+                match AnyConsistentNumOp::try_from(value)? {
+                    AnyConsistentNumOp::UnsignedInt(num_op) => Self::UnsignedInt(num_op),
+                    AnyConsistentNumOp::SignedInt(num_op) => Self::SignedInt(num_op),
+                    AnyConsistentNumOp::Float(num_op) => Self::Float(num_op),
                 }
             }
             RegisterSet::Single(RegType::MemoryAddress) => {
@@ -149,7 +149,7 @@ where
     Ok(num_op)
 }
 
-impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
+impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
     type Error = InstructionValidateError;
 
     fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
@@ -210,7 +210,7 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
             RegisterSet::Vector(reg_type, l) => match reg_type {
                 RegType::Num(num_reg) => Ok(match num_reg {
                     NumRegType::UnsignedInt(w) => {
-                        AnyCoherentNumOp::UnsignedInt(parse_vector_op::<UnsignedRegT>(
+                        AnyConsistentNumOp::UnsignedInt(parse_vector_op::<UnsignedRegT>(
                             Reg(NumReg {
                                 index: reg_op.index,
                                 width: *w,
@@ -221,7 +221,7 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
                         )?)
                     }
                     NumRegType::SignedInt(w) => {
-                        AnyCoherentNumOp::SignedInt(parse_vector_op::<SignedRegT>(
+                        AnyConsistentNumOp::SignedInt(parse_vector_op::<SignedRegT>(
                             Reg(NumReg {
                                 index: reg_op.index,
                                 width: *w,
@@ -231,15 +231,17 @@ impl TryFrom<&[&Operand]> for AnyCoherentNumOp {
                             ops[2],
                         )?)
                     }
-                    NumRegType::Float(w) => AnyCoherentNumOp::Float(parse_vector_op::<FloatRegT>(
-                        Reg(NumReg {
-                            index: reg_op.index,
-                            width: *w,
-                        }),
-                        *l,
-                        ops[1],
-                        ops[2],
-                    )?),
+                    NumRegType::Float(w) => {
+                        AnyConsistentNumOp::Float(parse_vector_op::<FloatRegT>(
+                            Reg(NumReg {
+                                index: reg_op.index,
+                                width: *w,
+                            }),
+                            *l,
+                            ops[1],
+                            ops[2],
+                        )?)
+                    }
                 }),
                 _ => Err(Self::Error::InvalidRegType { op_index: 0 }),
             },

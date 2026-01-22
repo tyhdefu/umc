@@ -14,22 +14,22 @@ pub enum Instruction {
     Mov(MovParams),
 
     /// Add the two operands and store in destination register
-    Add(AnyCoherentNumOp),
+    Add(AnyConsistentNumOp),
     /// Subtract the second operand from the first register
-    Sub(AnyCoherentNumOp),
+    Sub(AnyConsistentNumOp),
     /// Multiply two registers
-    Mul(AnyCoherentNumOp),
+    Mul(AnyConsistentNumOp),
     /// Divide the first register by the second register
-    Div(AnyCoherentNumOp),
+    Div(AnyConsistentNumOp),
     /// Remainder of the first operand when divided by the second
-    Mod(AnyCoherentNumOp),
+    Mod(AnyConsistentNumOp),
 
     /// Bitwise AND
-    And(AnyCoherentNumOp),
+    And(AnyConsistentNumOp),
     /// Bitwise OR
-    Or(AnyCoherentNumOp),
+    Or(AnyConsistentNumOp),
     /// Bitwise XOR
-    Xor(AnyCoherentNumOp),
+    Xor(AnyConsistentNumOp),
     /// Bitwise Logical NOT
     Not(NotParams),
 
@@ -59,6 +59,7 @@ pub enum BinaryCondition {
     LessThanOrEqualTo,
 }
 
+/// An binary operation with consistent types
 #[derive(Debug, PartialEq, Clone)]
 pub enum ConsistentOp<RT: RegTypeT> {
     Single(Reg<RT>, RegOrConstant<RT>, RegOrConstant<RT>),
@@ -166,7 +167,7 @@ impl<RT: RegTypeT<R = NumReg>> VectorVectorParams<RT> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AnyCoherentNumOp {
+pub enum AnyConsistentNumOp {
     UnsignedInt(ConsistentOp<UnsignedRegT>),
     SignedInt(ConsistentOp<SignedRegT>),
     Float(ConsistentOp<FloatRegT>),
@@ -325,7 +326,7 @@ impl Display for ConsistentComparison {
     }
 }
 
-impl Display for AnyCoherentNumOp {
+impl Display for AnyConsistentNumOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn write_single<RT: RegTypeT>(
             f: &mut std::fmt::Formatter<'_>,
@@ -341,21 +342,21 @@ impl Display for AnyCoherentNumOp {
         }
 
         match self {
-            AnyCoherentNumOp::UnsignedInt(num_op) => match num_op {
+            AnyConsistentNumOp::UnsignedInt(num_op) => match num_op {
                 ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
                 ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
                 ConsistentOp::VectorVector(params) => {
                     write!(f, "{}", params)
                 }
             },
-            AnyCoherentNumOp::SignedInt(num_op) => match num_op {
+            AnyConsistentNumOp::SignedInt(num_op) => match num_op {
                 ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
                 ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
                 ConsistentOp::VectorVector(params) => {
                     write!(f, "{}", params)
                 }
             },
-            AnyCoherentNumOp::Float(num_op) => match num_op {
+            AnyConsistentNumOp::Float(num_op) => match num_op {
                 ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
                 ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
                 ConsistentOp::VectorVector(params) => {

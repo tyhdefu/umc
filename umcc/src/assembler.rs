@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
+    AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
     Instruction, MovParams, NotParams,
 };
 use umc_model::operand::{Operand, RegOperand};
@@ -148,10 +148,10 @@ pub fn ast_to_bytecode(
     fn coherent_num_op(
         instr: &ast::Instruction,
         labels: &HashMap<String, usize>,
-    ) -> Result<AnyCoherentNumOp, AssembleInstructionError> {
+    ) -> Result<AnyConsistentNumOp, AssembleInstructionError> {
         let inferred = infer_ops::<3>(instr, labels)?;
         let refs: Vec<&Operand> = inferred.iter().collect();
-        let params = AnyCoherentNumOp::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
+        let params = AnyConsistentNumOp::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
         Ok(params)
     }
 

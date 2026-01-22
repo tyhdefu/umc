@@ -10,7 +10,7 @@ use crate::vm::types::{
     CastSingleUnsigned, UMCBitwise,
 };
 use umc_model::instructions::{
-    AnyCoherentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
+    AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
     ConsistentOp, MovParams, NotParams, VectorBroadcastParams, VectorVectorParams,
 };
 use umc_model::operand::RegOperand;
@@ -22,7 +22,7 @@ use umc_model::{NumRegType, RegType, RegWidth, RegisterSet};
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     match params {
         MovParams::UnsignedInt(r, reg_or_constant) => {
-            let num_op = AnyCoherentNumOp::UnsignedInt(ConsistentOp::Single(
+            let num_op = AnyConsistentNumOp::UnsignedInt(ConsistentOp::Single(
                 r.clone(),
                 reg_or_constant.clone(),
                 RegOrConstant::Const(0),
@@ -30,7 +30,7 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
         MovParams::SignedInt(r, reg_or_constant) => {
-            let num_op = AnyCoherentNumOp::SignedInt(ConsistentOp::Single(
+            let num_op = AnyConsistentNumOp::SignedInt(ConsistentOp::Single(
                 r.clone(),
                 reg_or_constant.clone(),
                 RegOrConstant::Const(0),
@@ -38,7 +38,7 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
         MovParams::Float(r, reg_or_constant) => {
-            let num_op = AnyCoherentNumOp::Float(ConsistentOp::Single(
+            let num_op = AnyConsistentNumOp::Float(ConsistentOp::Single(
                 r.clone(),
                 reg_or_constant.clone(),
                 RegOrConstant::Const(0.0),
@@ -162,9 +162,13 @@ fn compute_float<O, T>(
     state.store_prim(*dst, result);
 }
 
-pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, state: &mut RegState) {
+pub fn execute_arithmetic(
+    params: &AnyConsistentNumOp,
+    op: BinaryArithmeticOp,
+    state: &mut RegState,
+) {
     match params {
-        AnyCoherentNumOp::UnsignedInt(param_kind) => match param_kind {
+        AnyConsistentNumOp::UnsignedInt(param_kind) => match param_kind {
             ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
                 u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
@@ -187,7 +191,7 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
                 _ => todo!("Unsigned Arbitrary Vectors todo"),
             },
         },
-        AnyCoherentNumOp::SignedInt(param_kind) => match param_kind {
+        AnyConsistentNumOp::SignedInt(param_kind) => match param_kind {
             ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
                 i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
@@ -196,7 +200,7 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
             ConsistentOp::VectorBroadcast(_) => todo!(),
             ConsistentOp::VectorVector(_) => todo!(),
         },
-        AnyCoherentNumOp::Float(param_kind) => match param_kind {
+        AnyConsistentNumOp::Float(param_kind) => match param_kind {
             ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 32 => compute_float::<_, f32>(op, dst, p1, p2, state),
                 64 => compute_float::<_, f64>(op, dst, p1, p2, state),
@@ -208,9 +212,9 @@ pub fn execute_arithmetic(params: &AnyCoherentNumOp, op: BinaryArithmeticOp, sta
     }
 }
 
-pub fn execute_bitwise(params: &AnyCoherentNumOp, op: BinaryBitwiseOp, state: &mut RegState) {
+pub fn execute_bitwise(params: &AnyConsistentNumOp, op: BinaryBitwiseOp, state: &mut RegState) {
     match params {
-        AnyCoherentNumOp::UnsignedInt(num_op) => match num_op {
+        AnyConsistentNumOp::UnsignedInt(num_op) => match num_op {
             ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
                 u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
@@ -225,7 +229,7 @@ pub fn execute_bitwise(params: &AnyCoherentNumOp, op: BinaryBitwiseOp, state: &m
             ConsistentOp::VectorBroadcast(_) => todo!(),
             ConsistentOp::VectorVector(_) => todo!(),
         },
-        AnyCoherentNumOp::SignedInt(num_op) => match num_op {
+        AnyConsistentNumOp::SignedInt(num_op) => match num_op {
             ConsistentOp::Single(dst, p1, p2) => match dst.0.width {
                 i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
                 i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
@@ -234,7 +238,7 @@ pub fn execute_bitwise(params: &AnyCoherentNumOp, op: BinaryBitwiseOp, state: &m
             ConsistentOp::VectorBroadcast(_) => todo!(),
             ConsistentOp::VectorVector(_) => todo!(),
         },
-        AnyCoherentNumOp::Float(_) => panic!("TODO: Make new num op for bitwise"),
+        AnyConsistentNumOp::Float(_) => panic!("TODO: Make new num op for bitwise"),
     }
 }
 
@@ -496,6 +500,7 @@ pub fn read_iaddr(p: &RegOrConstant<InstrRegT>, state: &RegState) -> Instruction
 }
 
 pub fn is_zero(p: &CompareToZero, state: &RegState) -> bool {
+    // TODO: This isn't right
     match p {
         CompareToZero::Unsigned(r) => read_uint::<u32>(r, state) == 0,
         CompareToZero::Signed(r) => read_int::<i32>(r, state) == 0,
