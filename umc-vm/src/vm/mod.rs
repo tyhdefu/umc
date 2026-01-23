@@ -1,3 +1,4 @@
+mod memory;
 mod state;
 mod types;
 

@@ -9,7 +9,7 @@ use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 #[derive(Clone, Debug)]
 pub struct ArbitraryUnsignedInt {
     bits: u32,
-    // Least significant values first
+    // Least significant values first (little-endian overall, target dependent within)
     data: Vec<usize>,
 }
 
@@ -20,6 +20,52 @@ impl ArbitraryUnsignedInt {
     /// Creates a zero-value
     pub const fn new(bits: u32) -> Self {
         Self { bits, data: vec![] }
+    }
+
+    #[cfg(test)]
+    pub fn add_u64(&mut self, other: u64) {
+        let other: Self = (&other).cast_into();
+        self.add(&other);
+    }
+
+    pub fn from_bytes(bits: u32, buf: &[u8]) -> Result<Self, ()> {
+        let full_chunks = (bits as usize).div_euclid(size_of::<usize>());
+        let mut data = vec![];
+        for i in 0..full_chunks {
+            let c = i * size_of::<usize>();
+            let slice = &buf[c..(c + size_of::<usize>())];
+            let chunk = usize::from_le_bytes(slice.try_into().unwrap());
+            data.push(chunk);
+        }
+
+        let partial_chunks = (bits as usize).rem_euclid(size_of::<usize>());
+        let mut last_chunk: usize = 0;
+        for i in 0..partial_chunks {
+            let index = ((full_chunks + 1) * size_of::<usize>()) + i;
+            last_chunk += (buf[index] << (u8::BITS * i as u32)) as usize;
+        }
+
+        data.push(last_chunk);
+
+        // TODO: Reverse?
+        Ok(Self { bits, data })
+    }
+
+    pub fn write_bytes(&self, buf: &mut [u8]) -> Result<(), ()> {
+        let req_bytes = (self.bits / u8::BITS) as usize;
+        if buf.len() < req_bytes {
+            return Err(());
+        }
+        for (i, x) in self
+            .data
+            .iter()
+            .flat_map(|v| v.to_le_bytes().into_iter())
+            .take(req_bytes)
+            .enumerate()
+        {
+            buf[i] = x;
+        }
+        Ok(())
     }
 
     pub fn resized_clone(&self, new_bits: u32) -> Self {
@@ -431,5 +477,40 @@ impl CastFrom<i64> for ArbitraryUnsignedInt {
     fn cast_from(value: &i64) -> Self {
         let v = *value as u64;
         v.cast_into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::vm::memory::SerializableArb;
+    use crate::vm::types::uint::ArbitraryUnsignedInt;
+
+    fn check_serialize(mut expected: ArbitraryUnsignedInt) {
+        let mut buf = vec![0; 256];
+        expected.write_to(&mut buf).unwrap();
+
+        let got = ArbitraryUnsignedInt::from_bytes(expected.bits, &buf).unwrap();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn serialize_arbitrary_8() {
+        let mut v = ArbitraryUnsignedInt::new(8);
+        v.add_u64(255);
+        check_serialize(v);
+    }
+
+    #[test]
+    fn serialize_arbitrary_32() {
+        let mut v = ArbitraryUnsignedInt::new(32);
+        v.add_u64(42);
+        check_serialize(v);
+    }
+
+    #[test]
+    fn serialize_arbitrary_48() {
+        let mut v = ArbitraryUnsignedInt::new(48);
+        v.add_u64(u32::MAX as u64 + 1915);
+        check_serialize(v);
     }
 }
