@@ -1,7 +1,9 @@
+use std::fmt::Debug;
+
 use crate::vm::types::UMCOffset;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 
-mod safe;
+pub mod safe;
 
 #[derive(Debug)]
 pub struct AllocateError {
@@ -16,9 +18,12 @@ pub enum MemoryAccessError {
     OutOfBounds,
 }
 
+/// Required trait implementations for a MemoryAddress implementation
+pub trait MemoryAddress: UMCOffset + PartialOrd + Clone + Debug {}
+
 /// Manages the virtual memory for the VM
 pub trait MemoryManager {
-    type Address: UMCOffset + PartialOrd;
+    type Address: MemoryAddress;
 
     /// Allocates a block of memory with a certain number of bytes
     /// This may fail if the requested number of bytes could not be allocated, or may appear to succeed

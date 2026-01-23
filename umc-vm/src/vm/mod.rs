@@ -7,6 +7,7 @@ mod helper;
 #[cfg(test)]
 mod test;
 
+use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::state::RegState;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
@@ -18,7 +19,8 @@ use umc_model::{Program, RegIndex, RegWidth};
 pub struct VirtualMachine {
     program: Vec<Instruction>,
     pc: usize,
-    state: RegState,
+    state: RegState<SafeAddress>,
+    memory: SafeMemoryManager,
 }
 
 impl VirtualMachine {
@@ -28,6 +30,7 @@ impl VirtualMachine {
             program: program.instructions,
             pc: 0,
             state: RegState::new(),
+            memory: SafeMemoryManager::new(),
         }
     }
 

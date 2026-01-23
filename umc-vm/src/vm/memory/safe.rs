@@ -1,6 +1,8 @@
 //! A safe memory manager implementation that catches invalid attempts to read/write out of bounds, or use-after free
 
-use crate::vm::memory::{AllocateError, MemoryAccessError, MemoryManager, Serializable};
+use crate::vm::memory::{
+    AllocateError, MemoryAccessError, MemoryAddress, MemoryManager, Serializable,
+};
 use crate::vm::types::UMCOffset;
 
 pub struct SafeMemoryManager {
@@ -12,14 +14,14 @@ impl SafeMemoryManager {
         Self { blocks: vec![] }
     }
 
-    fn get_block(&self, address: &SimpleAddress) -> Option<&SimpleMemoryBlock> {
+    fn get_block(&self, address: &SafeAddress) -> Option<&SimpleMemoryBlock> {
         match self.blocks.get(address.block_id) {
             Some(v) => v.as_ref(),
             None => None,
         }
     }
 
-    fn get_block_mut(&mut self, address: &SimpleAddress) -> Option<&mut SimpleMemoryBlock> {
+    fn get_block_mut(&mut self, address: &SafeAddress) -> Option<&mut SimpleMemoryBlock> {
         match self.blocks.get_mut(address.block_id) {
             Some(v) => v.as_mut(),
             None => None,
@@ -35,13 +37,14 @@ impl SimpleMemoryBlock {
     }
 }
 
+/// A safe memory address
 #[derive(Clone, Debug, PartialEq)]
-pub struct SimpleAddress {
+pub struct SafeAddress {
     block_id: usize,
     offset: usize,
 }
 
-impl SimpleAddress {
+impl SafeAddress {
     pub fn from_id(id: usize) -> Self {
         Self {
             block_id: id,
@@ -50,7 +53,13 @@ impl SimpleAddress {
     }
 }
 
-impl PartialOrd for SimpleAddress {
+impl UMCOffset for SafeAddress {
+    fn offset(&mut self, offset: isize) {
+        self.offset = self.offset.saturating_add_signed(offset);
+    }
+}
+
+impl PartialOrd for SafeAddress {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         if self.block_id == other.block_id {
             return Some(self.offset.cmp(&other.offset));
@@ -59,15 +68,17 @@ impl PartialOrd for SimpleAddress {
     }
 }
 
+impl MemoryAddress for SafeAddress {}
+
 impl MemoryManager for SafeMemoryManager {
-    type Address = SimpleAddress;
+    type Address = SafeAddress;
 
     fn allocate(&mut self, bytes: usize) -> Result<Self::Address, AllocateError> {
         // Append a new block
         let block = SimpleMemoryBlock::allocate(bytes);
         self.blocks.push(Some(block));
         let id = self.blocks.len() - 1;
-        Ok(SimpleAddress::from_id(id))
+        Ok(SafeAddress::from_id(id))
     }
 
     fn free(&mut self, address: Self::Address) {
@@ -100,12 +111,6 @@ impl MemoryManager for SafeMemoryManager {
             .ok_or(MemoryAccessError::OutOfBounds)?;
         v.write_to(slice)
             .map_err(|_| MemoryAccessError::OutOfBounds)
-    }
-}
-
-impl UMCOffset for SimpleAddress {
-    fn offset(&mut self, offset: isize) {
-        self.offset = self.offset.saturating_add_signed(offset);
     }
 }
 

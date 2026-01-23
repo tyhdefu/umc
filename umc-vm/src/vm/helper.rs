@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 use std::iter::repeat_n;
 
-use crate::vm::state::{RegState, StoreFor, StorePrim};
+use crate::vm::memory::safe::SafeAddress;
+use crate::vm::state::{RegState as RegStateRaw, StoreFor, StorePrim};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
@@ -18,6 +19,9 @@ use umc_model::reg_model::{
     FloatRegT, InstrRegT, NumReg, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
 use umc_model::{NumRegType, RegType, RegWidth, RegisterSet};
+
+// TODO: Make these helpers and the VM have a switchable Memory implementation
+type RegState = RegStateRaw<SafeAddress>;
 
 pub fn execute_mov(params: &MovParams, state: &mut RegState) {
     match params {

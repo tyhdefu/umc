@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use crate::vm::memory::MemoryAddress;
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
@@ -39,7 +40,7 @@ where
     fn store_multi_copy_prim(&mut self, k: Reg<RT>, vals: &[V]);
 }
 
-pub struct RegState {
+pub struct RegState<M: MemoryAddress> {
     u32s: HashMapStore<RegIndex, u32>,
     u64s: HashMapStore<RegIndex, u64>,
     uas: HashMapStore<NumReg, ArbitraryUnsignedInt>,
@@ -48,9 +49,10 @@ pub struct RegState {
     f32s: HashMapStore<RegIndex, f32>,
     f64s: HashMapStore<RegIndex, f64>,
     addresses: HashMapStore<RegIndex, InstructionAddress>,
+    mem_addresses: HashMapStore<RegIndex, M>,
 }
 
-impl RegState {
+impl<M: MemoryAddress> RegState<M> {
     pub fn new() -> Self {
         Self {
             u32s: HashMapStore::new(),
@@ -61,6 +63,7 @@ impl RegState {
             f32s: HashMapStore::new(),
             f64s: HashMapStore::new(),
             addresses: HashMapStore::new(),
+            mem_addresses: HashMapStore::new(),
         }
     }
 }
@@ -79,7 +82,7 @@ trait PrimNumStoreFor<RT: RegTypeT, P: Copy> {
     fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, P>;
 }
 
-impl<RT: RegTypeT, V> StoreFor<V, RT> for RegState
+impl<RT: RegTypeT, V, M: MemoryAddress> StoreFor<V, RT> for RegState<M>
 where
     Self: DStoreFor<RT, V>,
     RT::R: Hash + Eq + Copy + 'static,
@@ -111,7 +114,7 @@ where
     }
 }
 
-impl<P: Copy, RT: RegTypeT<R = NumReg>> StorePrim<P, RT> for RegState
+impl<M: MemoryAddress, P: Copy, RT: RegTypeT<R = NumReg>> StorePrim<P, RT> for RegState<M>
 where
     Self: PrimNumStoreFor<RT, P>,
     RT::R: Copy,
@@ -200,7 +203,7 @@ where
     }
 }
 
-impl PrimNumStoreFor<UnsignedRegT, u32> for RegState {
+impl<M: MemoryAddress> PrimNumStoreFor<UnsignedRegT, u32> for RegState<M> {
     const BITS: u32 = u32::BITS;
 
     fn get_store(&self) -> &HashMapStore<RegIndex, u32> {
@@ -212,7 +215,7 @@ impl PrimNumStoreFor<UnsignedRegT, u32> for RegState {
     }
 }
 
-impl PrimNumStoreFor<UnsignedRegT, u64> for RegState {
+impl<M: MemoryAddress> PrimNumStoreFor<UnsignedRegT, u64> for RegState<M> {
     const BITS: u32 = u64::BITS;
 
     fn get_store(&self) -> &HashMapStore<RegIndex, u64> {
@@ -224,7 +227,7 @@ impl PrimNumStoreFor<UnsignedRegT, u64> for RegState {
     }
 }
 
-impl PrimNumStoreFor<SignedRegT, i32> for RegState {
+impl<M: MemoryAddress> PrimNumStoreFor<SignedRegT, i32> for RegState<M> {
     const BITS: u32 = i32::BITS;
 
     fn get_store(&self) -> &HashMapStore<RegIndex, i32> {
@@ -236,7 +239,7 @@ impl PrimNumStoreFor<SignedRegT, i32> for RegState {
     }
 }
 
-impl PrimNumStoreFor<SignedRegT, i64> for RegState {
+impl<M: MemoryAddress> PrimNumStoreFor<SignedRegT, i64> for RegState<M> {
     const BITS: u32 = i64::BITS;
 
     fn get_store(&self) -> &HashMapStore<RegIndex, i64> {
@@ -248,7 +251,7 @@ impl PrimNumStoreFor<SignedRegT, i64> for RegState {
     }
 }
 
-impl PrimNumStoreFor<FloatRegT, f32> for RegState {
+impl<M: MemoryAddress> PrimNumStoreFor<FloatRegT, f32> for RegState<M> {
     const BITS: u32 = 32;
 
     fn get_store(&self) -> &HashMapStore<RegIndex, f32> {
@@ -260,7 +263,7 @@ impl PrimNumStoreFor<FloatRegT, f32> for RegState {
     }
 }
 
-impl PrimNumStoreFor<FloatRegT, f64> for RegState {
+impl<M: MemoryAddress> PrimNumStoreFor<FloatRegT, f64> for RegState<M> {
     const BITS: u32 = 64;
 
     fn get_store(&self) -> &HashMapStore<RegIndex, f64> {
@@ -272,7 +275,7 @@ impl PrimNumStoreFor<FloatRegT, f64> for RegState {
     }
 }
 
-impl DStoreFor<UnsignedRegT, ArbitraryUnsignedInt> for RegState {
+impl<M: MemoryAddress> DStoreFor<UnsignedRegT, ArbitraryUnsignedInt> for RegState<M> {
     fn get_store(&self) -> &HashMapStore<NumReg, ArbitraryUnsignedInt> {
         &self.uas
     }
@@ -282,7 +285,7 @@ impl DStoreFor<UnsignedRegT, ArbitraryUnsignedInt> for RegState {
     }
 }
 
-impl DStoreFor<InstrRegT, InstructionAddress> for RegState {
+impl<M: MemoryAddress> DStoreFor<InstrRegT, InstructionAddress> for RegState<M> {
     fn get_store(&self) -> &HashMapStore<RegIndex, InstructionAddress> {
         &self.addresses
     }
