@@ -3,8 +3,8 @@ use std::ops::RangeInclusive;
 
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
-    AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
-    Instruction, MovParams, NotParams,
+    AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero,
+    ConsistentComparison, Instruction, MovParams, NotParams,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
@@ -146,6 +146,16 @@ pub fn ast_to_bytecode(
         Ok(ops)
     }
 
+    fn add_op(
+        instr: &ast::Instruction,
+        labels: &HashMap<String, usize>,
+    ) -> Result<AddParams, AssembleInstructionError> {
+        let inferred = infer_ops::<3>(instr, labels)?;
+        let refs: Vec<&Operand> = inferred.iter().collect();
+        let params = AddParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+        Ok(params)
+    }
+
     fn coherent_num_op(
         instr: &ast::Instruction,
         labels: &HashMap<String, usize>,
@@ -199,7 +209,7 @@ pub fn ast_to_bytecode(
             Ok(Instruction::Mov(params))
         }
         "add" => {
-            let params = coherent_num_op(&instr, labels)?;
+            let params = add_op(&instr, labels)?;
             Ok(Instruction::Add(params))
         }
         "and" => {

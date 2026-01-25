@@ -9,12 +9,12 @@ use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, BinaryOp, CastInto, CastSingleFloat, CastSingleSigned,
-    CastSingleUnsigned, UMCBitwise,
+    CastSingleUnsigned, UMCBitwise, UMCOffset,
 };
 use umc_model::RegWidth;
 use umc_model::instructions::{
-    AnyConsistentNumOp, AnyReg, AnySingleReg, BinaryCondition, CompareParams, CompareToZero,
-    ConsistentComparison, ConsistentOp, MovParams, NotParams, VectorBroadcastParams,
+    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, BinaryCondition, CompareParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, VectorBroadcastParams,
     VectorVectorParams,
 };
 use umc_model::reg_model::{
@@ -50,7 +50,10 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             ));
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
-        MovParams::MemAddress(_, _) => todo!(),
+        MovParams::MemAddress(dst, p) => match read_mem_addr(p, state) {
+            Some(v) => state.store(*dst, v.clone()),
+            None => {}
+        },
         MovParams::InstrAddress(dst, p) => {
             let addr = read_iaddr(p, state);
             state.store(*dst, addr);
@@ -165,6 +168,42 @@ fn compute_float<O, T>(
 {
     let result: T = compute_binary(op, |r| read_float(r, state), p1, p2);
     state.store_prim(*dst, result);
+}
+
+pub fn execute_add(params: &AddParams, state: &mut RegState) {
+    match params {
+        AddParams::UnsignedInt(consistent_op) => execute_arithmetic(
+            &AnyConsistentNumOp::UnsignedInt(consistent_op.clone()),
+            BinaryArithmeticOp::Add,
+            state,
+        ),
+        AddParams::SignedInt(consistent_op) => execute_arithmetic(
+            &AnyConsistentNumOp::SignedInt(consistent_op.clone()),
+            BinaryArithmeticOp::Add,
+            state,
+        ),
+        AddParams::Float(consistent_op) => execute_arithmetic(
+            &AnyConsistentNumOp::Float(consistent_op.clone()),
+            BinaryArithmeticOp::Add,
+            state,
+        ),
+        AddParams::MemAddress(dst, reg, reg_or_constant) => {
+            let mut address = state
+                .read(*reg)
+                .expect("Tried to add to an unset memory register")
+                .clone();
+            // TODO: Arbitrary Unsigned or specialisation
+            let offset_bytes: i64 = read_int(reg_or_constant, state);
+            address.offset(offset_bytes as isize);
+            state.store(*dst, address);
+        }
+        AddParams::InstrAddress(dst, reg_or_constant, offset) => {
+            let mut iaddr = read_iaddr(reg_or_constant, state);
+            let offset_bytes: i64 = read_int(offset, state);
+            iaddr.offset(offset_bytes as isize);
+            state.store(*dst, iaddr);
+        }
+    }
 }
 
 pub fn execute_arithmetic(
@@ -489,7 +528,7 @@ pub fn execute_debug(reg: &AnyReg, state: &RegState) {
             let x: InstructionAddress = read_iaddr(&reg_ref, state);
             println!("{} = {:?}", reg_ref, x);
         }
-        AnyReg::Single(AnySingleReg::Mem(_)) => todo!(),
+        AnyReg::Single(AnySingleReg::Mem(m)) => println!("{} = {:?}", m, state.read(*m)),
         AnyReg::Vector(AnySingleReg::Unsigned(reg), l) => {
             let x: Vec<ArbitraryUnsignedInt> =
                 read_uint_vec(&reg, *l, state).unwrap_or_else(|| {
@@ -596,6 +635,16 @@ pub fn read_iaddr(p: &RegOrConstant<InstrRegT>, state: &RegState) -> Instruction
     match p {
         RegOrConstant::Reg(r) => state.read(*r).copied().unwrap_or_default(),
         RegOrConstant::Const(c) => InstructionAddress::new(*c),
+    }
+}
+
+pub fn read_mem_addr<'a, 'b>(
+    p: &'b RegOrConstant<MemRegT>,
+    state: &'a RegState,
+) -> Option<&'a SafeAddress> {
+    match p {
+        RegOrConstant::Reg(reg) => state.read(*reg),
+        RegOrConstant::Const(_) => unreachable!(),
     }
 }
 

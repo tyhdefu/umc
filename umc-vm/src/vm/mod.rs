@@ -92,8 +92,8 @@ impl VirtualMachine {
             Instruction::Mov(params) => {
                 helper::execute_mov(params, &mut self.state);
             }
-            Instruction::Add(num_op) => {
-                helper::execute_arithmetic(num_op, BinaryArithmeticOp::Add, &mut self.state);
+            Instruction::Add(add_params) => {
+                helper::execute_add(add_params, &mut self.state);
             }
             Instruction::Sub(num_op) => {
                 helper::execute_arithmetic(num_op, BinaryArithmeticOp::Sub, &mut self.state);

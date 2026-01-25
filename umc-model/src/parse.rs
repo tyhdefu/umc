@@ -317,7 +317,12 @@ fn consistent_operand(
             )),
             _ => Err(InstructionValidateError::InconsistentOperand { op_index: 1 }),
         },
-        RegisterSet::Single(RegType::MemoryAddress) => todo!(),
+        RegisterSet::Single(RegType::MemoryAddress) => {
+            let dst = Reg::from_index(dst.index);
+            let p: RegOrConstant<MemRegT> = RegOrConstant::from_mem_addr(p)
+                .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
+            Ok(MovParams::MemAddress(dst, p))
+        }
         RegisterSet::Vector(_, _) => todo!("vector operands not implemented yet!"),
     }
 }

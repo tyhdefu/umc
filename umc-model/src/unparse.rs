@@ -1,6 +1,6 @@
 use crate::instructions::{
-    AnyConsistentNumOp, AnyReg, AnySingleReg, CompareParams, CompareToZero, ConsistentComparison,
-    ConsistentOp, Instruction, MovParams, NotParams,
+    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, CompareParams, CompareToZero,
+    ConsistentComparison, ConsistentOp, Instruction, MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -12,7 +12,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
     match instr {
         Instruction::Nop => vec![],
         Instruction::Mov(mov_params) => mov_to_raw(mov_params),
-        Instruction::Add(num_op) => num_op_to_raw(num_op),
+        Instruction::Add(num_op) => add_op_to_raw(num_op),
         Instruction::Sub(num_op) => num_op_to_raw(num_op),
         Instruction::Mul(num_op) => num_op_to_raw(num_op),
         Instruction::Div(num_op) => num_op_to_raw(num_op),
@@ -48,49 +48,71 @@ fn mov_to_raw(mov_params: &MovParams) -> Vec<Operand> {
         MovParams::Float(reg, reg_or_constant) => {
             vec![Operand::Reg(reg.into()), reg_or_constant.into()]
         }
-        MovParams::MemAddress(m1, m2) => vec![Operand::Reg(m1.into()), Operand::Reg(m2.into())],
+        MovParams::MemAddress(m1, m2) => vec![Operand::Reg(m1.into()), m2.into()],
         MovParams::InstrAddress(reg, reg_or_constant) => {
             vec![Operand::Reg(reg.into()), reg_or_constant.into()]
         }
     }
 }
 
-fn num_op_to_raw(num_op: &AnyConsistentNumOp) -> Vec<Operand> {
-    fn to_raw<'a, RT>(c: &'a ConsistentOp<RT>) -> Vec<Operand>
-    where
-        RT: RegTypeT<WIDTH = RegWidth> + 'static,
-        for<'x> &'x RegOrConstant<RT>: Into<Operand>,
-        for<'x> &'x Reg<RT>: Into<RegOperand>,
-    {
-        match c {
-            ConsistentOp::Single(reg, reg_or_constant1, reg_or_constant2) => {
-                vec![
-                    Operand::Reg(reg.into()),
-                    reg_or_constant1.into(),
-                    reg_or_constant2.into(),
-                ]
-            }
-            ConsistentOp::VectorBroadcast(params) => {
-                let p1 = params.vec_param();
-                vec![
-                    Operand::Reg(params.dst().into()),
-                    Operand::Reg((&p1).into()),
-                    params.value_param().into(),
-                ]
-            }
-            ConsistentOp::VectorVector(params) => {
-                vec![
-                    Operand::Reg(params.dst().into()),
-                    Operand::Reg((&params.p1()).into()),
-                    Operand::Reg((&params.p2()).into()),
-                ]
-            }
+fn add_op_to_raw(add_op: &AddParams) -> Vec<Operand> {
+    match add_op {
+        AddParams::UnsignedInt(consistent_op) => consistent_op_to_raw(consistent_op),
+        AddParams::SignedInt(consistent_op) => consistent_op_to_raw(consistent_op),
+        AddParams::Float(consistent_op) => consistent_op_to_raw(consistent_op),
+        AddParams::MemAddress(reg, reg1, reg_or_constant) => {
+            vec![
+                Operand::Reg(reg.into()),
+                Operand::Reg(reg1.into()),
+                reg_or_constant.into(),
+            ]
+        }
+        AddParams::InstrAddress(reg, reg_or_constant, reg_or_constant1) => {
+            vec![
+                Operand::Reg(reg.into()),
+                reg_or_constant.into(),
+                reg_or_constant1.into(),
+            ]
         }
     }
+}
+
+fn num_op_to_raw(num_op: &AnyConsistentNumOp) -> Vec<Operand> {
     match num_op {
-        AnyConsistentNumOp::UnsignedInt(c) => to_raw(c),
-        AnyConsistentNumOp::SignedInt(c) => to_raw(c),
-        AnyConsistentNumOp::Float(c) => to_raw(c),
+        AnyConsistentNumOp::UnsignedInt(c) => consistent_op_to_raw(c),
+        AnyConsistentNumOp::SignedInt(c) => consistent_op_to_raw(c),
+        AnyConsistentNumOp::Float(c) => consistent_op_to_raw(c),
+    }
+}
+fn consistent_op_to_raw<'a, RT>(c: &'a ConsistentOp<RT>) -> Vec<Operand>
+where
+    RT: RegTypeT<WIDTH = RegWidth> + 'static,
+    for<'x> &'x RegOrConstant<RT>: Into<Operand>,
+    for<'x> &'x Reg<RT>: Into<RegOperand>,
+{
+    match c {
+        ConsistentOp::Single(reg, reg_or_constant1, reg_or_constant2) => {
+            vec![
+                Operand::Reg(reg.into()),
+                reg_or_constant1.into(),
+                reg_or_constant2.into(),
+            ]
+        }
+        ConsistentOp::VectorBroadcast(params) => {
+            let p1 = params.vec_param();
+            vec![
+                Operand::Reg(params.dst().into()),
+                Operand::Reg((&p1).into()),
+                params.value_param().into(),
+            ]
+        }
+        ConsistentOp::VectorVector(params) => {
+            vec![
+                Operand::Reg(params.dst().into()),
+                Operand::Reg((&params.p1()).into()),
+                Operand::Reg((&params.p2()).into()),
+            ]
+        }
     }
 }
 
@@ -202,6 +224,15 @@ impl From<&RegOrConstant<InstrRegT>> for Operand {
         match value {
             RegOrConstant::Reg(reg) => Operand::Reg(reg.into()),
             RegOrConstant::Const(c) => Operand::LabelConstant(*c),
+        }
+    }
+}
+
+impl From<&RegOrConstant<MemRegT>> for Operand {
+    fn from(value: &RegOrConstant<MemRegT>) -> Self {
+        match value {
+            RegOrConstant::Reg(reg) => Operand::Reg(reg.into()),
+            RegOrConstant::Const(_) => unreachable!(),
         }
     }
 }

@@ -4,8 +4,8 @@ use std::io;
 
 use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::instructions::{
-    AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction, MovParams,
-    NotParams,
+    AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction,
+    MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::parse::parse_any_reg;
@@ -204,6 +204,17 @@ pub fn decode_instruction<R: io::Read>(
         Ok(ops.try_into().unwrap())
     }
 
+    fn read_add_op<R: io::Read>(
+        src: &mut R,
+        rt_header: &RTHeader,
+    ) -> Result<AddParams, DecodeError> {
+        let ops = operands::<R, 3>(src, rt_header)?;
+        let ops_ref: Vec<&Operand> = ops.iter().collect();
+        AddParams::try_from(ops_ref.as_slice()).map_err(|i| {
+            DecodeError::Malformed(format!("Invalid Instruction: {:?} for {:?}", i, ops))
+        })
+    }
+
     fn read_3_num_op<R: io::Read>(
         src: &mut R,
         rt_header: &RTHeader,
@@ -236,7 +247,7 @@ pub fn decode_instruction<R: io::Read>(
             Instruction::Mov(MovParams::try_from(ops_ref.as_slice())?)
         }
 
-        OpCode::ADD => Instruction::Add(read_3_num_op(src, rt_header)?),
+        OpCode::ADD => Instruction::Add(read_add_op(src, rt_header)?),
         OpCode::SUB => Instruction::Sub(read_3_num_op(src, rt_header)?),
         OpCode::MUL => Instruction::Mul(read_3_num_op(src, rt_header)?),
         OpCode::DIV => Instruction::Div(read_3_num_op(src, rt_header)?),

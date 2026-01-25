@@ -215,10 +215,45 @@ fn basic_load_store_u32() {
         mov u32:5, #121
         store m:0, u32:5
         load u32:0, m:0
+        free m:0
+
         dbg u32:0
     ";
     let vm = compile_and_run(PROG);
     assert_eq!(121, vm.inspect_uint(0, u32::BITS));
+}
+
+#[test]
+fn nat_numbers_array() {
+    const PROG: &str = "
+        mul u64:0, #4, #10
+        alloc m:0, u64:0
+        mov m:1, m:0
+
+        ; Counter
+        mov u32:0, #0
+.FILL_LOOP:
+        dbg m:1
+        store m:1, u32:0
+        add m:1, m:1, #4
+        add u32:0, u32:0, #1
+        dbg u32:0
+        ge u1:0, u32:0, #10
+        bz .FILL_LOOP, u1:0
+
+        ; Get index 5
+        mul i32:0, #5, #4
+        add m:1, m:0, i32:0
+        dbg m:1
+        load u32:2, m:1
+
+        dbg u32:2
+
+        free m:0
+    ";
+
+    let vm = compile_and_run(PROG);
+    assert_eq!(5, vm.inspect_uint(2, u32::BITS));
 }
 
 #[test]

@@ -13,7 +13,7 @@ pub enum Instruction {
     Mov(MovParams),
 
     /// Add the two operands and store in destination register
-    Add(AnyConsistentNumOp),
+    Add(AddParams),
     /// Subtract the second operand from the first register
     Sub(AnyConsistentNumOp),
     /// Multiply two registers
@@ -225,7 +225,7 @@ pub enum AnyConsistentNumOp {
     Float(ConsistentOp<FloatRegT>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AddParams {
     UnsignedInt(ConsistentOp<UnsignedRegT>),
     SignedInt(ConsistentOp<SignedRegT>),
@@ -245,7 +245,7 @@ pub enum MovParams {
     SignedInt(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
     Float(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
 
-    MemAddress(Reg<MemRegT>, Reg<MemRegT>),
+    MemAddress(Reg<MemRegT>, RegOrConstant<MemRegT>),
     InstrAddress(Reg<InstrRegT>, RegOrConstant<InstrRegT>),
 }
 
@@ -386,6 +386,22 @@ impl Display for ConsistentComparison {
             Self::FloatCompare(p1, p2) => write!(f, "{p1}, {p2}"),
             Self::MemAddressCompare(i1, i2) => write!(f, "{i1}, {i2}"),
             Self::InstrAddressCompare(p1, p2) => write!(f, "{p1}, {p2}"),
+        }
+    }
+}
+
+impl Display for AddParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AddParams::UnsignedInt(consistent_op) => consistent_op.fmt(f),
+            AddParams::SignedInt(consistent_op) => consistent_op.fmt(f),
+            AddParams::Float(consistent_op) => consistent_op.fmt(f),
+            AddParams::MemAddress(dst, mem_reg, offset_reg) => {
+                write!(f, "{}, {}, {}", dst, mem_reg, offset_reg)
+            }
+            AddParams::InstrAddress(dst, instr_reg, offset_reg) => {
+                write!(f, "{}, {}, {}", dst, instr_reg, offset_reg)
+            }
         }
     }
 }

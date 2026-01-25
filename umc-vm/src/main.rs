@@ -9,7 +9,7 @@ use vm::VirtualMachine;
 
 use umc_model::Program;
 use umc_model::instructions::{
-    AnyConsistentNumOp, AnyReg, AnySingleReg, ConsistentOp, Instruction, MovParams,
+    AddParams, AnyReg, AnySingleReg, ConsistentOp, Instruction, MovParams,
 };
 
 mod vm;
@@ -59,7 +59,7 @@ fn dummy_program() {
                 reg1.clone(),
                 RegOrConstant::Const(10),
             )),
-            Instruction::Add(AnyConsistentNumOp::UnsignedInt(ConsistentOp::Single(
+            Instruction::Add(AddParams::UnsignedInt(ConsistentOp::Single(
                 reg2.clone(),
                 RegOrConstant::from_reg(reg1),
                 RegOrConstant::from_reg(reg0),
