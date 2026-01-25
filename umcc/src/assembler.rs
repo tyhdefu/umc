@@ -7,9 +7,7 @@ use umc_model::instructions::{
     Instruction, MovParams, NotParams,
 };
 use umc_model::operand::{Operand, RegOperand};
-use umc_model::parse::{
-    InstructionValidateError, parse_any_reg, parse_any_reg_or_constant, parse_any_single_reg,
-};
+use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
 use umc_model::reg_model::{InstrRegT, Reg, RegOrConstant};
 use umc_model::{Program, operand as bc};
 use umc_model::{RegType, RegisterSet};
@@ -46,6 +44,7 @@ impl AssembleInstructionError {
 #[derive(Debug)]
 pub enum InvalidOperandError {
     ExpectedDstReg,
+    ExpectedReg,
     CannotInferReg,
     UnknownLabel(String),
     /// The type of the operand does not agree with the destination / instruction
@@ -309,8 +308,8 @@ pub fn ast_to_bytecode(
             let mem_reg = Reg::from_mem_reg(&Operand::Reg(mem_reg))
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
 
-            let value_param = parse_reg_or_constant(p2, None, labels)?;
-            let value_param = parse_any_reg_or_constant(&value_param)
+            let value_op = parse_reg(p2, None)?;
+            let value_param = parse_any_single_reg(&value_op)
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
             Ok(Instruction::Store(mem_reg, value_param))
         }
@@ -345,6 +344,34 @@ fn parse_dst_reg(operand: &OperandWithLoc) -> Result<bc::RegOperand, AssembleIns
                 &operand,
             ));
         }
+    }
+}
+
+fn parse_reg(
+    operand: &OperandWithLoc,
+    infer_as: Option<&RegisterSet>,
+) -> Result<bc::RegOperand, AssembleInstructionError> {
+    match &operand.0 {
+        ast::Operand::Reg(ast_reg_op) => {
+            let set = match (&ast_reg_op.set, infer_as) {
+                (Some(set), _) => set.clone(),
+                (None, Some(set)) => set.clone(),
+                (None, None) => {
+                    return Err(AssembleInstructionError::invalid_op(
+                        InvalidOperandError::CannotInferReg,
+                        operand,
+                    ));
+                }
+            };
+            Ok(bc::RegOperand {
+                set: set,
+                index: ast_reg_op.index,
+            })
+        }
+        _ => Err(AssembleInstructionError::invalid_op(
+            InvalidOperandError::ExpectedReg,
+            operand,
+        )),
     }
 }
 

@@ -1,7 +1,7 @@
 //! A safe memory manager implementation that catches invalid attempts to read/write out of bounds, or use-after free
 
 use crate::vm::memory::{
-    AllocateError, MemoryAccessError, MemoryAddress, MemoryManager, Serializable,
+    AllocateError, MemoryAccessError, MemoryAddress, MemoryManager, Serializable, SerializableArb,
 };
 use crate::vm::types::UMCOffset;
 
@@ -81,12 +81,12 @@ impl MemoryManager for SafeMemoryManager {
         Ok(SafeAddress::from_id(id))
     }
 
-    fn free(&mut self, address: Self::Address) {
+    fn free(&mut self, address: &Self::Address) {
         // Deallocate by removing the allocated block
         self.blocks.get_mut(address.block_id).map(|b| *b = None);
     }
 
-    fn load<V: Serializable>(&self, address: &Self::Address) -> Result<V, MemoryAccessError> {
+    fn load_prim<V: Serializable>(&self, address: &Self::Address) -> Result<V, MemoryAccessError> {
         let block = self
             .get_block(address)
             .ok_or(MemoryAccessError::InvalidAddress)?;
@@ -97,7 +97,38 @@ impl MemoryManager for SafeMemoryManager {
         V::read_from(slice).map_err(|_| MemoryAccessError::OutOfBounds)
     }
 
-    fn store<V: Serializable>(
+    fn load<V: SerializableArb>(
+        &self,
+        bitwidth: usize,
+        address: &Self::Address,
+    ) -> Result<V, MemoryAccessError> {
+        let block = self
+            .get_block(address)
+            .ok_or(MemoryAccessError::InvalidAddress)?;
+        let slice = block
+            .0
+            .get(address.offset..)
+            .ok_or(MemoryAccessError::OutOfBounds)?;
+        V::read_from(slice, bitwidth).map_err(|_| MemoryAccessError::OutOfBounds)
+    }
+
+    fn store_prim<V: Serializable>(
+        &mut self,
+        v: V,
+        address: &Self::Address,
+    ) -> Result<(), MemoryAccessError> {
+        let block = self
+            .get_block_mut(address)
+            .ok_or(MemoryAccessError::InvalidAddress)?;
+        let slice = block
+            .0
+            .get_mut(address.offset..)
+            .ok_or(MemoryAccessError::OutOfBounds)?;
+        v.write_to(slice)
+            .map_err(|_| MemoryAccessError::OutOfBounds)
+    }
+
+    fn store<V: SerializableArb>(
         &mut self,
         v: V,
         address: &Self::Address,
@@ -124,8 +155,8 @@ mod test {
     fn store_load_u32() {
         let mut mm = SafeMemoryManager::new();
         let address = mm.allocate(size_of::<u32>()).expect("Failed to allocate");
-        mm.store(42u32, &address).expect("Failed to store");
-        let value: u32 = mm.load(&address).expect("Failed to load");
+        mm.store_prim(42u32, &address).expect("Failed to store");
+        let value: u32 = mm.load_prim(&address).expect("Failed to load");
         assert_eq!(42, value);
     }
 
@@ -135,18 +166,18 @@ mod test {
         let a1 = mm
             .allocate(2 * size_of::<u32>())
             .expect("Failed to allocate");
-        mm.store::<u32>(258_921, &a1)
+        mm.store_prim::<u32>(258_921, &a1)
             .expect("Failed to store first value");
 
         let mut a2 = a1.clone();
         a2.offset(size_of::<u32>() as isize);
 
         println!("a1 {:?} a2 {:?}", a1, a2);
-        mm.store::<u32>(42, &a2)
+        mm.store_prim::<u32>(42, &a2)
             .expect("Failed to store second value");
 
-        assert_eq!(258_921, mm.load::<u32>(&a1).unwrap());
-        assert_eq!(42, mm.load::<u32>(&a2).unwrap());
+        assert_eq!(258_921, mm.load_prim::<u32>(&a1).unwrap());
+        assert_eq!(42, mm.load_prim::<u32>(&a2).unwrap());
     }
 
     #[test]
@@ -156,16 +187,16 @@ mod test {
             .allocate(size_of::<i32>() + size_of::<u64>())
             .expect("Failed to allocate");
 
-        mm.store::<i32>(-10, &a1)
+        mm.store_prim::<i32>(-10, &a1)
             .expect("Failed to store first value");
 
         let mut a2 = a1.clone();
         a2.offset(size_of::<i32>() as isize);
 
-        mm.store::<u64>(42_000, &a2)
+        mm.store_prim::<u64>(42_000, &a2)
             .expect("Failed to store second value");
 
-        assert_eq!(-10, mm.load::<i32>(&a1).unwrap());
-        assert_eq!(42_000, mm.load::<u64>(&a2).unwrap());
+        assert_eq!(-10, mm.load_prim::<i32>(&a1).unwrap());
+        assert_eq!(42_000, mm.load_prim::<u64>(&a2).unwrap());
     }
 }

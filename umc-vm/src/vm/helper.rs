@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 use std::iter::repeat_n;
 
-use crate::vm::memory::safe::SafeAddress;
+use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
+use crate::vm::memory::{MemoryAccessError, MemoryManager, Serializable};
 use crate::vm::state::{RegState as RegStateRaw, StoreFor, StorePrim};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
@@ -17,7 +18,7 @@ use umc_model::instructions::{
     VectorVectorParams,
 };
 use umc_model::reg_model::{
-    FloatRegT, InstrRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
+    FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
 
 // TODO: Make these helpers and the VM have a switchable Memory implementation
@@ -362,6 +363,108 @@ pub fn execute_not(params: &NotParams, state: &mut RegState) {
             }
         },
         NotParams::SignedInt(..) => todo!(),
+    }
+}
+
+pub fn execute_load(
+    reg: &AnySingleReg,
+    mem_reg: &Reg<MemRegT>,
+    state: &mut RegState,
+    memory: &SafeMemoryManager,
+) -> Result<(), MemoryAccessError> {
+    fn load_prim<RT: RegTypeT, T>(
+        reg: Reg<RT>,
+        address: &SafeAddress,
+        state: &mut RegState,
+        memory: &SafeMemoryManager,
+    ) -> Result<(), MemoryAccessError>
+    where
+        T: Serializable + Copy,
+        RegState: StorePrim<T, RT>,
+    {
+        let val: T = memory.load_prim(address)?;
+        state.store_prim(reg, val);
+        Ok(())
+    }
+
+    // If the memory register was never set, it is an invalid address
+    let address: SafeAddress = state
+        .read(*mem_reg)
+        .ok_or(MemoryAccessError::InvalidAddress)?
+        .clone();
+
+    match reg {
+        AnySingleReg::Unsigned(reg) => match reg.width {
+            u32::BITS => load_prim::<_, u32>(*reg, &address, state, memory),
+            u64::BITS => load_prim::<_, u64>(*reg, &address, state, memory),
+            w => {
+                let val: ArbitraryUnsignedInt = memory.load(w as usize, &address).unwrap();
+                state.store(*reg, val);
+                Ok(())
+            }
+        },
+        AnySingleReg::Signed(reg) => match reg.width {
+            i32::BITS => load_prim::<_, i32>(*reg, &address, state, memory),
+            i64::BITS => load_prim::<_, i64>(*reg, &address, state, memory),
+            _ => todo!(),
+        },
+        AnySingleReg::Float(reg) => match reg.width {
+            32 => load_prim::<_, f32>(*reg, &address, state, memory),
+            64 => load_prim::<_, f64>(*reg, &address, state, memory),
+            _ => panic!("Only 32-bit and 64-bit floats supported"),
+        },
+        AnySingleReg::Instr(_) => todo!(),
+        AnySingleReg::Mem(_) => todo!(),
+    }
+}
+
+pub fn execute_store(
+    reg: &AnySingleReg,
+    mem_reg: &Reg<MemRegT>,
+    state: &RegState,
+    memory: &mut SafeMemoryManager,
+) -> Result<(), MemoryAccessError> {
+    fn store_prim<RT: RegTypeT, T>(
+        reg: Reg<RT>,
+        address: &SafeAddress,
+        state: &RegState,
+        memory: &mut SafeMemoryManager,
+    ) -> Result<(), MemoryAccessError>
+    where
+        T: Serializable + Copy + Default,
+        RegState: StorePrim<T, RT>,
+    {
+        let val: T = state.read_prim(reg.clone()).unwrap_or_default();
+        memory.store_prim(val, address)
+    }
+
+    // If the memory register was never set, it is an invalid address
+    let address: SafeAddress = state
+        .read(*mem_reg)
+        .ok_or(MemoryAccessError::InvalidAddress)?
+        .clone();
+
+    match reg {
+        AnySingleReg::Unsigned(reg) => match reg.width {
+            u32::BITS => store_prim::<_, u32>(*reg, &address, state, memory),
+            u64::BITS => store_prim::<_, u64>(*reg, &address, state, memory),
+            _ => {
+                let val: ArbitraryUnsignedInt = state.read(*reg).unwrap().clone();
+                memory.store(val, &address)
+            }
+        },
+        AnySingleReg::Signed(reg) => match reg.width {
+            i32::BITS => store_prim::<_, i32>(*reg, &address, state, memory),
+            i64::BITS => store_prim::<_, i64>(*reg, &address, state, memory),
+            _ => todo!(),
+        },
+        AnySingleReg::Float(reg) => match reg.width {
+            32 => store_prim::<_, f32>(*reg, &address, state, memory),
+            64 => store_prim::<_, f64>(*reg, &address, state, memory),
+            _ => panic!("Only 32-bit and 64-bit floats supported"),
+        },
+        AnySingleReg::Instr(_) => todo!(),
+        AnySingleReg::Mem(_) => todo!(),
     }
 }
 

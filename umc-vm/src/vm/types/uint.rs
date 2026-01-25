@@ -28,6 +28,10 @@ impl ArbitraryUnsignedInt {
         self.add(&other);
     }
 
+    pub fn as_usize(&self) -> usize {
+        self.data.first().copied().unwrap_or(0)
+    }
+
     pub fn from_bytes(bits: u32, buf: &[u8]) -> Result<Self, ()> {
         let full_chunks = (bits as usize).div_euclid(size_of::<usize>());
         let mut data = vec![];

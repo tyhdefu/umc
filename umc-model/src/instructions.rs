@@ -54,8 +54,8 @@ pub enum Instruction {
     /// Load a register from a memory address
     Load(AnySingleReg, Reg<MemRegT>),
     /// Store a register into a memory address
-    // TODO: Replace operand with AnyRegOrConstant? Same with RegOperand?
-    Store(Reg<MemRegT>, AnySingleRegOrConstant),
+    // TODO: Can we store constants? Not unless they are sized
+    Store(Reg<MemRegT>, AnySingleReg),
 
     /// Print the given register (debugging)
     Dbg(AnyReg),

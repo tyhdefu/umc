@@ -212,7 +212,8 @@ fn unsigned_vector() {
 fn basic_load_store_u32() {
     const PROG: &str = "
         alloc m:0, #4
-        store m:0, #121
+        mov u32:5, #121
+        store m:0, u32:5
         load u32:0, m:0
         dbg u32:0
     ";

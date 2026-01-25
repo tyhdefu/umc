@@ -80,16 +80,6 @@ impl<T> VecValue<T> {
         self.0.len()
     }
 
-    /// Perform a unary operation on each element of this vector value
-    pub fn unary_op<F>(&mut self, operation: F)
-    where
-        F: Fn(&mut T),
-    {
-        for x in self.0.iter_mut() {
-            operation(x);
-        }
-    }
-
     /// Perform a vector broadcasting operation
     /// Elements are taken as the LHS and other as the RHS
     pub fn broadcast_op<F>(&mut self, other: &T, operation: F)
@@ -131,23 +121,9 @@ impl<T> VecValue<T> {
 
 #[cfg(test)]
 mod test {
+    use crate::vm::types::UMCArithmetic;
     use crate::vm::types::vector::VecValue;
-    use crate::vm::types::{UMCArithmetic, UMCBitwise};
 
-    #[test]
-    fn not_elements() {
-        let mut v: VecValue<u32> = VecValue::from_vec(vec![0, 1, 2, 3]);
-        v.unary_op(UMCBitwise::not);
-
-        let exp: Vec<u32> = [0, 1, 2, 3]
-            .iter_mut()
-            .map(|x| {
-                x.not();
-                *x
-            })
-            .collect();
-        assert_eq!(exp.as_slice(), v.as_slice());
-    }
     #[test]
     fn broadcast_double() {
         let mut v = VecValue::from_vec(vec![0, 1, 2, 3]);

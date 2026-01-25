@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use crate::vm::types::UMCOffset;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
@@ -8,6 +8,12 @@ pub mod safe;
 #[derive(Debug)]
 pub struct AllocateError {
     requested_bytes: usize,
+}
+
+impl Display for AllocateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to allocate {} bytes", self.requested_bytes)
+    }
 }
 
 #[derive(Debug)]
@@ -31,15 +37,31 @@ pub trait MemoryManager {
 
     /// Free a block of memory
     /// It is only correct to free a memory address once, but implementations may be forgiving
-    fn free(&mut self, address: Self::Address);
+    fn free(&mut self, address: &Self::Address);
 
-    /// Load a value from virtual memory
+    /// Load a primitive value from virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
-    fn load<V: Serializable>(&self, address: &Self::Address) -> Result<V, MemoryAccessError>;
+    fn load_prim<V: Serializable>(&self, address: &Self::Address) -> Result<V, MemoryAccessError>;
 
-    /// Store a value into virtual memory
+    /// Load a specific bitwidth value from virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
-    fn store<V: Serializable>(
+    fn load<V: SerializableArb>(
+        &self,
+        bitwidth: usize,
+        address: &Self::Address,
+    ) -> Result<V, MemoryAccessError>;
+
+    /// Store a primitive value into virtual memory
+    /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
+    fn store_prim<V: Serializable>(
+        &mut self,
+        v: V,
+        address: &Self::Address,
+    ) -> Result<(), MemoryAccessError>;
+
+    /// Load a specific bitwidth value from virtual memory
+    /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
+    fn store<V: SerializableArb>(
         &mut self,
         v: V,
         address: &Self::Address,

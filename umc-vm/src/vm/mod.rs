@@ -7,8 +7,10 @@ mod helper;
 #[cfg(test)]
 mod test;
 
+use crate::vm::memory::MemoryManager;
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
-use crate::vm::state::RegState;
+use crate::vm::state::{RegState, StoreFor};
+use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
 };
@@ -140,10 +142,31 @@ impl VirtualMachine {
                     return;
                 }
             }
-            Instruction::Alloc(_, _) => todo!(),
-            Instruction::Free(_) => todo!(),
-            Instruction::Load(_, _) => todo!(),
-            Instruction::Store(_, _) => todo!(),
+            Instruction::Alloc(mem_reg, size_reg) => {
+                let arb_bytes: ArbitraryUnsignedInt = helper::read_uint(size_reg, &self.state);
+                let bytes = arb_bytes.as_usize();
+                let address: SafeAddress = self.memory.allocate(bytes).expect("alloc failed");
+                self.state.store(*mem_reg, address);
+            }
+            Instruction::Free(mem_reg) => {
+                let address: &SafeAddress = self
+                    .state
+                    .read(*mem_reg)
+                    .expect("Tried to free unset memory");
+                self.memory.free(address);
+            }
+            Instruction::Load(dst_reg, mem_reg) => {
+                helper::execute_load(dst_reg, mem_reg, &mut self.state, &self.memory)
+                    .unwrap_or_else(|err| {
+                        panic!("Failed to load {} from {}: {:?}", dst_reg, mem_reg, err)
+                    });
+            }
+            Instruction::Store(mem_reg, from_reg) => {
+                helper::execute_store(from_reg, mem_reg, &self.state, &mut self.memory)
+                    .unwrap_or_else(|err| {
+                        panic!("Failed to store {} into {}: {:?}", from_reg, mem_reg, err)
+                    });
+            }
             Instruction::Dbg(reg) => helper::execute_debug(reg, &self.state),
         };
         self.pc += 1;

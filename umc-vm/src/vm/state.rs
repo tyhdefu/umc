@@ -292,3 +292,13 @@ impl<M: MemoryAddress> DStoreFor<InstrRegT, InstructionAddress> for RegState<M> 
         &mut self.addresses
     }
 }
+
+impl<M: MemoryAddress> DStoreFor<MemRegT, M> for RegState<M> {
+    fn get_store(&self) -> &HashMapStore<Reg<MemRegT>, M> {
+        &self.mem_addresses
+    }
+
+    fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<MemRegT>, M> {
+        &mut self.mem_addresses
+    }
+}

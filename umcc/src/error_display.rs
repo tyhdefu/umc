@@ -210,6 +210,15 @@ fn format_assemble_instruction_error<'a>(
                             )),
                         )),
                 ],
+                InvalidOperandError::ExpectedReg => vec![
+                    Level::ERROR.primary_title("Expected register").element(
+                        Snippet::source(prog).annotation(
+                            AnnotationKind::Primary
+                                .span(op_span)
+                                .label(format!("Operand {} should be a register", op_num)),
+                        ),
+                    ),
+                ],
                 InvalidOperandError::CannotInferReg => vec![
                     Level::ERROR
                         .primary_title("Register set cannot be inferred")
