@@ -13,7 +13,7 @@ use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
 };
 use umc_model::instructions::Instruction;
-use umc_model::reg_model::{NumReg, Reg, RegOrConstant, UnsignedRegT};
+use umc_model::reg_model::{Reg, RegOrConstant, UnsignedRegT};
 use umc_model::{Program, RegIndex, RegWidth};
 
 pub struct VirtualMachine {
@@ -47,7 +47,7 @@ impl VirtualMachine {
         T: CastSingleUnsigned,
         T: Default,
     {
-        let reg = RegOrConstant::reg(NumReg { index, width });
+        let reg = RegOrConstant::from_reg(Reg { index, width });
         helper::read_uint::<T>(&reg, &self.state)
     }
 
@@ -61,7 +61,7 @@ impl VirtualMachine {
         T: CastSingleUnsigned,
         T: Default,
     {
-        let reg: Reg<UnsignedRegT> = Reg(NumReg { index, width });
+        let reg: Reg<UnsignedRegT> = Reg { index, width };
         helper::read_uint_vec(&reg, length, &self.state)
     }
 
@@ -70,7 +70,7 @@ impl VirtualMachine {
         T: CastSingleSigned,
         T: Default,
     {
-        let reg = RegOrConstant::reg(NumReg { index, width });
+        let reg = RegOrConstant::from_reg(Reg { index, width });
         helper::read_int::<T>(&reg, &self.state)
     }
 
@@ -78,7 +78,7 @@ impl VirtualMachine {
     where
         T: CastSingleFloat,
     {
-        let reg = RegOrConstant::reg(NumReg { index, width });
+        let reg = RegOrConstant::from_reg(Reg { index, width });
         helper::read_float(&reg, &self.state)
     }
 
@@ -140,6 +140,10 @@ impl VirtualMachine {
                     return;
                 }
             }
+            Instruction::Alloc(_, _) => todo!(),
+            Instruction::Free(_) => todo!(),
+            Instruction::Load(_, _) => todo!(),
+            Instruction::Store(_, _) => todo!(),
             Instruction::Dbg(reg) => helper::execute_debug(reg, &self.state),
         };
         self.pc += 1;

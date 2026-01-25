@@ -14,7 +14,7 @@ impl Display for RegOperand {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Operand {
     Reg(RegOperand),
     UnsignedConstant(u64),

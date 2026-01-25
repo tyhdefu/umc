@@ -485,7 +485,7 @@ mod tests {
     use crate::vm::memory::SerializableArb;
     use crate::vm::types::uint::ArbitraryUnsignedInt;
 
-    fn check_serialize(mut expected: ArbitraryUnsignedInt) {
+    fn check_serialize(expected: ArbitraryUnsignedInt) {
         let mut buf = vec![0; 256];
         expected.write_to(&mut buf).unwrap();
 

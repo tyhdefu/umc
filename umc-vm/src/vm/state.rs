@@ -5,13 +5,12 @@ use crate::vm::memory::MemoryAddress;
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
-use umc_model::RegIndex;
-use umc_model::reg_model::{FloatRegT, InstrRegT, NumReg, Reg, RegTypeT, SignedRegT, UnsignedRegT};
+use umc_model::reg_model::{
+    FloatRegT, InstrRegT, MemRegT, Reg, RegTypeT, SignedRegT, UnsignedRegT,
+};
+use umc_model::{RegIndex, RegWidth};
 
-pub trait StoreFor<V, RT: RegTypeT>
-where
-    RT::R: Copy,
-{
+pub trait StoreFor<V, RT: RegTypeT> {
     fn read(&self, k: Reg<RT>) -> Option<&V>;
 
     fn store(&mut self, k: Reg<RT>, val: V);
@@ -43,13 +42,13 @@ where
 pub struct RegState<M: MemoryAddress> {
     u32s: HashMapStore<RegIndex, u32>,
     u64s: HashMapStore<RegIndex, u64>,
-    uas: HashMapStore<NumReg, ArbitraryUnsignedInt>,
+    uas: HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt>,
     i32s: HashMapStore<RegIndex, i32>,
     i64s: HashMapStore<RegIndex, i64>,
     f32s: HashMapStore<RegIndex, f32>,
     f64s: HashMapStore<RegIndex, f64>,
-    addresses: HashMapStore<RegIndex, InstructionAddress>,
-    mem_addresses: HashMapStore<RegIndex, M>,
+    addresses: HashMapStore<Reg<InstrRegT>, InstructionAddress>,
+    mem_addresses: HashMapStore<Reg<MemRegT>, M>,
 }
 
 impl<M: MemoryAddress> RegState<M> {
@@ -70,10 +69,10 @@ impl<M: MemoryAddress> RegState<M> {
 
 trait DStoreFor<RT: RegTypeT, V>
 where
-    RT::R: Hash + Eq,
+    Reg<RT>: Hash + Eq,
 {
-    fn get_store(&self) -> &HashMapStore<RT::R, V>;
-    fn get_store_mut(&mut self) -> &mut HashMapStore<RT::R, V>;
+    fn get_store(&self) -> &HashMapStore<Reg<RT>, V>;
+    fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<RT>, V>;
 }
 
 trait PrimNumStoreFor<RT: RegTypeT, P: Copy> {
@@ -85,59 +84,58 @@ trait PrimNumStoreFor<RT: RegTypeT, P: Copy> {
 impl<RT: RegTypeT, V, M: MemoryAddress> StoreFor<V, RT> for RegState<M>
 where
     Self: DStoreFor<RT, V>,
-    RT::R: Hash + Eq + Copy + 'static,
+    Reg<RT>: Hash + Eq + Copy + 'static,
 {
     fn read(&self, k: Reg<RT>) -> Option<&V> {
-        DStoreFor::get_store(self).read(k.0)
+        DStoreFor::get_store(self).read(k)
     }
 
     fn store(&mut self, k: Reg<RT>, val: V) {
-        DStoreFor::get_store_mut(self).store(k.0, val);
+        DStoreFor::get_store_mut(self).store(k, val);
     }
 
     fn read_multi(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<V>> {
-        DStoreFor::get_store(self).read_multi(k.0, count)
+        DStoreFor::get_store(self).read_multi(k, count)
     }
 
     fn store_multi_clone(&mut self, k: Reg<RT>, vals: &[V])
     where
         V: Clone,
     {
-        DStoreFor::get_store_mut(self).store_multi_clone(k.0, vals);
+        DStoreFor::get_store_mut(self).store_multi_clone(k, vals);
     }
 
     fn store_multi_copy(&mut self, k: Reg<RT>, vals: &[V])
     where
         V: Copy,
     {
-        DStoreFor::get_store_mut(self).store_multi_copy(k.0, vals);
+        DStoreFor::get_store_mut(self).store_multi_copy(k, vals);
     }
 }
 
-impl<M: MemoryAddress, P: Copy, RT: RegTypeT<R = NumReg>> StorePrim<P, RT> for RegState<M>
+impl<M: MemoryAddress, P: Copy, RT: RegTypeT<WIDTH = RegWidth>> StorePrim<P, RT> for RegState<M>
 where
     Self: PrimNumStoreFor<RT, P>,
-    RT::R: Copy,
     P: Copy,
 {
     fn read_prim(&self, k: Reg<RT>) -> Option<P> {
-        debug_assert!(k.0.width <= Self::BITS);
-        PrimNumStoreFor::get_store(self).read(k.0.index).copied()
+        debug_assert!(k.width <= Self::BITS);
+        PrimNumStoreFor::get_store(self).read(k.index).copied()
     }
 
     fn store_prim(&mut self, k: Reg<RT>, val: P) {
-        debug_assert!(k.0.width <= Self::BITS);
-        PrimNumStoreFor::get_store_mut(self).store(k.0.index, val);
+        debug_assert!(k.width <= Self::BITS);
+        PrimNumStoreFor::get_store_mut(self).store(k.index, val);
     }
 
     fn read_multi_prim(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<P>> {
-        debug_assert!(k.0.width <= Self::BITS);
-        PrimNumStoreFor::get_store(self).read_multi(k.0.index, count)
+        debug_assert!(k.width <= Self::BITS);
+        PrimNumStoreFor::get_store(self).read_multi(k.index, count)
     }
 
     fn store_multi_copy_prim(&mut self, k: Reg<RT>, vals: &[P]) {
-        debug_assert!(k.0.width <= Self::BITS);
-        PrimNumStoreFor::get_store_mut(self).store_multi_copy(k.0.index, vals);
+        debug_assert!(k.width <= Self::BITS);
+        PrimNumStoreFor::get_store_mut(self).store_multi_copy(k.index, vals);
     }
 }
 
@@ -276,21 +274,21 @@ impl<M: MemoryAddress> PrimNumStoreFor<FloatRegT, f64> for RegState<M> {
 }
 
 impl<M: MemoryAddress> DStoreFor<UnsignedRegT, ArbitraryUnsignedInt> for RegState<M> {
-    fn get_store(&self) -> &HashMapStore<NumReg, ArbitraryUnsignedInt> {
+    fn get_store(&self) -> &HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt> {
         &self.uas
     }
 
-    fn get_store_mut(&mut self) -> &mut HashMapStore<NumReg, ArbitraryUnsignedInt> {
+    fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt> {
         &mut self.uas
     }
 }
 
 impl<M: MemoryAddress> DStoreFor<InstrRegT, InstructionAddress> for RegState<M> {
-    fn get_store(&self) -> &HashMapStore<RegIndex, InstructionAddress> {
+    fn get_store(&self) -> &HashMapStore<Reg<InstrRegT>, InstructionAddress> {
         &self.addresses
     }
 
-    fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, InstructionAddress> {
+    fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<InstrRegT>, InstructionAddress> {
         &mut self.addresses
     }
 }

@@ -4,13 +4,13 @@ use std::io::BufReader;
 use std::path::Path;
 
 use umc_model::binary::decode;
-use umc_model::reg_model::{NumReg, Reg, RegOrConstant};
+use umc_model::reg_model::{Reg, RegOrConstant};
 use vm::VirtualMachine;
 
-use umc_model::instructions::{AnyConsistentNumOp, ConsistentOp, Instruction, MovParams};
-use umc_model::operand::RegOperand;
-use umc_model::{NumRegType, RegType};
-use umc_model::{Program, RegisterSet};
+use umc_model::Program;
+use umc_model::instructions::{
+    AnyConsistentNumOp, AnyReg, AnySingleReg, ConsistentOp, Instruction, MovParams,
+};
 
 mod vm;
 
@@ -36,15 +36,15 @@ fn main() {
 }
 
 fn dummy_program() {
-    let reg0 = NumReg {
+    let reg0 = Reg {
         index: 0,
         width: u64::BITS,
     };
-    let reg1 = NumReg {
+    let reg1 = Reg {
         index: 1,
         width: u64::BITS,
     };
-    let reg2 = NumReg {
+    let reg2 = Reg {
         index: 2,
         width: u64::BITS,
     };
@@ -52,22 +52,19 @@ fn dummy_program() {
     let prog = Program {
         instructions: vec![
             Instruction::Mov(MovParams::UnsignedInt(
-                Reg(reg0.clone()),
+                reg0.clone(),
                 RegOrConstant::Const(5),
             )),
             Instruction::Mov(MovParams::UnsignedInt(
-                Reg(reg1.clone()),
+                reg1.clone(),
                 RegOrConstant::Const(10),
             )),
             Instruction::Add(AnyConsistentNumOp::UnsignedInt(ConsistentOp::Single(
-                Reg(reg2),
-                RegOrConstant::reg(reg1),
-                RegOrConstant::reg(reg0),
+                reg2.clone(),
+                RegOrConstant::from_reg(reg1),
+                RegOrConstant::from_reg(reg0),
             ))),
-            Instruction::Dbg(RegOperand {
-                set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(u64::BITS))),
-                index: 2,
-            }),
+            Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(reg2))),
         ],
     };
 

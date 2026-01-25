@@ -1,12 +1,12 @@
 use crate::instructions::{
-    AnyConsistentNumOp, CompareParams, CompareToZero, ConsistentComparison, ConsistentOp,
-    Instruction, MovParams, NotParams,
+    AnyConsistentNumOp, AnyReg, AnySingleReg, CompareParams, CompareToZero, ConsistentComparison,
+    ConsistentOp, Instruction, MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
-    FloatRegT, InstrRegT, MemRegT, NumReg, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
+    FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
-use crate::{NumRegType, RegType, RegisterSet};
+use crate::{NumRegType, RegType, RegWidth, RegisterSet};
 
 pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
     match instr {
@@ -29,7 +29,11 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Bnz(reg_or_constant, compare_to_zero) => {
             vec![reg_or_constant.into(), cmp_zero_to_raw(compare_to_zero)]
         }
-        Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.clone())],
+        Instruction::Alloc(_, _) => todo!(),
+        Instruction::Free(_) => todo!(),
+        Instruction::Load(_, _) => todo!(),
+        Instruction::Store(_, _) => todo!(),
+        Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
 }
 
@@ -54,7 +58,7 @@ fn mov_to_raw(mov_params: &MovParams) -> Vec<Operand> {
 fn num_op_to_raw(num_op: &AnyConsistentNumOp) -> Vec<Operand> {
     fn to_raw<'a, RT>(c: &'a ConsistentOp<RT>) -> Vec<Operand>
     where
-        RT: RegTypeT<R = NumReg> + 'static,
+        RT: RegTypeT<WIDTH = RegWidth> + 'static,
         for<'x> &'x RegOrConstant<RT>: Into<Operand>,
         for<'x> &'x Reg<RT>: Into<RegOperand>,
     {
@@ -124,8 +128,8 @@ fn cmp_to_raw(params: &CompareParams) -> Vec<Operand> {
 impl From<&Reg<UnsignedRegT>> for RegOperand {
     fn from(reg: &Reg<UnsignedRegT>) -> Self {
         RegOperand {
-            set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(reg.0.width))),
-            index: reg.0.index,
+            set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(reg.width))),
+            index: reg.index,
         }
     }
 }
@@ -133,8 +137,8 @@ impl From<&Reg<UnsignedRegT>> for RegOperand {
 impl From<&Reg<SignedRegT>> for RegOperand {
     fn from(reg: &Reg<SignedRegT>) -> Self {
         RegOperand {
-            set: RegisterSet::Single(RegType::Num(NumRegType::SignedInt(reg.0.width))),
-            index: reg.0.index,
+            set: RegisterSet::Single(RegType::Num(NumRegType::SignedInt(reg.width))),
+            index: reg.index,
         }
     }
 }
@@ -142,8 +146,8 @@ impl From<&Reg<SignedRegT>> for RegOperand {
 impl From<&Reg<FloatRegT>> for RegOperand {
     fn from(reg: &Reg<FloatRegT>) -> Self {
         RegOperand {
-            set: RegisterSet::Single(RegType::Num(NumRegType::Float(reg.0.width))),
-            index: reg.0.index,
+            set: RegisterSet::Single(RegType::Num(NumRegType::Float(reg.width))),
+            index: reg.index,
         }
     }
 }
@@ -152,7 +156,7 @@ impl From<&Reg<MemRegT>> for RegOperand {
     fn from(reg: &Reg<MemRegT>) -> Self {
         RegOperand {
             set: RegisterSet::Single(RegType::MemoryAddress),
-            index: reg.0,
+            index: reg.index,
         }
     }
 }
@@ -161,7 +165,7 @@ impl From<&Reg<InstrRegT>> for RegOperand {
     fn from(reg: &Reg<InstrRegT>) -> Self {
         RegOperand {
             set: RegisterSet::Single(RegType::InstructionAddress),
-            index: reg.0,
+            index: reg.index,
         }
     }
 }
@@ -198,6 +202,34 @@ impl From<&RegOrConstant<InstrRegT>> for Operand {
         match value {
             RegOrConstant::Reg(reg) => Operand::Reg(reg.into()),
             RegOrConstant::Const(c) => Operand::LabelConstant(*c),
+        }
+    }
+}
+
+impl From<&AnyReg> for RegOperand {
+    fn from(value: &AnyReg) -> Self {
+        let (single_reg, length) = match value {
+            AnyReg::Single(single_reg) => (single_reg, None),
+            AnyReg::Vector(single_reg, length) => (single_reg, Some(length)),
+        };
+        let mut reg_op: RegOperand = single_reg.into();
+        if let Some(length) = length {
+            if let RegisterSet::Single(reg_type) = reg_op.set {
+                reg_op.set = RegisterSet::Vector(reg_type, *length);
+            }
+        }
+        reg_op
+    }
+}
+
+impl From<&AnySingleReg> for RegOperand {
+    fn from(value: &AnySingleReg) -> Self {
+        match value {
+            AnySingleReg::Unsigned(reg) => reg.into(),
+            AnySingleReg::Signed(reg) => reg.into(),
+            AnySingleReg::Float(reg) => reg.into(),
+            AnySingleReg::Instr(reg) => reg.into(),
+            AnySingleReg::Mem(reg) => reg.into(),
         }
     }
 }

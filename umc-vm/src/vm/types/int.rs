@@ -1,4 +1,4 @@
-use std::ops::{BitAndAssign, BitXorAssign};
+use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
 
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
@@ -6,6 +6,7 @@ use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 #[derive(PartialEq)]
 pub struct ArbitraryInt {}
 
+#[allow(unused_variables)]
 impl UMCArithmetic for ArbitraryInt {
     fn add(&mut self, rhs: &Self) {
         todo!()
@@ -28,6 +29,7 @@ impl UMCArithmetic for ArbitraryInt {
     }
 }
 
+#[allow(unused_variables)]
 impl UMCBitwise for ArbitraryInt {
     fn and(&mut self, rhs: &Self) {
         todo!()
@@ -74,7 +76,7 @@ impl UMCBitwise for i32 {
     }
 
     fn or(&mut self, rhs: &Self) {
-        todo!()
+        self.bitor_assign(rhs);
     }
 
     fn xor(&mut self, rhs: &Self) {
@@ -114,7 +116,7 @@ impl UMCBitwise for i64 {
     }
 
     fn or(&mut self, rhs: &Self) {
-        todo!()
+        self.bitor_assign(rhs);
     }
 
     fn xor(&mut self, rhs: &Self) {

@@ -1,21 +1,20 @@
 use std::io::Cursor;
 
+use crate::Program;
 use crate::binary::{decode, encode, v0};
 use crate::instructions::{
-    BinaryCondition, CompareParams, CompareToZero, ConsistentComparison, Instruction, MovParams,
-    NotParams,
+    AnyReg, AnySingleReg, BinaryCondition, CompareParams, CompareToZero, ConsistentComparison,
+    Instruction, MovParams, NotParams,
 };
-use crate::operand::RegOperand;
-use crate::reg_model::{NumReg, Reg, RegOrConstant};
-use crate::{NumRegType, Program, RegType, RegisterSet};
+use crate::reg_model::{Reg, RegOrConstant, UnsignedRegT};
 
 #[test]
 fn encode_basic_program() {
     let instructions = vec![Instruction::Mov(MovParams::UnsignedInt(
-        Reg(NumReg {
+        Reg {
             index: 1,
             width: 32,
-        }),
+        },
         RegOrConstant::Const(23),
     ))];
 
@@ -40,23 +39,23 @@ fn encode_basic_program() {
 fn encode_mov_add_program() {
     let instructions = vec![
         Instruction::Mov(MovParams::UnsignedInt(
-            Reg(NumReg {
+            Reg {
                 index: 0,
                 width: 32,
-            }),
+            },
             RegOrConstant::Const(5),
         )),
         Instruction::Mov(MovParams::UnsignedInt(
-            Reg(NumReg {
+            Reg {
                 index: 1,
                 width: 32,
-            }),
+            },
             RegOrConstant::Const(7),
         )),
-        Instruction::Dbg(RegOperand {
-            set: RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(32))),
+        Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(Reg {
             index: 2,
-        }),
+            width: 32,
+        }))),
     ];
 
     let prog = Program { instructions };
@@ -73,35 +72,35 @@ fn encode_mov_add_program() {
 
 #[test]
 fn encode_complex_prog() {
-    let u32_0 = NumReg {
+    let u32_0: Reg<UnsignedRegT> = Reg {
         index: 0,
         width: 32,
     };
-    let u1_0 = NumReg { index: 0, width: 1 };
+    let u1_0: Reg<UnsignedRegT> = Reg { index: 0, width: 1 };
 
     let instructions = vec![
         Instruction::Mov(MovParams::UnsignedInt(
-            Reg(u32_0.clone()),
+            u32_0.clone(),
             RegOrConstant::Const(5),
         )),
         // u1:0 = 0
         Instruction::Compare {
             cond: BinaryCondition::Equal,
             params: CompareParams {
-                dst: Reg(u1_0.clone()),
+                dst: u1_0.clone(),
                 args: ConsistentComparison::UnsignedCompare(
-                    RegOrConstant::reg(u32_0.clone()),
+                    RegOrConstant::from_reg(u32_0.clone()),
                     RegOrConstant::Const(10),
                 ),
             },
         },
         Instruction::Not(NotParams::UnsignedInt(
-            Reg(u1_0.clone()),
-            RegOrConstant::reg(u1_0.clone()),
+            u1_0.clone(),
+            RegOrConstant::from_reg(u1_0.clone()),
         )),
         Instruction::Bz(
             RegOrConstant::Const(2),
-            CompareToZero::Unsigned(RegOrConstant::reg(u1_0)),
+            CompareToZero::Unsigned(RegOrConstant::from_reg(u1_0)),
         ),
     ];
 

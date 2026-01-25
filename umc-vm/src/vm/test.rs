@@ -209,6 +209,18 @@ fn unsigned_vector() {
 }
 
 #[test]
+fn basic_load_store_u32() {
+    const PROG: &str = "
+        alloc m:0, #4
+        store m:0, #121
+        load u32:0, m:0
+        dbg u32:0
+    ";
+    let vm = compile_and_run(PROG);
+    assert_eq!(121, vm.inspect_uint(0, u32::BITS));
+}
+
+#[test]
 fn fib_encode_and_decode() {
     // 1, 1, 2, 3, 5, 8, 13
     const PROG: &str = "

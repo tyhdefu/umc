@@ -7,7 +7,9 @@ use umc_model::instructions::{
     Instruction, MovParams, NotParams,
 };
 use umc_model::operand::{Operand, RegOperand};
-use umc_model::parse::InstructionValidateError;
+use umc_model::parse::{
+    InstructionValidateError, parse_any_reg, parse_any_reg_or_constant, parse_any_single_reg,
+};
 use umc_model::reg_model::{InstrRegT, Reg, RegOrConstant};
 use umc_model::{Program, operand as bc};
 use umc_model::{RegType, RegisterSet};
@@ -272,11 +274,52 @@ pub fn ast_to_bytecode(
             let (dst, operand) = cond_branch(&instr, labels)?;
             Ok(Instruction::Bnz(dst, operand))
         }
+        "alloc" => {
+            let [p1, p2] = ops::<2>(&instr)?;
+            let mem_reg = parse_dst_reg(p1)?;
+            let size_param = parse_reg_or_constant(p2, None, &labels)?;
+
+            let mem_reg = Reg::from_mem_reg(&Operand::Reg(mem_reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+            let size_param = RegOrConstant::from_unsigned(&size_param)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
+            Ok(Instruction::Alloc(mem_reg, size_param))
+        }
+        "free" => {
+            let [p1] = ops::<1>(&instr)?;
+            let reg = parse_dst_reg(p1)?;
+            let mem_reg = Reg::from_mem_reg(&Operand::Reg(reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+            Ok(Instruction::Free(mem_reg))
+        }
+        "load" => {
+            let [p1, p2] = ops::<2>(&instr)?;
+            let dst_reg = parse_dst_reg(p1)?;
+            let dst_reg = parse_any_single_reg(&dst_reg)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+
+            let mem_reg = parse_reg_or_constant(p2, None, labels)?;
+            let mem_reg = Reg::from_mem_reg(&mem_reg)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
+            Ok(Instruction::Load(dst_reg, mem_reg))
+        }
+        "store" => {
+            let [p1, p2] = ops::<2>(&instr)?;
+            let mem_reg = parse_dst_reg(p1)?;
+            let mem_reg = Reg::from_mem_reg(&Operand::Reg(mem_reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+
+            let value_param = parse_reg_or_constant(p2, None, labels)?;
+            let value_param = parse_any_reg_or_constant(&value_param)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
+            Ok(Instruction::Store(mem_reg, value_param))
+        }
         "dbg" => {
             let [op1] = ops(&instr)?;
             // acts like a dst reg, as it cannot be inferred
             let operand = parse_dst_reg(&op1)?;
-            Ok(Instruction::Dbg(operand))
+            let any_reg = parse_any_reg(&operand);
+            Ok(Instruction::Dbg(any_reg))
         }
         _ => Err(AssembleInstructionError::unknown_opcode(&instr)),
     }

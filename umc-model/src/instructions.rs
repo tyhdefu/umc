@@ -3,7 +3,6 @@ use std::fmt::Display;
 
 use crate::RegIndex;
 use crate::RegWidth;
-use crate::operand::RegOperand;
 use crate::reg_model::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,8 +45,59 @@ pub enum Instruction {
     Bz(RegOrConstant<InstrRegT>, CompareToZero),
     /// Conditionally branch to the given location (op1) if the second operand is not zero
     Bnz(RegOrConstant<InstrRegT>, CompareToZero),
+
+    /// Allocate a block of memory of at least x bytes
+    Alloc(Reg<MemRegT>, RegOrConstant<UnsignedRegT>),
+    /// Release a block of memory
+    Free(Reg<MemRegT>),
+
+    /// Load a register from a memory address
+    Load(AnySingleReg, Reg<MemRegT>),
+    /// Store a register into a memory address
+    // TODO: Replace operand with AnyRegOrConstant? Same with RegOperand?
+    Store(Reg<MemRegT>, AnySingleRegOrConstant),
+
     /// Print the given register (debugging)
-    Dbg(RegOperand),
+    Dbg(AnyReg),
+}
+
+/// Any type of register including vector registers
+#[derive(Debug, PartialEq, Clone)]
+pub enum AnyReg {
+    Single(AnySingleReg),
+    Vector(AnySingleReg, RegWidth),
+}
+
+/// Any type of register
+#[derive(Debug, PartialEq, Clone)]
+pub enum AnySingleReg {
+    Unsigned(Reg<UnsignedRegT>),
+    Signed(Reg<SignedRegT>),
+    Float(Reg<FloatRegT>),
+    Instr(Reg<InstrRegT>),
+    Mem(Reg<MemRegT>),
+}
+
+/// Any type - either register or a constant
+#[derive(Debug, PartialEq, Clone)]
+pub enum AnySingleRegOrConstant {
+    Unsigned(RegOrConstant<UnsignedRegT>),
+    Signed(RegOrConstant<SignedRegT>),
+    Float(RegOrConstant<FloatRegT>),
+    Instr(RegOrConstant<InstrRegT>),
+    Mem(RegOrConstant<MemRegT>),
+}
+
+impl AnySingleRegOrConstant {
+    pub fn from_any_reg(any_reg: AnySingleReg) -> Self {
+        match any_reg {
+            AnySingleReg::Unsigned(reg) => Self::Unsigned(RegOrConstant::Reg(reg)),
+            AnySingleReg::Signed(reg) => Self::Signed(RegOrConstant::Reg(reg)),
+            AnySingleReg::Float(reg) => Self::Float(RegOrConstant::Reg(reg)),
+            AnySingleReg::Instr(reg) => Self::Instr(RegOrConstant::Reg(reg)),
+            AnySingleReg::Mem(reg) => Self::Mem(RegOrConstant::Reg(reg)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,7 +149,13 @@ impl<RT: RegTypeT> VectorBroadcastParams<RT> {
     }
 
     pub fn vec_param(&self) -> Reg<RT> {
-        self.dst_full_index.with_index(self.p_index)
+        let mut vec_param = self.dst_full_index.clone();
+        vec_param.index = self.p_index;
+        vec_param
+    }
+
+    pub fn width(&self) -> RT::WIDTH {
+        self.dst_full_index.width.clone()
     }
 
     pub fn length(&self) -> RegWidth {
@@ -115,12 +171,6 @@ impl<RT: RegTypeT> VectorBroadcastParams<RT> {
     // shl u32x4:0, #2, u32x4:0 (reverse)
     pub fn is_reversed(&self) -> bool {
         self.reversed
-    }
-}
-
-impl<RT: RegTypeT<R = NumReg>> VectorBroadcastParams<RT> {
-    pub fn width(&self) -> RegWidth {
-        self.dst_full_index.0.width
     }
 }
 
@@ -152,17 +202,19 @@ impl<RT: RegTypeT> VectorVectorParams<RT> {
     }
 
     pub fn p1(&self) -> Reg<RT> {
-        self.dst_full_index.with_index(self.p1_index)
+        let mut p1 = self.dst_full_index.clone();
+        p1.index = self.p1_index;
+        p1
     }
 
     pub fn p2(&self) -> Reg<RT> {
-        self.dst_full_index.with_index(self.p2_index)
+        let mut p2 = self.dst_full_index.clone();
+        p2.index = self.p2_index;
+        p2
     }
-}
 
-impl<RT: RegTypeT<R = NumReg>> VectorVectorParams<RT> {
-    pub fn width(&self) -> RegWidth {
-        self.dst_full_index.0.width
+    pub fn width(&self) -> RT::WIDTH {
+        self.dst_full_index.width.clone()
     }
 }
 
@@ -256,6 +308,18 @@ impl Display for Instruction {
             }
             Instruction::Bnz(reg_or_constant, compare_to_zero) => {
                 write!(f, "bnz {}, {}", reg_or_constant, compare_to_zero)
+            }
+            Instruction::Alloc(mem_reg, size) => {
+                write!(f, "alloc {}, {}", mem_reg, size)
+            }
+            Instruction::Free(mem_reg) => {
+                write!(f, "free {}", mem_reg)
+            }
+            Instruction::Load(reg, mem_reg) => {
+                write!(f, "load {}, {}", reg, mem_reg)
+            }
+            Instruction::Store(mem_reg, reg) => {
+                write!(f, "store {}, {}", mem_reg, reg)
             }
             Instruction::Dbg(reg_operand) => write!(f, "dbg {}", reg_operand),
         }
@@ -367,27 +431,27 @@ impl Display for AnyConsistentNumOp {
     }
 }
 
-impl<RT: RegTypeT<R = NumReg>> Display for VectorBroadcastParams<RT>
+impl<RT: RegTypeT> Display for VectorBroadcastParams<RT>
 where
     RegOrConstant<RT>: Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dst = self.dst_full_index.0.index;
+        let dst = self.dst_full_index.index;
         let p1 = self.p_index;
         let p2 = self.value_param();
         write!(
             f,
             "{0}{1}x{2}:{dst}, {0}{1}x{2}:{p1}, {p2}",
             RT::LETTER,
-            self.dst_full_index.0.width,
+            self.dst_full_index.width,
             self.length
         )
     }
 }
 
-impl<RT: RegTypeT<R = NumReg>> Display for VectorVectorParams<RT> {
+impl<RT: RegTypeT> Display for VectorVectorParams<RT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dst = self.dst_full_index.0.index;
+        let dst = self.dst_full_index.index;
         let p1 = self.p1_index;
         let p2 = self.p2_index;
 
@@ -395,8 +459,59 @@ impl<RT: RegTypeT<R = NumReg>> Display for VectorVectorParams<RT> {
             f,
             "{0}{1}x{2}:{dst}, {0}{1}x{2}:{p1}, {0}{1}x{2}:{p2}",
             RT::LETTER,
-            self.dst_full_index.0.width,
+            self.dst_full_index.width,
             self.length
         )
+    }
+}
+
+impl Display for AnyReg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnyReg::Single(x) => write!(f, "{}", x),
+            AnyReg::Vector(reg, length) => {
+                fn write_vec_reg<RT: RegTypeT>(
+                    f: &mut std::fmt::Formatter<'_>,
+                    reg: &Reg<RT>,
+                    length: RegWidth,
+                ) -> std::fmt::Result
+                where
+                    RT::WIDTH: Display,
+                {
+                    write!(f, "{}{}x{}:{}", RT::LETTER, reg.width, length, reg.index)
+                }
+                match reg {
+                    AnySingleReg::Unsigned(reg) => write_vec_reg(f, reg, *length),
+                    AnySingleReg::Signed(reg) => write_vec_reg(f, reg, *length),
+                    AnySingleReg::Float(reg) => write_vec_reg(f, reg, *length),
+                    AnySingleReg::Instr(reg) => write_vec_reg(f, reg, *length),
+                    AnySingleReg::Mem(reg) => write_vec_reg(f, reg, *length),
+                }
+            }
+        }
+    }
+}
+
+impl Display for AnySingleReg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnySingleReg::Unsigned(reg) => write!(f, "{}", reg),
+            AnySingleReg::Signed(reg) => write!(f, "{}", reg),
+            AnySingleReg::Float(reg) => write!(f, "{}", reg),
+            AnySingleReg::Instr(reg) => write!(f, "{}", reg),
+            AnySingleReg::Mem(reg) => write!(f, "{}", reg),
+        }
+    }
+}
+
+impl Display for AnySingleRegOrConstant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnySingleRegOrConstant::Unsigned(x) => write!(f, "{}", x),
+            AnySingleRegOrConstant::Signed(x) => write!(f, "{}", x),
+            AnySingleRegOrConstant::Float(x) => write!(f, "{}", x),
+            AnySingleRegOrConstant::Instr(x) => write!(f, "{}", x),
+            AnySingleRegOrConstant::Mem(x) => write!(f, "{}", x),
+        }
     }
 }

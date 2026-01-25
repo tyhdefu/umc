@@ -8,6 +8,7 @@ use crate::instructions::{
     NotParams,
 };
 use crate::operand::{Operand, RegOperand};
+use crate::parse::parse_any_reg;
 use crate::reg_model::{InstrRegT, RegOrConstant};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
@@ -279,7 +280,7 @@ pub fn decode_instruction<R: io::Read>(
         OpCode::DBG => {
             let [op] = operands::<R, 1>(src, rt_header)?;
             match op {
-                Operand::Reg(reg_operand) => Instruction::Dbg(reg_operand),
+                Operand::Reg(reg_operand) => Instruction::Dbg(parse_any_reg(&reg_operand)),
                 _ => {
                     return Err(DecodeError::Malformed(format!(
                         "Debug Instruction requires a register operand"
@@ -320,6 +321,10 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Jmp(_) => OpCode::JMP,
         Instruction::Bz(_, _) => OpCode::BZ,
         Instruction::Bnz(_, _) => OpCode::BNZ,
+        Instruction::Alloc(_, _) => todo!(),
+        Instruction::Free(_) => todo!(),
+        Instruction::Load(_, _) => todo!(),
+        Instruction::Store(_, _) => todo!(),
         Instruction::Dbg(_) => OpCode::DBG,
     };
 
@@ -573,19 +578,20 @@ mod test {
         OpCode, RTHeader, RTHeaderEntry, decode, decode_instruction, encode, encode_instruction,
     };
     use crate::instructions::{
-        BinaryCondition, CompareParams, ConsistentComparison, Instruction, MovParams,
+        AnyReg, AnySingleReg, BinaryCondition, CompareParams, ConsistentComparison, Instruction,
+        MovParams,
     };
     use crate::operand::{Operand, RegOperand};
-    use crate::reg_model::{NumReg, Reg, RegOrConstant};
+    use crate::reg_model::{Reg, RegOrConstant};
     use crate::{NumRegType, Program, RegType, RegisterSet};
 
     #[test]
     fn encode_debug_instruction() {
         let reg_set_u16 = RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(32)));
-        let instr = Instruction::Dbg(RegOperand {
-            set: reg_set_u16.clone(),
+        let instr = Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(Reg {
             index: 0,
-        });
+            width: 32,
+        })));
 
         let rt_header = RTHeader {
             entries: vec![RTHeaderEntry::Register(reg_set_u16.clone())],
@@ -615,10 +621,10 @@ mod test {
         let reg_set_u32 = RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(32)));
 
         let instr = Instruction::Mov(MovParams::UnsignedInt(
-            Reg(NumReg {
+            Reg {
                 index: 2,
                 width: 32,
-            }),
+            },
             RegOrConstant::Const(39),
         ));
 
@@ -675,10 +681,10 @@ mod test {
     #[test]
     fn encode_float_constant() {
         let instr = Instruction::Mov(MovParams::Float(
-            Reg(NumReg {
+            Reg {
                 index: 1,
                 width: 64,
-            }),
+            },
             RegOrConstant::Const(12.5),
         ));
         let prog = Program {
@@ -698,9 +704,9 @@ mod test {
         let instr = Instruction::Compare {
             cond: BinaryCondition::LessThan,
             params: CompareParams {
-                dst: Reg(NumReg { index: 0, width: 1 }),
+                dst: Reg { index: 0, width: 1 },
                 args: ConsistentComparison::UnsignedCompare(
-                    RegOrConstant::reg(NumReg {
+                    RegOrConstant::from_reg(Reg {
                         index: 0,
                         width: 32,
                     }),
@@ -719,10 +725,10 @@ mod test {
         let expected_instr = Instruction::Compare {
             cond: BinaryCondition::GreaterThanOrEqualTo,
             params: CompareParams {
-                dst: Reg(NumReg { index: 0, width: 1 }),
+                dst: Reg { index: 0, width: 1 },
                 args: ConsistentComparison::UnsignedCompare(
                     RegOrConstant::Const(100),
-                    RegOrConstant::reg(NumReg {
+                    RegOrConstant::from_reg(Reg {
                         index: 0,
                         width: 32,
                     }),

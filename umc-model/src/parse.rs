@@ -2,12 +2,13 @@
 //! that is guaranteed to execute
 
 use crate::instructions::{
-    AddParams, AnyConsistentNumOp, CompareParams, CompareToZero, ConsistentComparison,
-    ConsistentOp, MovParams, NotParams, VectorBroadcastParams, VectorVectorParams,
+    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, VectorBroadcastParams,
+    VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
-    FloatRegT, InstrRegT, MemRegT, NumReg, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
+    FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
 use crate::{NumRegType, RegType, RegWidth, RegisterSet};
 
@@ -71,14 +72,14 @@ impl TryFrom<&[&Operand]> for AddParams {
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
                 let p2 = RegOrConstant::from_signed(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
-                Self::MemAddress(Reg(reg_op.index), p1, p2)
+                Self::MemAddress(Reg::from_index(reg_op.index), p1, p2)
             }
             RegisterSet::Single(RegType::InstructionAddress) => {
                 let p1 = RegOrConstant::from_instr_addr(ops[1])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
                 let p2 = RegOrConstant::from_signed(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
-                Self::InstrAddress(Reg(reg_op.index), p1, p2)
+                Self::InstrAddress(Reg::from_index(reg_op.index), p1, p2)
             }
             RegisterSet::Vector(RegType::MemoryAddress, _) => todo!(),
             RegisterSet::Vector(RegType::InstructionAddress, _) => todo!(),
@@ -108,41 +109,30 @@ where
             return Err(InstructionValidateError::InconsistentOperand { op_index: 1 });
         }
         (VecOperand::Vector(r1, l1), VecOperand::Single(single)) => {
-            if l1 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r1.clone())) {
+            if l1 != dst_length || !dst_reg.eq_ignoring_index(&r1.clone()) {
                 return Err(InstructionValidateError::InconsistentOperand { op_index: 1 });
             }
             ConsistentOp::VectorBroadcast(VectorBroadcastParams::new(
-                dst_reg,
-                dst_length,
-                RT::index(&r1),
-                single,
-                false,
+                dst_reg, dst_length, r1.index, single, false,
             ))
         }
         (VecOperand::Single(single), VecOperand::Vector(r2, l2)) => {
-            if l2 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r2.clone())) {
+            if l2 != dst_length || !dst_reg.eq_ignoring_index(&r2.clone()) {
                 return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
             }
             ConsistentOp::VectorBroadcast(VectorBroadcastParams::new(
-                dst_reg,
-                dst_length,
-                RT::index(&r2),
-                single,
-                true,
+                dst_reg, dst_length, r2.index, single, true,
             ))
         }
         (VecOperand::Vector(r1, l1), VecOperand::Vector(r2, l2)) => {
-            if l1 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r1.clone())) {
+            if l1 != dst_length || !dst_reg.eq_ignoring_index(&r1.clone()) {
                 return Err(InstructionValidateError::InconsistentOperand { op_index: 1 });
             }
-            if l2 != dst_length || !dst_reg.eq_ignoring_index(&Reg(r2.clone())) {
+            if l2 != dst_length || !dst_reg.eq_ignoring_index(&r2.clone()) {
                 return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
             }
             ConsistentOp::VectorVector(VectorVectorParams::new(
-                dst_reg,
-                dst_length,
-                RT::index(&r1),
-                RT::index(&r2),
+                dst_reg, dst_length, r1.index, r2.index,
             ))
         }
     };
@@ -168,10 +158,10 @@ impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
                         let p2 = RegOrConstant::from_unsigned(ops[2])
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
                         Ok(Self::UnsignedInt(ConsistentOp::Single(
-                            Reg(NumReg {
+                            Reg {
                                 index: reg_op.index,
                                 width: *w,
-                            }),
+                            },
                             p1,
                             p2,
                         )))
@@ -182,10 +172,10 @@ impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
                         let p2 = RegOrConstant::from_signed(ops[2])
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
                         Ok(Self::SignedInt(ConsistentOp::Single(
-                            Reg(NumReg {
+                            Reg {
                                 index: reg_op.index,
                                 width: *w,
-                            }),
+                            },
                             p1,
                             p2,
                         )))
@@ -196,10 +186,10 @@ impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
                         let p2 = RegOrConstant::from_float(ops[2])
                             .map_err(|_| Self::Error::InconsistentOperand { op_index: 2 })?;
                         Ok(Self::Float(ConsistentOp::Single(
-                            Reg(NumReg {
+                            Reg {
                                 index: reg_op.index,
                                 width: *w,
-                            }),
+                            },
                             p1,
                             p2,
                         )))
@@ -211,10 +201,10 @@ impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
                 RegType::Num(num_reg) => Ok(match num_reg {
                     NumRegType::UnsignedInt(w) => {
                         AnyConsistentNumOp::UnsignedInt(parse_vector_op::<UnsignedRegT>(
-                            Reg(NumReg {
+                            Reg {
                                 index: reg_op.index,
                                 width: *w,
-                            }),
+                            },
                             *l,
                             ops[1],
                             ops[2],
@@ -222,10 +212,10 @@ impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
                     }
                     NumRegType::SignedInt(w) => {
                         AnyConsistentNumOp::SignedInt(parse_vector_op::<SignedRegT>(
-                            Reg(NumReg {
+                            Reg {
                                 index: reg_op.index,
                                 width: *w,
-                            }),
+                            },
                             *l,
                             ops[1],
                             ops[2],
@@ -233,10 +223,10 @@ impl TryFrom<&[&Operand]> for AnyConsistentNumOp {
                     }
                     NumRegType::Float(w) => {
                         AnyConsistentNumOp::Float(parse_vector_op::<FloatRegT>(
-                            Reg(NumReg {
+                            Reg {
                                 index: reg_op.index,
                                 width: *w,
-                            }),
+                            },
                             *l,
                             ops[1],
                             ops[2],
@@ -277,10 +267,10 @@ fn consistent_operand(
                     return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
                 }
                 Ok(MovParams::UnsignedInt(
-                    Reg(NumReg {
+                    Reg {
                         index: dst.index,
                         width: *w,
-                    }),
+                    },
                     p_unsigned,
                 ))
             }
@@ -292,10 +282,10 @@ fn consistent_operand(
                     return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
                 }
                 Ok(MovParams::SignedInt(
-                    Reg(NumReg {
+                    Reg {
                         index: dst.index,
                         width: *w,
-                    }),
+                    },
                     p_signed,
                 ))
             }
@@ -308,21 +298,21 @@ fn consistent_operand(
                     return Err(InstructionValidateError::CannotNarrowWidth { op_index: 1 });
                 }
                 Ok(MovParams::Float(
-                    Reg(NumReg {
+                    Reg {
                         index: dst.index,
                         width: *w,
-                    }),
+                    },
                     p_float,
                 ))
             }
         },
         RegisterSet::Single(RegType::InstructionAddress) => match p {
             Operand::Reg(r) => Ok(MovParams::InstrAddress(
-                Reg(dst.index),
+                Reg::from_index(dst.index),
                 RegOrConstant::reg(r.index),
             )),
             Operand::LabelConstant(l) => Ok(MovParams::InstrAddress(
-                Reg(dst.index),
+                Reg::from_index(dst.index),
                 RegOrConstant::Const(*l),
             )),
             _ => Err(InstructionValidateError::InconsistentOperand { op_index: 1 }),
@@ -389,7 +379,7 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
                 Operand::Reg(RegOperand {
                     set: RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))),
                     index,
-                }) => RegOrConstant::reg(NumReg {
+                }) => RegOrConstant::from_reg(Reg {
                     index: *index,
                     width: *width,
                 }),
@@ -419,19 +409,19 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
         match p1 {
             Operand::Reg(reg) => match &reg.set {
                 RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
-                    unsigned(RegOrConstant::reg(NumReg {
+                    unsigned(RegOrConstant::from_reg(Reg {
                         index: reg.index,
                         width: *width,
                     }))
                 }
                 RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
-                    signed(RegOrConstant::reg(NumReg {
+                    signed(RegOrConstant::from_reg(Reg {
                         index: reg.index,
                         width: *width,
                     }))
                 }
                 RegisterSet::Single(RegType::Num(NumRegType::Float(width))) => {
-                    float(RegOrConstant::reg(NumReg {
+                    float(RegOrConstant::from_reg(Reg {
                         index: reg.index,
                         width: *width,
                     }))
@@ -445,7 +435,10 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
                         index,
                     }) = p2
                     {
-                        return Ok(Self::MemAddressCompare(Reg(reg.index), Reg(*index)));
+                        return Ok(Self::MemAddressCompare(
+                            Reg::from_index(reg.index),
+                            Reg::from_index(*index),
+                        ));
                     } else {
                         return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
                     }
@@ -467,13 +460,13 @@ impl TryFrom<&Operand> for CompareToZero {
         Ok(match value {
             Operand::Reg(reg) => match reg.set {
                 RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
-                    Self::Unsigned(RegOrConstant::reg(NumReg {
+                    Self::Unsigned(RegOrConstant::from_reg(Reg {
                         index: reg.index,
                         width,
                     }))
                 }
                 RegisterSet::Single(RegType::Num(NumRegType::SignedInt(width))) => {
-                    Self::Signed(RegOrConstant::reg(NumReg {
+                    Self::Signed(RegOrConstant::from_reg(Reg {
                         index: reg.index,
                         width,
                     }))
@@ -500,7 +493,7 @@ fn ops<'a, const N: usize>(
 
 enum VecOperand<RT: RegTypeT> {
     Single(RegOrConstant<RT>),
-    Vector(RT::R, RegWidth),
+    Vector(Reg<RT>, RegWidth),
 }
 
 impl TryFrom<&Operand> for VecOperand<UnsignedRegT> {
@@ -510,13 +503,13 @@ impl TryFrom<&Operand> for VecOperand<UnsignedRegT> {
         Ok(match value {
             Operand::Reg(reg_op) => match reg_op.set {
                 RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(w))) => {
-                    Self::Single(RegOrConstant::reg(NumReg {
+                    Self::Single(RegOrConstant::from_reg(Reg {
                         index: reg_op.index,
                         width: w,
                     }))
                 }
                 RegisterSet::Vector(RegType::Num(NumRegType::UnsignedInt(w)), l) => Self::Vector(
-                    NumReg {
+                    Reg {
                         index: reg_op.index,
                         width: w,
                     },
@@ -537,13 +530,13 @@ impl TryFrom<&Operand> for VecOperand<SignedRegT> {
         Ok(match value {
             Operand::Reg(reg_op) => match reg_op.set {
                 RegisterSet::Single(RegType::Num(NumRegType::SignedInt(w))) => {
-                    Self::Single(RegOrConstant::reg(NumReg {
+                    Self::Single(RegOrConstant::from_reg(Reg {
                         index: reg_op.index,
                         width: w,
                     }))
                 }
                 RegisterSet::Vector(RegType::Num(NumRegType::SignedInt(w)), l) => Self::Vector(
-                    NumReg {
+                    Reg {
                         index: reg_op.index,
                         width: w,
                     },
@@ -564,13 +557,13 @@ impl TryFrom<&Operand> for VecOperand<FloatRegT> {
         Ok(match value {
             Operand::Reg(reg_op) => match reg_op.set {
                 RegisterSet::Single(RegType::Num(NumRegType::Float(w))) => {
-                    Self::Single(RegOrConstant::reg(NumReg {
+                    Self::Single(RegOrConstant::from_reg(Reg {
                         index: reg_op.index,
                         width: w,
                     }))
                 }
                 RegisterSet::Vector(RegType::Num(NumRegType::Float(w)), l) => Self::Vector(
-                    NumReg {
+                    Reg {
                         index: reg_op.index,
                         width: w,
                     },
@@ -593,7 +586,9 @@ impl TryFrom<&Operand> for VecOperand<MemRegT> {
                 RegisterSet::Single(RegType::MemoryAddress) => {
                     Self::Single(RegOrConstant::reg(reg_op.index))
                 }
-                RegisterSet::Vector(RegType::MemoryAddress, l) => Self::Vector(reg_op.index, l),
+                RegisterSet::Vector(RegType::MemoryAddress, l) => {
+                    Self::Vector(Reg::from_index(reg_op.index), l)
+                }
                 _ => return Err(()),
             },
             _ => return Err(()),
@@ -610,11 +605,63 @@ impl TryFrom<&Operand> for VecOperand<InstrRegT> {
                 RegisterSet::Single(RegType::MemoryAddress) => {
                     Self::Single(RegOrConstant::reg(reg_op.index))
                 }
-                RegisterSet::Vector(RegType::MemoryAddress, l) => Self::Vector(reg_op.index, l),
+                RegisterSet::Vector(RegType::MemoryAddress, l) => {
+                    Self::Vector(Reg::from_index(reg_op.index), l)
+                }
                 _ => return Err(()),
             },
             Operand::LabelConstant(c) => Self::Single(RegOrConstant::Const(*c)),
             _ => return Err(()),
         })
     }
+}
+
+pub struct UnexpectedVecReg {}
+
+pub fn parse_any_reg(reg: &RegOperand) -> AnyReg {
+    let reg_type = match &reg.set {
+        RegisterSet::Single(reg_type) => reg_type,
+        RegisterSet::Vector(reg_type, _) => reg_type,
+    };
+
+    let any_single_reg = match reg_type {
+        RegType::Num(NumRegType::UnsignedInt(w)) => AnySingleReg::Unsigned(Reg {
+            index: reg.index,
+            width: *w,
+        }),
+        RegType::Num(NumRegType::SignedInt(w)) => AnySingleReg::Unsigned(Reg {
+            index: reg.index,
+            width: *w,
+        }),
+        RegType::Num(NumRegType::Float(w)) => AnySingleReg::Unsigned(Reg {
+            index: reg.index,
+            width: *w,
+        }),
+        RegType::InstructionAddress => AnySingleReg::Instr(Reg::from_index(reg.index)),
+        RegType::MemoryAddress => AnySingleReg::Mem(Reg::from_index(reg.index)),
+    };
+
+    match reg.set {
+        RegisterSet::Single(_) => AnyReg::Single(any_single_reg),
+        RegisterSet::Vector(_, length) => AnyReg::Vector(any_single_reg, length),
+    }
+}
+
+pub fn parse_any_single_reg(reg: &RegOperand) -> Result<AnySingleReg, UnexpectedVecReg> {
+    match parse_any_reg(reg) {
+        AnyReg::Single(reg) => Ok(reg),
+        AnyReg::Vector(_, _) => Err(UnexpectedVecReg {}),
+    }
+}
+
+pub fn parse_any_reg_or_constant(
+    operand: &Operand,
+) -> Result<AnySingleRegOrConstant, UnexpectedVecReg> {
+    Ok(match operand {
+        Operand::Reg(reg) => AnySingleRegOrConstant::from_any_reg(parse_any_single_reg(reg)?),
+        Operand::UnsignedConstant(c) => AnySingleRegOrConstant::Unsigned(RegOrConstant::Const(*c)),
+        Operand::SignedConstant(c) => AnySingleRegOrConstant::Signed(RegOrConstant::Const(*c)),
+        Operand::FloatConstant(c) => AnySingleRegOrConstant::Float(RegOrConstant::Const(*c)),
+        Operand::LabelConstant(c) => AnySingleRegOrConstant::Instr(RegOrConstant::Const(*c)),
+    })
 }
