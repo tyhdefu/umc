@@ -1,14 +1,14 @@
 # UMC Instructions
 
 ## Misc
-| Mneumonic | Operand 1 | Operand 2 | Operand 3 | Description |
-| --------- | --------- | --------- | --------- | ----------- |
-| `mov`     | Reg       | Any       |           | Sets op1 = op2 |
-| `cast`    | Reg       | Any       |           | Sets op1 = op2, casting |
-| `bcast`   | Integer Reg | Reg     |           | Bit / Reinterpret cast |
-| `abs`     | Numeric   | Signed Numeric | | Gets positive value |
-
-
+| Mneumonic | Operand 1 | Operand 2 | Description |
+| --------- | --------- | --------- | ----------- |
+| `mov`     | Reg       | Any       | Sets op1 = op2 |
+| `cast`    | Reg       | Any       | Sets op1 = op2, casting |
+| `bcast`   | Integer Reg | Reg     | Bit / Reinterpret cast |
+| `abs`     | Numeric   | Signed Numeric | Gets positive value |
+| `nop`     |           |           | Does nothing |
+| `dbg`     | Reg       |           | Prints the value and register for debugging |
 
 ## Arithmetic
 | Mneumonic | Operand 1   | Operand 2 | Operand 3 | Description |
@@ -58,3 +58,5 @@ Blocks of memory can be allocated with the `alloc` instruction.
 | --------- | ----------- | --------- | ----------- |
 | `alloc`   | Address Reg | Unsigned  | Allocates a continguous block of memory X bytes long |
 | `free`    | Address Reg |           | De-allocates a block of memory |
+| `load`    | Reg         | Address Reg | Loads the given register from the address |
+| `store`   | Address Reg | Any       | Stores a value into the address |
