@@ -14,8 +14,8 @@ use crate::vm::types::{
 use umc_model::RegWidth;
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, BinaryCondition, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, VectorBroadcastParams,
-    VectorVectorParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, OffsetOp,
+    VectorBroadcastParams, VectorVectorParams,
 };
 use umc_model::reg_model::{
     FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
@@ -187,20 +187,20 @@ pub fn execute_add(params: &AddParams, state: &mut RegState) {
             BinaryArithmeticOp::Add,
             state,
         ),
-        AddParams::MemAddress(dst, reg, reg_or_constant) => {
+        AddParams::MemAddress(dst, reg, offset) => {
             let mut address = state
                 .read(*reg)
                 .expect("Tried to add to an unset memory register")
                 .clone();
             // TODO: Arbitrary Unsigned or specialisation
-            let offset_bytes: i64 = read_int(reg_or_constant, state);
-            address.offset(offset_bytes as isize);
+            let offset_bytes: isize = read_offset(offset, state);
+            address.offset(offset_bytes);
             state.store(*dst, address);
         }
         AddParams::InstrAddress(dst, reg_or_constant, offset) => {
             let mut iaddr = read_iaddr(reg_or_constant, state);
-            let offset_bytes: i64 = read_int(offset, state);
-            iaddr.offset(offset_bytes as isize);
+            let offset_bytes: isize = read_offset(offset, state);
+            iaddr.offset(offset_bytes);
             state.store(*dst, iaddr);
         }
     }
@@ -377,7 +377,12 @@ pub fn compare(comparison: &ConsistentComparison, state: &RegState) -> Option<Or
                 _ => panic!("Only 32-bit or 64-bit floats supported"),
             }
         }
-        ConsistentComparison::MemAddressCompare(_, _) => todo!(),
+        ConsistentComparison::MemAddressCompare(op1, op2) => {
+            match (read_mem_addr(op1, state), read_mem_addr(op2, state)) {
+                (Some(m1), Some(m2)) => m1.partial_cmp(m2),
+                _ => None,
+            }
+        }
         ConsistentComparison::InstrAddressCompare(_, _) => todo!(),
     }
 }
@@ -653,5 +658,12 @@ pub fn is_zero(p: &CompareToZero, state: &RegState) -> bool {
     match p {
         CompareToZero::Unsigned(r) => read_uint::<u32>(r, state) == 0,
         CompareToZero::Signed(r) => read_int::<i32>(r, state) == 0,
+    }
+}
+
+pub fn read_offset(p: &OffsetOp, state: &RegState) -> isize {
+    match p {
+        OffsetOp::Unsigned(op) => read_uint::<u64>(op, state) as isize,
+        OffsetOp::Signed(op) => read_int::<i64>(op, state) as isize,
     }
 }

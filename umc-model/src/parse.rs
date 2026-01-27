@@ -3,8 +3,8 @@
 
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, VectorBroadcastParams,
-    VectorVectorParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, OffsetOp,
+    VectorBroadcastParams, VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -70,14 +70,14 @@ impl TryFrom<&[&Operand]> for AddParams {
             RegisterSet::Single(RegType::MemoryAddress) => {
                 let p1 = Reg::from_mem_reg(ops[1])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
-                let p2 = RegOrConstant::from_signed(ops[2])
+                let p2 = parse_offset(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
                 Self::MemAddress(Reg::from_index(reg_op.index), p1, p2)
             }
             RegisterSet::Single(RegType::InstructionAddress) => {
                 let p1 = RegOrConstant::from_instr_addr(ops[1])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
-                let p2 = RegOrConstant::from_signed(ops[2])
+                let p2 = parse_offset(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
                 Self::InstrAddress(Reg::from_index(reg_op.index), p1, p2)
             }
@@ -441,8 +441,8 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
                     }) = p2
                     {
                         return Ok(Self::MemAddressCompare(
-                            Reg::from_index(reg.index),
-                            Reg::from_index(*index),
+                            RegOrConstant::Reg(Reg::from_index(reg.index)),
+                            RegOrConstant::Reg(Reg::from_index(*index)),
                         ));
                     } else {
                         return Err(InstructionValidateError::InconsistentOperand { op_index: 2 });
@@ -634,11 +634,11 @@ pub fn parse_any_reg(reg: &RegOperand) -> AnyReg {
             index: reg.index,
             width: *w,
         }),
-        RegType::Num(NumRegType::SignedInt(w)) => AnySingleReg::Unsigned(Reg {
+        RegType::Num(NumRegType::SignedInt(w)) => AnySingleReg::Signed(Reg {
             index: reg.index,
             width: *w,
         }),
-        RegType::Num(NumRegType::Float(w)) => AnySingleReg::Unsigned(Reg {
+        RegType::Num(NumRegType::Float(w)) => AnySingleReg::Float(Reg {
             index: reg.index,
             width: *w,
         }),
@@ -669,4 +669,10 @@ pub fn parse_any_reg_or_constant(
         Operand::FloatConstant(c) => AnySingleRegOrConstant::Float(RegOrConstant::Const(*c)),
         Operand::LabelConstant(c) => AnySingleRegOrConstant::Instr(RegOrConstant::Const(*c)),
     })
+}
+
+pub fn parse_offset(operand: &Operand) -> Result<OffsetOp, ()> {
+    RegOrConstant::from_unsigned(operand)
+        .map(|x| OffsetOp::Unsigned(x))
+        .or_else(|_| RegOrConstant::from_signed(operand).map(|x| OffsetOp::Signed(x)))
 }

@@ -1,6 +1,6 @@
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, CompareParams, CompareToZero,
-    ConsistentComparison, ConsistentOp, Instruction, MovParams, NotParams,
+    ConsistentComparison, ConsistentOp, Instruction, MovParams, NotParams, OffsetOp,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -141,7 +141,7 @@ fn cmp_to_raw(params: &CompareParams) -> Vec<Operand> {
         ConsistentComparison::SignedCompare(a, b) => vec![dst, a.into(), b.into()],
         ConsistentComparison::FloatCompare(a, b) => vec![dst, a.into(), b.into()],
         ConsistentComparison::MemAddressCompare(a, b) => {
-            vec![dst, Operand::Reg(a.into()), Operand::Reg(b.into())]
+            vec![dst, a.into(), b.into()]
         }
         ConsistentComparison::InstrAddressCompare(a, b) => vec![dst, a.into(), b.into()],
     }
@@ -261,6 +261,15 @@ impl From<&AnySingleReg> for RegOperand {
             AnySingleReg::Float(reg) => reg.into(),
             AnySingleReg::Instr(reg) => reg.into(),
             AnySingleReg::Mem(reg) => reg.into(),
+        }
+    }
+}
+
+impl From<&OffsetOp> for Operand {
+    fn from(value: &OffsetOp) -> Self {
+        match value {
+            OffsetOp::Unsigned(x) => x.into(),
+            OffsetOp::Signed(x) => x.into(),
         }
     }
 }

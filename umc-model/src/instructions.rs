@@ -231,12 +231,15 @@ pub enum AddParams {
     SignedInt(ConsistentOp<SignedRegT>),
     Float(ConsistentOp<FloatRegT>),
 
-    MemAddress(Reg<MemRegT>, Reg<MemRegT>, RegOrConstant<SignedRegT>),
-    InstrAddress(
-        Reg<InstrRegT>,
-        RegOrConstant<InstrRegT>,
-        RegOrConstant<SignedRegT>,
-    ),
+    MemAddress(Reg<MemRegT>, Reg<MemRegT>, OffsetOp),
+    InstrAddress(Reg<InstrRegT>, RegOrConstant<InstrRegT>, OffsetOp),
+}
+
+/// A positive or negative integer offset
+#[derive(Debug, Clone, PartialEq)]
+pub enum OffsetOp {
+    Unsigned(RegOrConstant<UnsignedRegT>),
+    Signed(RegOrConstant<SignedRegT>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -268,7 +271,7 @@ pub enum ConsistentComparison {
     UnsignedCompare(RegOrConstant<UnsignedRegT>, RegOrConstant<UnsignedRegT>),
     SignedCompare(RegOrConstant<SignedRegT>, RegOrConstant<SignedRegT>),
     FloatCompare(RegOrConstant<FloatRegT>, RegOrConstant<FloatRegT>),
-    MemAddressCompare(Reg<MemRegT>, Reg<MemRegT>),
+    MemAddressCompare(RegOrConstant<MemRegT>, RegOrConstant<MemRegT>),
     InstrAddressCompare(RegOrConstant<InstrRegT>, RegOrConstant<InstrRegT>),
 }
 
@@ -393,9 +396,9 @@ impl Display for ConsistentComparison {
 impl Display for AddParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddParams::UnsignedInt(consistent_op) => consistent_op.fmt(f),
-            AddParams::SignedInt(consistent_op) => consistent_op.fmt(f),
-            AddParams::Float(consistent_op) => consistent_op.fmt(f),
+            AddParams::UnsignedInt(consistent_op) => write!(f, "{}", consistent_op),
+            AddParams::SignedInt(consistent_op) => write!(f, "{}", consistent_op),
+            AddParams::Float(consistent_op) => write!(f, "{}", consistent_op),
             AddParams::MemAddress(dst, mem_reg, offset_reg) => {
                 write!(f, "{}, {}, {}", dst, mem_reg, offset_reg)
             }
@@ -406,43 +409,34 @@ impl Display for AddParams {
     }
 }
 
+impl Display for OffsetOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OffsetOp::Unsigned(x) => write!(f, "{}", x),
+            OffsetOp::Signed(x) => write!(f, "{}", x),
+        }
+    }
+}
+
+impl<RT: RegTypeT> Display for ConsistentOp<RT>
+where
+    RegOrConstant<RT>: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConsistentOp::Single(dst, p1, p2) => write!(f, "{dst}, {p1}, {p2}"),
+            ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
+            ConsistentOp::VectorVector(params) => write!(f, "{}", params),
+        }
+    }
+}
+
 impl Display for AnyConsistentNumOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn write_single<RT: RegTypeT>(
-            f: &mut std::fmt::Formatter<'_>,
-            dst: &Reg<RT>,
-            p1: &RegOrConstant<RT>,
-            p2: &RegOrConstant<RT>,
-        ) -> std::fmt::Result
-        where
-            RegOrConstant<RT>: Display,
-            Reg<RT>: Display,
-        {
-            write!(f, "{dst}, {p1}, {p2}")
-        }
-
         match self {
-            AnyConsistentNumOp::UnsignedInt(num_op) => match num_op {
-                ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
-                ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
-                ConsistentOp::VectorVector(params) => {
-                    write!(f, "{}", params)
-                }
-            },
-            AnyConsistentNumOp::SignedInt(num_op) => match num_op {
-                ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
-                ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
-                ConsistentOp::VectorVector(params) => {
-                    write!(f, "{}", params)
-                }
-            },
-            AnyConsistentNumOp::Float(num_op) => match num_op {
-                ConsistentOp::Single(dst, p1, p2) => write_single(f, dst, p1, p2),
-                ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
-                ConsistentOp::VectorVector(params) => {
-                    write!(f, "{}", params)
-                }
-            },
+            AnyConsistentNumOp::UnsignedInt(num_op) => write!(f, "{}", num_op),
+            AnyConsistentNumOp::SignedInt(num_op) => write!(f, "{}", num_op),
+            AnyConsistentNumOp::Float(num_op) => write!(f, "{}", num_op),
         }
     }
 }
