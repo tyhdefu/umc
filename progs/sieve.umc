@@ -1,0 +1,56 @@
+; Prims using sieve method (using memory)
+.SIEVE:
+	; Calculate primes up to the given number
+	mov u32:0, #1000
+
+	; Memory to allocate
+	mul u32:1, #4, u32:0
+	alloc m:0, u32:1
+	; End address
+	add m:2, m:0, u32:1
+	; Working address
+	mov m:1, m:0
+
+	mov u32:2, #0
+.FILL_LOOP:
+	; Natural numbers
+	store m:1, u32:2
+
+	add u32:2, :2, #1
+	add m:1, m:1, #4
+	ge u1:0, m:1, m:2
+
+	bz .FILL_LOOP, u1:0
+
+	; Initialise sieve loop
+	mov u32:2, #2
+; u32:2 = Sieving value
+.SIEVE_LOOP:
+	; dbg u32:2
+	mul u32:3, u32:2, #4 ; Memory address step
+	mov m:1, m:0
+	add m:1, m:1, u32:3
+.SIEVE_SUB_LOOP:
+	add m:1, m:1, u32:3
+	ge u1:0, m:1, m:2
+	bnz .SIEVE_LOOP_END, u1:0
+	mov u32:8, #0
+	store m:1, u32:8
+	jmp .SIEVE_SUB_LOOP
+.SIEVE_LOOP_END:
+	mul u32:3, u32:2, #4 ; Memory address step
+	add u32:2, :2, #1
+	gt u1:0, u32:2, #500 ; Half the value
+	bz .SIEVE_LOOP, u1:0
+
+	mov m:1, m:0
+.END:
+	load u32:4, m:1
+	add m:1, m:1, #4 ; Increment pointer
+	bz .ENDX, u32:4
+	dbg u32:4
+.ENDX:
+	ge u1:0, m:1, m:2
+	bz .END, u1:0
+	free m:0
+
