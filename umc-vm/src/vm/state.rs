@@ -5,6 +5,7 @@ use crate::vm::memory::MemoryAddress;
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
+use rustc_hash::{FxBuildHasher, FxHasher};
 use umc_model::reg_model::{
     FloatRegT, InstrRegT, MemRegT, Reg, RegTypeT, SignedRegT, UnsignedRegT,
 };
@@ -140,9 +141,10 @@ where
 }
 
 /// Store based on HashMaps
+// TODO: Could improve performance with a non-crypto hasher
 struct HashMapStore<K: Hash + Eq, V> {
-    single: HashMap<K, V>,
-    vector: HashMap<(K, usize), VecValue<V>>,
+    single: HashMap<K, V, FxBuildHasher>,
+    vector: HashMap<(K, usize), VecValue<V>, FxBuildHasher>,
 }
 
 impl<K, V> HashMapStore<K, V>
@@ -151,8 +153,8 @@ where
 {
     pub fn new() -> Self {
         Self {
-            single: HashMap::new(),
-            vector: HashMap::new(),
+            single: HashMap::with_hasher(FxBuildHasher::default()),
+            vector: HashMap::with_hasher(FxBuildHasher::default()),
         }
     }
 
