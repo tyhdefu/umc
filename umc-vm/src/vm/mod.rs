@@ -23,16 +23,30 @@ pub struct VirtualMachine {
     pc: usize,
     state: RegState<SafeAddress>,
     memory: SafeMemoryManager,
+    verbose: bool,
+}
+
+pub struct VMOptions {
+    /// Whether to print extra debugging information about which instructions are being executed
+    pub verbose: bool,
+}
+
+impl VMOptions {
+    /// Recommended configuration for debugging the VM
+    pub fn vm_debug() -> Self {
+        Self { verbose: true }
+    }
 }
 
 impl VirtualMachine {
     /// Initialise a new VM with the given program
-    pub fn new(program: Program) -> Self {
+    pub fn new(program: Program, options: VMOptions) -> Self {
         Self {
             program: program.instructions,
             pc: 0,
             state: RegState::new(),
             memory: SafeMemoryManager::new(),
+            verbose: options.verbose,
         }
     }
 
@@ -86,7 +100,9 @@ impl VirtualMachine {
 
     fn execute_step(&mut self) {
         let instr: &Instruction = &self.program[self.pc];
-        println!("Executing instruction {}: {}", self.pc, instr);
+        if self.verbose {
+            println!("Executing instruction {}: {}", self.pc, instr);
+        }
         match instr {
             Instruction::Nop => {}
             Instruction::Mov(params) => {
@@ -124,7 +140,9 @@ impl VirtualMachine {
             }
             Instruction::Jmp(p) => {
                 let to = helper::read_iaddr(p, &self.state);
-                println!("Jumping to {:?}", to);
+                if self.verbose {
+                    println!("Jumping to {:?}", to);
+                }
                 self.pc = to.pc();
                 return;
             }

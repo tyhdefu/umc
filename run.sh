@@ -1,2 +1,2 @@
 #!/bin/bash
-cargo run -p umc-vm -- $@
+cargo run -p umc-vm -- --verbose $@

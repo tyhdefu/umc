@@ -1,8 +1,12 @@
 [package]
 name = "umc-vm"
 version = "0.1.0"
+description = "Virtual Machine for Universal Machine Code"
 edition = "2024"
 
 [dependencies]
 umc-model = { path = "../umc-model" }
 umcc = { path = "../umcc" }
+
+# For Command line args parsing
+clap = { version = "4.5.55", features = ["derive"]}

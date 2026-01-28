@@ -10,7 +10,7 @@ use super::*;
 
 fn compile_and_run(s: &str) -> VirtualMachine {
     let prog = assemble_prog(s).unwrap();
-    let mut vm = VirtualMachine::new(prog);
+    let mut vm = VirtualMachine::new(prog, VMOptions::vm_debug());
     vm.execute();
     vm
 }
@@ -286,7 +286,7 @@ fn fib_encode_and_decode() {
     const FIB_7: u64 = 13;
     let prog = assemble_prog(PROG).expect("Failed to assemble program");
 
-    let mut vm = VirtualMachine::new(prog.clone());
+    let mut vm = VirtualMachine::new(prog.clone(), VMOptions::vm_debug());
 
     vm.execute();
     let u64_1 = vm.inspect_uint(1, u64::BITS);
@@ -304,7 +304,7 @@ fn fib_encode_and_decode() {
         prog, decoded_prog
     );
 
-    let mut vm = VirtualMachine::new(decoded_prog);
+    let mut vm = VirtualMachine::new(decoded_prog, VMOptions::vm_debug());
     vm.execute();
     let u64_1 = vm.inspect_uint(1, u64::BITS);
     assert_eq!(FIB_7, u64_1);
