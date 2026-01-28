@@ -3,6 +3,7 @@
 - [Introduction](./intro.md)
 - [Instructions](./instructions.md)
 - [Register Sets](./reg_sets.md)
+- [Binary Format](./binary_format.md)
 
 ---
 
