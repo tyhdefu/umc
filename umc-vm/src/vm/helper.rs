@@ -383,7 +383,11 @@ pub fn compare(comparison: &ConsistentComparison, state: &RegState) -> Option<Or
                 _ => None,
             }
         }
-        ConsistentComparison::InstrAddressCompare(_, _) => todo!(),
+        ConsistentComparison::InstrAddressCompare(op1, op2) => {
+            let x = read_iaddr(op1, state);
+            let y = read_iaddr(op2, state);
+            x.partial_cmp(&y)
+        }
     }
 }
 

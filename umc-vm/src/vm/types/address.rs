@@ -1,7 +1,7 @@
 use crate::vm::types::UMCOffset;
 
 /// The address type
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, PartialOrd, Debug, Copy, Clone)]
 pub struct InstructionAddress(usize);
 
 impl InstructionAddress {

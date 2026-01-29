@@ -8,8 +8,8 @@ use crate::instructions::{
     MovParams, NotParams,
 };
 use crate::operand::{Operand, RegOperand};
-use crate::parse::parse_any_reg;
-use crate::reg_model::{InstrRegT, RegOrConstant};
+use crate::parse::{parse_any_reg, parse_any_single_reg};
+use crate::reg_model::{InstrRegT, Reg, RegOrConstant};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
@@ -246,7 +246,6 @@ pub fn decode_instruction<R: io::Read>(
             let ops_ref: Vec<&Operand> = ops.iter().collect();
             Instruction::Mov(MovParams::try_from(ops_ref.as_slice())?)
         }
-
         OpCode::ADD => Instruction::Add(read_add_op(src, rt_header)?),
         OpCode::SUB => Instruction::Sub(read_3_num_op(src, rt_header)?),
         OpCode::MUL => Instruction::Mul(read_3_num_op(src, rt_header)?),
@@ -287,6 +286,61 @@ pub fn decode_instruction<R: io::Read>(
             let [dst, op] = operands::<R, 2>(src, rt_header)?;
             let params = NotParams::try_from([&dst, &op].as_slice())?;
             Instruction::Not(params)
+        }
+        OpCode::ALLOC => {
+            let [op1, op2] = operands(src, rt_header)?;
+            let mem_reg = Reg::from_mem_reg(&op1).map_err(|_| {
+                DecodeError::Malformed(format!(
+                    "Invalid Alloc Instruction: Expected mem dst register"
+                ))
+            })?;
+            let size = RegOrConstant::from_unsigned(&op2).map_err(|_| {
+                DecodeError::Malformed(format!(
+                    "Invalid Alloc Instruction: Expected unsigned size register"
+                ))
+            })?;
+            Instruction::Alloc(mem_reg, size)
+        }
+        OpCode::FREE => {
+            let [op1] = operands(src, rt_header)?;
+            let mem_reg = Reg::from_mem_reg(&op1).map_err(|_| {
+                DecodeError::Malformed(format!("Invalid Free Instruction: Expected mem reg"))
+            })?;
+            Instruction::Free(mem_reg)
+        }
+        OpCode::LOAD => {
+            let [op1, op2] = operands(src, rt_header)?;
+            let value_reg = match op1 {
+                Operand::Reg(reg_operand) => parse_any_single_reg(&reg_operand).map_err(|_| {
+                    DecodeError::Malformed(format!("Invalid Load Instruction: Expected Mem reg"))
+                })?,
+                _ => {
+                    return Err(DecodeError::Malformed(format!(
+                        "Expected destination register for load"
+                    )));
+                }
+            };
+            let mem_reg = Reg::from_mem_reg(&op2).map_err(|_| {
+                DecodeError::Malformed(format!("Expected destination register for load"))
+            })?;
+            Instruction::Load(value_reg, mem_reg)
+        }
+        OpCode::STORE => {
+            let [op1, op2] = operands(src, rt_header)?;
+            let mem_reg = Reg::from_mem_reg(&op1).map_err(|_| {
+                DecodeError::Malformed(format!("Expected destination register for load"))
+            })?;
+            let value_reg = match op2 {
+                Operand::Reg(reg_operand) => parse_any_single_reg(&reg_operand).map_err(|_| {
+                    DecodeError::Malformed(format!("Invalid Load Instruction: Expected Mem reg"))
+                })?,
+                _ => {
+                    return Err(DecodeError::Malformed(format!(
+                        "Expected destination register for load"
+                    )));
+                }
+            };
+            Instruction::Store(mem_reg, value_reg)
         }
         OpCode::DBG => {
             let [op] = operands::<R, 1>(src, rt_header)?;
@@ -332,10 +386,10 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Jmp(_) => OpCode::JMP,
         Instruction::Bz(_, _) => OpCode::BZ,
         Instruction::Bnz(_, _) => OpCode::BNZ,
-        Instruction::Alloc(_, _) => todo!(),
-        Instruction::Free(_) => todo!(),
-        Instruction::Load(_, _) => todo!(),
-        Instruction::Store(_, _) => todo!(),
+        Instruction::Alloc(_, _) => OpCode::ALLOC,
+        Instruction::Free(_) => OpCode::FREE,
+        Instruction::Load(_, _) => OpCode::LOAD,
+        Instruction::Store(_, _) => OpCode::STORE,
         Instruction::Dbg(_) => OpCode::DBG,
     };
 
@@ -540,6 +594,12 @@ enum OpCode {
     XOR = 0b010010,
     NOT = 0b010011,
 
+    // Dynamic Memory Management
+    ALLOC = 0b100000,
+    FREE = 0b100001,
+    LOAD = 0b100010,
+    STORE = 0b100011,
+
     // Debug
     DBG = 0b111111,
 }
@@ -575,6 +635,11 @@ impl OpCode {
             x if x == Self::OR as u8 => Self::OR,
             x if x == Self::XOR as u8 => Self::XOR,
             x if x == Self::NOT as u8 => Self::NOT,
+            x if x == Self::ALLOC as u8 => Self::ALLOC,
+            x if x == Self::FREE as u8 => Self::FREE,
+            x if x == Self::LOAD as u8 => Self::LOAD,
+            x if x == Self::STORE as u8 => Self::STORE,
+
             x if x == Self::DBG as u8 => Self::DBG,
             x => return Err(InvalidOpCode(x)),
         })

@@ -5,7 +5,7 @@ use crate::vm::memory::MemoryAddress;
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
-use rustc_hash::{FxBuildHasher, FxHasher};
+use rustc_hash::FxBuildHasher;
 use umc_model::reg_model::{
     FloatRegT, InstrRegT, MemRegT, Reg, RegTypeT, SignedRegT, UnsignedRegT,
 };

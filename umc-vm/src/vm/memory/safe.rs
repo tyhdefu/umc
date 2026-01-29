@@ -29,11 +29,11 @@ impl SafeMemoryManager {
     }
 }
 
-struct SimpleMemoryBlock(Vec<u8>);
+struct SimpleMemoryBlock(Box<[u8]>);
 impl SimpleMemoryBlock {
     /// Allocate a new block of memory with the given size
     pub fn allocate(size: usize) -> Self {
-        Self(vec![0; size])
+        Self(vec![0; size].into_boxed_slice())
     }
 }
 

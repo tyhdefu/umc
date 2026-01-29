@@ -29,10 +29,14 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Bnz(reg_or_constant, compare_to_zero) => {
             vec![reg_or_constant.into(), cmp_zero_to_raw(compare_to_zero)]
         }
-        Instruction::Alloc(_, _) => todo!(),
-        Instruction::Free(_) => todo!(),
-        Instruction::Load(_, _) => todo!(),
-        Instruction::Store(_, _) => todo!(),
+        Instruction::Alloc(mem_reg, size) => vec![Operand::Reg(mem_reg.into()), size.into()],
+        Instruction::Free(mem_reg) => vec![Operand::Reg(mem_reg.into())],
+        Instruction::Load(reg, mem_reg) => {
+            vec![Operand::Reg(reg.into()), Operand::Reg(mem_reg.into())]
+        }
+        Instruction::Store(mem_reg, reg) => {
+            vec![Operand::Reg(mem_reg.into()), Operand::Reg(reg.into())]
+        }
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
 }
