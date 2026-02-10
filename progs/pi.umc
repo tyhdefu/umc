@@ -15,10 +15,8 @@
 .PROG_X:
 	mul f64:10, f64:1, #4.0 ; Store first result
 	; Calculate arctan(1/239)
-	mov n:0, .PROG_Y
 	div f64:0, #1.0, #239.0
-	jmp .ARC_TAN
-.PROG_Y:
+	jal .ARC_TAN, n:0
 	sub f64:10, f64:10, f64:1
 	mul f64:1, f64:10, #4.0
 	jmp .EXIT
