@@ -23,6 +23,7 @@
 | Mneumonic | Operand 1 | Operand 2 | Description |
 | --------- | --------- | --------- | ----------- |
 | `jmp`     | Label     |           | Unconditional jump to the given label |
+| `jal`     | Label     | Instr Reg | Jumps to the given label, setting the instruction register to the next instruction |
 | `bz`      | Label     | Numeric   | Jump to label if op2 is zero |
 | `bnz`     | Label     | Numeric   | Jump to label if op2 is not zero |
 
