@@ -309,3 +309,24 @@ fn fib_encode_and_decode() {
     let u64_1 = vm.inspect_uint(1, u64::BITS);
     assert_eq!(FIB_7, u64_1);
 }
+
+#[test]
+fn jump_and_link() {
+    const PROG: &str = "
+        mov u32:1, #300
+        jal .FUNC, n:0 ; If this doesn't return, the add won't run
+        add u32:1, u32:1, #50
+        jmp .END
+
+        .FUNC:
+            sub u32:1, u32:1, #100
+            jmp n:0
+        .END:
+            dbg u32:1
+    ";
+
+    let vm = compile_and_run(PROG);
+    let v: u32 = vm.inspect_uint(1, u32::BITS);
+
+    assert_eq!(250, v);
+}

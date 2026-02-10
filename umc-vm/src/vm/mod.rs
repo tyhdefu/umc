@@ -10,6 +10,7 @@ mod test;
 use crate::vm::memory::MemoryManager;
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::state::{RegState, StoreFor};
+use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
@@ -142,6 +143,16 @@ impl VirtualMachine {
                 let to = helper::read_iaddr(p, &self.state);
                 if self.verbose {
                     println!("Jumping to {:?}", to);
+                }
+                self.pc = to.pc();
+                return;
+            }
+            Instruction::Jal(p, r) => {
+                let link = InstructionAddress::new(self.pc + 1);
+                self.state.store(*r, link);
+                let to = helper::read_iaddr(p, &self.state);
+                if self.verbose {
+                    println!("Jumping to {:?} (linking {:?})", to, link);
                 }
                 self.pc = to.pc();
                 return;

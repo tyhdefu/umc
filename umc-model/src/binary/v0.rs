@@ -232,6 +232,11 @@ pub fn decode_instruction<R: io::Read>(
         })
     }
 
+    fn iaddr_reg(operand: &Operand) -> Result<Reg<InstrRegT>, DecodeError> {
+        Reg::from_instr_addr(operand)
+            .map_err(|_| DecodeError::Malformed(format!("Expected Instruction Register")))
+    }
+
     fn cmp_zero_op(operand: &Operand) -> Result<CompareToZero, DecodeError> {
         CompareToZero::try_from(operand).map_err(|_| {
             DecodeError::Malformed(format!("Expected operand that can be compared to zero"))
@@ -254,6 +259,12 @@ pub fn decode_instruction<R: io::Read>(
         OpCode::JMP => {
             let ops = operands::<R, 1>(src, rt_header)?;
             Instruction::Jmp(iaddr_op(&ops[0])?)
+        }
+        OpCode::JAL => {
+            let [d, r] = operands::<R, 2>(src, rt_header)?;
+            let target = iaddr_op(&d)?;
+            let reg = iaddr_reg(&r)?;
+            Instruction::Jal(target, reg)
         }
         OpCode::BZ => {
             let ops = operands::<R, 2>(src, rt_header)?;
@@ -384,6 +395,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
             }
         },
         Instruction::Jmp(_) => OpCode::JMP,
+        Instruction::Jal(_, _) => OpCode::JAL,
         Instruction::Bz(_, _) => OpCode::BZ,
         Instruction::Bnz(_, _) => OpCode::BNZ,
         Instruction::Alloc(_, _) => OpCode::ALLOC,
@@ -580,13 +592,14 @@ enum OpCode {
 
     // Jump and conditional jump
     JMP = 0b001000,
-    BZ = 0b001001,
-    BNZ = 0b001010,
+    JAL = 0b001001,
+    BZ = 0b001010,
+    BNZ = 0b001011,
 
     // Comparison
-    EQ = 0b001011,
-    GT = 0b001100,
-    GTE = 0b001101,
+    EQ = 0b001100,
+    GT = 0b001101,
+    GTE = 0b001110,
 
     // Bitwise Operations
     AND = 0b010000,
@@ -624,6 +637,7 @@ impl OpCode {
             x if x == Self::MOD as u8 => Self::MOD,
 
             x if x == Self::JMP as u8 => Self::JMP,
+            x if x == Self::JAL as u8 => Self::JAL,
             x if x == Self::BZ as u8 => Self::BZ,
             x if x == Self::BNZ as u8 => Self::BNZ,
 

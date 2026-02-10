@@ -275,6 +275,12 @@ pub fn ast_to_bytecode(
             let iaddr_op = parse_iaddress_operand(p1, labels)?;
             Ok(Instruction::Jmp(iaddr_op))
         }
+        "jal" => {
+            let [p1, p2] = ops::<2>(&instr)?;
+            let dest = parse_iaddress_operand(p1, labels)?;
+            let link_reg = parse_iaddress_reg(p2)?;
+            Ok(Instruction::Jal(dest, link_reg))
+        }
         "bz" => {
             let (dst, operand) = cond_branch(&instr, labels)?;
             Ok(Instruction::Bz(dst, operand))
@@ -431,6 +437,14 @@ fn parse_iaddress_operand(
         labels,
     )?;
     RegOrConstant::from_instr_addr(&op)
+        .map_err(|_| AssembleInstructionError::invalid_op_type(operand))
+}
+
+fn parse_iaddress_reg(
+    operand: &OperandWithLoc,
+) -> Result<Reg<InstrRegT>, AssembleInstructionError> {
+    let op = parse_reg(operand, None)?;
+    Reg::from_instr_addr(&Operand::Reg(op))
         .map_err(|_| AssembleInstructionError::invalid_op_type(operand))
 }
 

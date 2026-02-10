@@ -23,6 +23,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Not(not_params) => not_to_raw(not_params),
         Instruction::Compare { cond: _, params } => cmp_to_raw(params),
         Instruction::Jmp(reg_or_constant) => vec![reg_or_constant.into()],
+        Instruction::Jal(d, r) => vec![d.into(), Operand::Reg(r.into())],
         Instruction::Bz(reg_or_constant, compare_to_zero) => {
             vec![reg_or_constant.into(), cmp_zero_to_raw(compare_to_zero)]
         }

@@ -41,6 +41,8 @@ pub enum Instruction {
 
     /// Jump to the given location unconditionally
     Jmp(RegOrConstant<InstrRegT>),
+    /// Jump and save the address of the next instruction into the given register
+    Jal(RegOrConstant<InstrRegT>, Reg<InstrRegT>),
     /// Conditionally branch to the given location (op1) if the second operand is zero
     Bz(RegOrConstant<InstrRegT>, CompareToZero),
     /// Conditionally branch to the given location (op1) if the second operand is not zero
@@ -306,6 +308,7 @@ impl Display for Instruction {
                 write!(f, "{opcode} {params}")
             }
             Instruction::Jmp(reg_or_constant) => write!(f, "jmp {}", reg_or_constant),
+            Instruction::Jal(d, r) => write!(f, "jal {}, {}", d, r),
             Instruction::Bz(reg_or_constant, compare_to_zero) => {
                 write!(f, "bz {}, {}", reg_or_constant, compare_to_zero)
             }
