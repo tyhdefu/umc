@@ -14,8 +14,8 @@ use crate::vm::types::{
 use umc_model::RegWidth;
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, BinaryCondition, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, OffsetOp,
-    VectorBroadcastParams, VectorVectorParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, OffsetOp, ResizeCast,
+    SimpleCast, VectorBroadcastParams, VectorVectorParams,
 };
 use umc_model::reg_model::{
     FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
@@ -513,6 +513,79 @@ pub fn execute_store(
         },
         AnySingleReg::Instr(_) => todo!(),
         AnySingleReg::Mem(_) => todo!(),
+    }
+}
+
+pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
+    // Note that most of these simple casts are performed by read_uint itself
+    match cast {
+        SimpleCast::Resize(ResizeCast::Unsigned(dst, p)) => match dst.width {
+            u32::BITS => {
+                let v: u32 = read_uint(&p, state);
+                state.store_prim(*dst, v);
+            }
+            u64::BITS => {
+                let v: u32 = read_uint(&p, state);
+                state.store_prim(*dst, v);
+            }
+            w => {
+                let mut v: ArbitraryUnsignedInt = read_uint(&p, state);
+                v.resize_to(w);
+                state.store(*dst, v);
+            }
+        },
+        SimpleCast::Resize(ResizeCast::Signed(dst, p)) => match dst.width {
+            u32::BITS => {
+                let v: i32 = read_int(&p, state);
+                state.store_prim(*dst, v);
+            }
+            u64::BITS => {
+                let v: i64 = read_int(&p, state);
+                state.store_prim(*dst, v);
+            }
+            _ => {
+                // Need to sign extend or truncate
+                todo!("Arbitrary unsigned integers not yet supported");
+            }
+        },
+        SimpleCast::Resize(ResizeCast::Float(dst, p)) => match dst.width {
+            32 => {
+                let v: f32 = read_float(&p, state);
+                state.store_prim(*dst, v);
+            }
+            64 => {
+                let v: f64 = read_float(&p, state);
+                state.store_prim(*dst, v);
+            }
+            _ => panic!("Only 32-bit or 64-bit floats supported"),
+        },
+        SimpleCast::IgnoreSigned(c) => match c.width() {
+            32 => {
+                let v: i32 = read_int(c.from(), state);
+                state.store_prim(*c.dst(), v as u32);
+            }
+            64 => {
+                let v: i64 = read_int(c.from(), state);
+                state.store_prim(*c.dst(), v as u64);
+            }
+            _ => {
+                todo!("Arbitrary unsigned integers unsupported");
+            }
+        },
+        SimpleCast::AddSign(c) => match c.width() {
+            32 => {
+                let v: u32 = read_uint(c.from(), state);
+                state.store_prim(*c.dst(), v as i32);
+            }
+            64 => {
+                let v: u64 = read_uint(c.from(), state);
+                state.store_prim(*c.dst(), v as i64);
+            }
+            _ => {
+                let v: ArbitraryUnsignedInt = read_uint(c.from(), state);
+                todo!("Arbitrary signed integers unsupported");
+            }
+        },
     }
 }
 

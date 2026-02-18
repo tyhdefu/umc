@@ -5,7 +5,7 @@ use std::io;
 use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction,
-    MovParams, NotParams,
+    MovParams, NotParams, SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::parse::{parse_any_reg, parse_any_single_reg};
@@ -353,6 +353,12 @@ pub fn decode_instruction<R: io::Read>(
             };
             Instruction::Store(mem_reg, value_reg)
         }
+        OpCode::CAST => {
+            let [d, p] = operands::<R, 2>(src, rt_header)?;
+            let cast = SimpleCast::try_from([&d, &p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
+            Instruction::Cast(cast)
+        }
         OpCode::DBG => {
             let [op] = operands::<R, 1>(src, rt_header)?;
             match op {
@@ -402,6 +408,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Free(_) => OpCode::FREE,
         Instruction::Load(_, _) => OpCode::LOAD,
         Instruction::Store(_, _) => OpCode::STORE,
+        Instruction::Cast(_) => OpCode::CAST,
         Instruction::Dbg(_) => OpCode::DBG,
     };
 
@@ -613,6 +620,9 @@ enum OpCode {
     LOAD = 0b100010,
     STORE = 0b100011,
 
+    // Cast
+    CAST = 0b110001,
+
     // Debug
     DBG = 0b111111,
 }
@@ -649,10 +659,13 @@ impl OpCode {
             x if x == Self::OR as u8 => Self::OR,
             x if x == Self::XOR as u8 => Self::XOR,
             x if x == Self::NOT as u8 => Self::NOT,
+
             x if x == Self::ALLOC as u8 => Self::ALLOC,
             x if x == Self::FREE as u8 => Self::FREE,
             x if x == Self::LOAD as u8 => Self::LOAD,
             x if x == Self::STORE as u8 => Self::STORE,
+
+            x if x == Self::CAST as u8 => Self::CAST,
 
             x if x == Self::DBG as u8 => Self::DBG,
             x => return Err(InvalidOpCode(x)),

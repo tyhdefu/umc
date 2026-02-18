@@ -3,8 +3,8 @@
 
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, OffsetOp,
-    VectorBroadcastParams, VectorVectorParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, IntegerCast, MovParams, NotParams, OffsetOp,
+    ResizeCast, SimpleCast, VectorBroadcastParams, VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -455,6 +455,52 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Operand::FloatConstant(c) => float(RegOrConstant::Const(*c)),
             Operand::LabelConstant(c) => iaddr(RegOrConstant::Const(*c)),
         }
+    }
+}
+
+impl TryFrom<&[&Operand]> for SimpleCast {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let [p1, p2] = ops(value)?;
+        let dst_reg = match p1 {
+            Operand::Reg(reg) => parse_any_single_reg(reg)
+                .map_err(|_| InstructionValidateError::InvalidRegType { op_index: 0 })?,
+            _ => return Err(InstructionValidateError::ExpectedDstReg),
+        };
+
+        let p = parse_any_reg_or_constant(p2)
+            .map_err(|_| InstructionValidateError::InvalidRegType { op_index: 1 })?;
+
+        Ok(match dst_reg {
+            AnySingleReg::Unsigned(reg) => match p {
+                AnySingleRegOrConstant::Unsigned(p) => {
+                    SimpleCast::Resize(ResizeCast::Unsigned(reg, p))
+                }
+                AnySingleRegOrConstant::Signed(p) => {
+                    let cast = IntegerCast::try_create(reg, p).map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 1 }
+                    })?;
+                    SimpleCast::IgnoreSigned(cast)
+                }
+                _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
+            },
+            AnySingleReg::Signed(reg) => match p {
+                AnySingleRegOrConstant::Signed(p) => SimpleCast::Resize(ResizeCast::Signed(reg, p)),
+                AnySingleRegOrConstant::Unsigned(p) => {
+                    let cast = IntegerCast::try_create(reg, p).map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 1 }
+                    })?;
+                    SimpleCast::AddSign(cast)
+                }
+                _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
+            },
+            AnySingleReg::Float(reg) => match p {
+                AnySingleRegOrConstant::Float(p) => SimpleCast::Resize(ResizeCast::Float(reg, p)),
+                _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
+            },
+            _ => Err(InstructionValidateError::InvalidRegType { op_index: 0 })?,
+        })
     }
 }
 

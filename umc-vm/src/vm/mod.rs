@@ -196,6 +196,9 @@ impl VirtualMachine {
                         panic!("Failed to store {} into {}: {:?}", from_reg, mem_reg, err)
                     });
             }
+            Instruction::Cast(simple_cast) => {
+                helper::execute_simple_cast(simple_cast, &mut self.state);
+            }
             Instruction::Dbg(reg) => helper::execute_debug(reg, &self.state),
         };
         self.pc += 1;

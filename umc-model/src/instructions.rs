@@ -59,6 +59,9 @@ pub enum Instruction {
     // TODO: Can we store constants? Not unless they are sized
     Store(Reg<MemRegT>, AnySingleReg),
 
+    // Simple cast based on the registers
+    Cast(SimpleCast),
+    // TODO: Float to integer cast
     /// Print the given register (debugging)
     Dbg(AnyReg),
 }
@@ -327,6 +330,7 @@ impl Display for Instruction {
             Instruction::Store(mem_reg, reg) => {
                 write!(f, "store {}, {}", mem_reg, reg)
             }
+            Instruction::Cast(cast) => write!(f, "cast {}", cast),
             Instruction::Dbg(reg_operand) => write!(f, "dbg {}", reg_operand),
         }
     }
@@ -475,6 +479,80 @@ impl<RT: RegTypeT> Display for VectorVectorParams<RT> {
             self.dst_full_index.width,
             self.length
         )
+    }
+}
+
+/// A simple cast that can be inferred solely based on the operands
+#[derive(Debug, PartialEq, Clone)]
+pub enum SimpleCast {
+    /// Narrow / widen within the same type
+    Resize(ResizeCast),
+    /// Bitwise convert a signed integer to a unsigned one
+    /// > This is dangerous if the signed register is negative
+    IgnoreSigned(IntegerCast<UnsignedRegT, SignedRegT>),
+    /// Bitwise convert an unsigned integer to signed one
+    /// > This is dangerous if the top bits of the unsigned register are used
+    AddSign(IntegerCast<SignedRegT, UnsignedRegT>),
+    // TODO: Vector casts?
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IntegerCast<TO: RegTypeT, FROM: RegTypeT>
+where
+    TO: RegTypeT<WIDTH = FROM::WIDTH>,
+{
+    to: Reg<TO>,
+    from: RegOrConstant<FROM>,
+}
+
+impl<TO, FROM> IntegerCast<TO, FROM>
+where
+    TO: RegTypeT<WIDTH = RegWidth>,
+    FROM: RegTypeT<WIDTH = RegWidth>,
+{
+    pub fn try_create(to: Reg<TO>, from: RegOrConstant<FROM>) -> Result<Self, ()> {
+        if let Some(width) = from.width()
+            && width != to.width
+        {
+            return Err(());
+        }
+        Ok(Self { to, from })
+    }
+
+    pub fn dst(&self) -> &Reg<TO> {
+        &self.to
+    }
+
+    pub fn from(&self) -> &RegOrConstant<FROM> {
+        &self.from
+    }
+
+    pub fn width(&self) -> RegWidth {
+        self.to.width
+    }
+}
+
+/// A narrowing or widening cast
+/// > Note that widening is allowed implicitly in all instructions
+#[derive(Debug, PartialEq, Clone)]
+pub enum ResizeCast {
+    /// Zero-extension or truncation
+    Unsigned(Reg<UnsignedRegT>, RegOrConstant<UnsignedRegT>),
+    /// Sign-extension or truncation
+    Signed(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
+    /// Precision increase / decrease
+    Float(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
+}
+
+impl Display for SimpleCast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SimpleCast::Resize(ResizeCast::Unsigned(d, p)) => write!(f, "{}, {}", d, p),
+            SimpleCast::Resize(ResizeCast::Signed(d, p)) => write!(f, "{}, {}", d, p),
+            SimpleCast::Resize(ResizeCast::Float(d, p)) => write!(f, "{}, {}", d, p),
+            SimpleCast::IgnoreSigned(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::AddSign(p) => write!(f, "{}, {}", p.dst(), p.from()),
+        }
     }
 }
 

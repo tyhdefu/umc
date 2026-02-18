@@ -330,3 +330,24 @@ fn jump_and_link() {
 
     assert_eq!(250, v);
 }
+
+#[test]
+fn cast_integers() {
+    const PROG: &str = "
+        mov i32:0, #100
+        cast u32:0, i32:0
+
+        mov i32:1, #-1
+        cast u32:1, i32:1
+
+        cast i32:3, 0xFFFFFFFF
+    ";
+    let vm = compile_and_run(PROG);
+    let u32_0: u32 = vm.inspect_uint(0, u32::BITS);
+    let u32_1: u32 = vm.inspect_uint(1, u32::BITS);
+    let i32_3: i32 = vm.inspect_int(3, i32::BITS);
+
+    assert_eq!(u32_0, 100);
+    assert_eq!(u32_1, u32::MAX);
+    assert_eq!(i32_3, -1);
+}

@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero,
-    ConsistentComparison, Instruction, MovParams, NotParams,
+    ConsistentComparison, Instruction, MovParams, NotParams, SimpleCast,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
@@ -328,6 +328,12 @@ pub fn ast_to_bytecode(
             let value_param = parse_any_single_reg(&value_op)
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
             Ok(Instruction::Store(mem_reg, value_param))
+        }
+        "cast" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let cast = SimpleCast::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Cast(cast))
         }
         "dbg" => {
             let [op1] = ops(&instr)?;

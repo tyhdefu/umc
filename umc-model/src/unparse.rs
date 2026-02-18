@@ -1,6 +1,7 @@
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, CompareParams, CompareToZero,
-    ConsistentComparison, ConsistentOp, Instruction, MovParams, NotParams, OffsetOp,
+    ConsistentComparison, ConsistentOp, Instruction, MovParams, NotParams, OffsetOp, ResizeCast,
+    SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -38,6 +39,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Store(mem_reg, reg) => {
             vec![Operand::Reg(mem_reg.into()), Operand::Reg(reg.into())]
         }
+        Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
 }
@@ -149,6 +151,18 @@ fn cmp_to_raw(params: &CompareParams) -> Vec<Operand> {
             vec![dst, a.into(), b.into()]
         }
         ConsistentComparison::InstrAddressCompare(a, b) => vec![dst, a.into(), b.into()],
+    }
+}
+
+fn simple_cast_to_raw(params: &SimpleCast) -> Vec<Operand> {
+    match params {
+        SimpleCast::Resize(ResizeCast::Unsigned(dst, p)) => {
+            vec![Operand::Reg(dst.into()), p.into()]
+        }
+        SimpleCast::Resize(ResizeCast::Signed(dst, p)) => vec![Operand::Reg(dst.into()), p.into()],
+        SimpleCast::Resize(ResizeCast::Float(dst, p)) => vec![Operand::Reg(dst.into()), p.into()],
+        SimpleCast::IgnoreSigned(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
+        SimpleCast::AddSign(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
     }
 }
 
