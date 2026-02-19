@@ -2,6 +2,7 @@ use byteorder::{LE, ReadBytesExt};
 use std::collections::HashMap;
 use std::io;
 
+use crate::binary::leb128::LEBEncodable;
 use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction,
@@ -13,7 +14,7 @@ use crate::reg_model::{InstrRegT, Reg, RegOrConstant};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
-pub const VERSION: BinaryFormatVersion = BinaryFormatVersion { major: 0, minor: 1 };
+pub const VERSION: BinaryFormatVersion = BinaryFormatVersion { major: 0, minor: 2 };
 
 pub fn encode<W: io::Write>(program: &Program, mut dst: W) -> Result<(), EncodeError> {
     let instrs: Vec<(OpCode, Vec<Operand>)> = program
@@ -471,10 +472,10 @@ impl RTHeader {
             dst.write(&[control_byte])?;
 
             if let Some(x) = width {
-                dst.write(&x.to_le_bytes())?;
+                x.encode_leb128(dst)?;
             }
             if let Some(x) = length {
-                dst.write(&x.to_le_bytes())?;
+                x.encode_leb128(dst)?;
             }
         }
         Ok(())
@@ -494,10 +495,10 @@ impl RTHeader {
             let mut length = None;
 
             if reg_type_id.is_variable_width() {
-                width = Some(src.read_u32::<LE>()?);
+                width = Some(u32::decode_leb128(src)?);
             }
             if has_length {
-                length = Some(src.read_u32::<LE>()?);
+                length = Some(u32::decode_leb128(src)?);
             }
 
             if is_constant {

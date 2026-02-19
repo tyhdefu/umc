@@ -7,6 +7,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 
 use crate::{Program, parse::InstructionValidateError};
 
+mod leb128;
 #[cfg(test)]
 mod test;
 mod v0;
