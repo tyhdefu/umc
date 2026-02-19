@@ -1,4 +1,5 @@
 use byteorder::{LE, ReadBytesExt};
+use int_enum::IntEnum;
 use std::collections::HashMap;
 use std::io;
 
@@ -513,7 +514,7 @@ impl RTHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(IntEnum, Debug)]
 #[repr(u8)]
 enum RegTypeId {
     Unsigned = 0b000,
@@ -542,14 +543,7 @@ impl RegTypeId {
     }
 
     pub fn from_value(value: u8) -> Result<RegTypeId, InvalidRegTypeId> {
-        Ok(match value {
-            x if x == RegTypeId::Unsigned as u8 => RegTypeId::Unsigned,
-            x if x == RegTypeId::Signed as u8 => RegTypeId::Signed,
-            x if x == RegTypeId::Float as u8 => RegTypeId::Float,
-            x if x == RegTypeId::MemoryAddress as u8 => RegTypeId::MemoryAddress,
-            x if x == RegTypeId::InstructionAddress as u8 => RegTypeId::InstructionAddress,
-            x => return Err(InvalidRegTypeId(x)),
-        })
+        value.try_into().map_err(|x| InvalidRegTypeId(x))
     }
 
     pub fn from_type(value: &RegType) -> (RegTypeId, Option<RegWidth>) {
@@ -585,8 +579,8 @@ impl RegTypeId {
     }
 }
 
-#[derive(Debug)]
 #[repr(u8)]
+#[derive(IntEnum, Debug)]
 enum OpCode {
     NOP = 0b000000,
     MOV = 0b000001,
@@ -637,40 +631,7 @@ impl From<InvalidOpCode> for DecodeError {
 
 impl OpCode {
     pub fn from_value(value: u8) -> Result<Self, InvalidOpCode> {
-        Ok(match value {
-            x if x == Self::NOP as u8 => Self::NOP,
-            x if x == Self::MOV as u8 => Self::MOV,
-
-            x if x == Self::ADD as u8 => Self::ADD,
-            x if x == Self::SUB as u8 => Self::SUB,
-            x if x == Self::MUL as u8 => Self::MUL,
-            x if x == Self::DIV as u8 => Self::DIV,
-            x if x == Self::MOD as u8 => Self::MOD,
-
-            x if x == Self::JMP as u8 => Self::JMP,
-            x if x == Self::JAL as u8 => Self::JAL,
-            x if x == Self::BZ as u8 => Self::BZ,
-            x if x == Self::BNZ as u8 => Self::BNZ,
-
-            x if x == Self::EQ as u8 => Self::EQ,
-            x if x == Self::GT as u8 => Self::GT,
-            x if x == Self::GTE as u8 => Self::GTE,
-
-            x if x == Self::AND as u8 => Self::AND,
-            x if x == Self::OR as u8 => Self::OR,
-            x if x == Self::XOR as u8 => Self::XOR,
-            x if x == Self::NOT as u8 => Self::NOT,
-
-            x if x == Self::ALLOC as u8 => Self::ALLOC,
-            x if x == Self::FREE as u8 => Self::FREE,
-            x if x == Self::LOAD as u8 => Self::LOAD,
-            x if x == Self::STORE as u8 => Self::STORE,
-
-            x if x == Self::CAST as u8 => Self::CAST,
-
-            x if x == Self::DBG as u8 => Self::DBG,
-            x => return Err(InvalidOpCode(x)),
-        })
+        value.try_into().map_err(|x| InvalidOpCode(x))
     }
 }
 
@@ -678,9 +639,7 @@ impl OpCode {
 mod test {
     use std::io::Cursor;
 
-    use crate::binary::v0::{
-        OpCode, RTHeader, RTHeaderEntry, decode, decode_instruction, encode, encode_instruction,
-    };
+    use super::*;
     use crate::instructions::{
         AnyReg, AnySingleReg, BinaryCondition, CompareParams, ConsistentComparison, Instruction,
         MovParams,
