@@ -18,7 +18,7 @@ fn encode_basic_program() {
         RegOrConstant::Const(23),
     ))];
 
-    let prog = Program { instructions };
+    let prog = Program::from_instrs(instructions);
 
     let mut buffer = vec![];
     v0::encode(&prog, &mut buffer).expect("Failed to encode program");
@@ -58,7 +58,7 @@ fn encode_mov_add_program() {
         }))),
     ];
 
-    let prog = Program { instructions };
+    let prog = Program::from_instrs(instructions);
 
     let mut buffer = vec![];
 
@@ -104,7 +104,7 @@ fn encode_complex_prog() {
         ),
     ];
 
-    let program = Program { instructions };
+    let program = Program::from_instrs(instructions);
 
     let mut buffer = vec![];
     encode(&program, &mut buffer).expect("Failed to encode program");

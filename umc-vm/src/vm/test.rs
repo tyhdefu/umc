@@ -10,7 +10,7 @@ use super::*;
 
 fn compile_and_run(s: &str) -> VirtualMachine {
     let prog = assemble_prog(s).unwrap();
-    let mut vm = VirtualMachine::new(prog, VMOptions::vm_debug());
+    let mut vm = VirtualMachine::create(prog, VMOptions::vm_debug()).unwrap();
     vm.execute();
     vm
 }
@@ -286,7 +286,7 @@ fn fib_encode_and_decode() {
     const FIB_7: u64 = 13;
     let prog = assemble_prog(PROG).expect("Failed to assemble program");
 
-    let mut vm = VirtualMachine::new(prog.clone(), VMOptions::vm_debug());
+    let mut vm = VirtualMachine::create(prog.clone(), VMOptions::vm_debug()).unwrap();
 
     vm.execute();
     let u64_1 = vm.inspect_uint(1, u64::BITS);
@@ -304,7 +304,7 @@ fn fib_encode_and_decode() {
         prog, decoded_prog
     );
 
-    let mut vm = VirtualMachine::new(decoded_prog, VMOptions::vm_debug());
+    let mut vm = VirtualMachine::create(decoded_prog, VMOptions::vm_debug()).unwrap();
     vm.execute();
     let u64_1 = vm.inspect_uint(1, u64::BITS);
     assert_eq!(FIB_7, u64_1);
@@ -350,4 +350,29 @@ fn cast_integers() {
     assert_eq!(u32_0, 100);
     assert_eq!(u32_1, u32::MAX);
     assert_eq!(i32_3, -1);
+}
+
+#[test]
+fn pre_init_addresses() {
+    const PROG: &str = "
+        &CONST_A: [0x01]
+        &CONST_B: [0x12]
+
+        load u8:0, &CONST_A
+        load u8:1, &CONST_B
+
+        dbg u8:0
+        dbg u8:1
+
+        eq u1:0, &CONST_A, &CONST_B
+        dbg u1:0
+    ";
+    let vm = compile_and_run(PROG);
+    let u8_0: u32 = vm.inspect_uint(0, u8::BITS);
+    let u8_1: u32 = vm.inspect_uint(1, u8::BITS);
+    let u1_0: u32 = vm.inspect_uint(0, 1);
+
+    assert_eq!(0x01, u8_0);
+    assert_eq!(0x12, u8_1);
+    assert_eq!(false as u32, u1_0);
 }

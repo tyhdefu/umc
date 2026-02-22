@@ -411,6 +411,12 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Ok(ConsistentComparison::InstrAddressCompare(a, b))
         };
 
+        let maddr = |a: RegOrConstant<MemRegT>| {
+            let b = RegOrConstant::from_mem_addr(p2)
+                .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;
+            Ok(ConsistentComparison::MemAddressCompare(a, b))
+        };
+
         match p1 {
             Operand::Reg(reg) => match &reg.set {
                 RegisterSet::Single(RegType::Num(NumRegType::UnsignedInt(width))) => {
@@ -454,6 +460,7 @@ impl TryFrom<&[&Operand]> for ConsistentComparison {
             Operand::SignedConstant(c) => signed(RegOrConstant::Const(*c)),
             Operand::FloatConstant(c) => float(RegOrConstant::Const(*c)),
             Operand::LabelConstant(c) => iaddr(RegOrConstant::Const(*c)),
+            Operand::MemLabelConstant(c) => maddr(RegOrConstant::Const(*c as u32)),
         }
     }
 }
@@ -714,6 +721,9 @@ pub fn parse_any_reg_or_constant(
         Operand::SignedConstant(c) => AnySingleRegOrConstant::Signed(RegOrConstant::Const(*c)),
         Operand::FloatConstant(c) => AnySingleRegOrConstant::Float(RegOrConstant::Const(*c)),
         Operand::LabelConstant(c) => AnySingleRegOrConstant::Instr(RegOrConstant::Const(*c)),
+        Operand::MemLabelConstant(c) => {
+            AnySingleRegOrConstant::Mem(RegOrConstant::Const(*c as u32))
+        }
     })
 }
 

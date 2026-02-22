@@ -15,12 +15,17 @@ match {
 	r";[^\n\r]*" => {},
     r"\n\s*" => NEWLINE,
 	r"," => COMMA,
+	r"\[" => OPEN_SQUARE_BRACKET,
+	r"\]" => CLOSE_SQUARE_BRACKET,
+
 	// Bad - registers and opcodes conflict if < 3
 	r"[a-z]{2,}" => MNEMONIC,
-    r"\.[A-Z_][A-Z_0-0]*:" => LABEL_SECTION,
+    r"\.[A-Z_][A-Z_0-9]*:" => LABEL_SECTION,
+	r"&[A-Z_][A-Z_0-9]*:" => MEM_LABEL_SECTION,
 } else {
 	// Parameter
 	r"\.[A-Z_][A-Z_0-9]*" => LABEL_PARAM,
+	r"&[A-Z_][A-Z_0-9]*" => MEM_LABEL_PARAM,
 	// Registers
 	r":[0-9]+" => IMPLICIT_REG,
 	r"[a-z][0-9]*:[0-9]+" => SINGLE_REG,
@@ -41,8 +46,9 @@ pub Program: Vec<ast::Statement> = {
 }
 
 pub Statement: ast::Statement = {
-	<lstart:@L> <l:LABEL_SECTION> <lend:@R> NEWLINE+ <i:Instruction> => ast::Statement { label: Some((l[1..l.len()-1].to_string(), lstart..=lend)), instr: i},
-	<i:Instruction> => ast::Statement {label: None, instr: i},
+	<lstart:@L> <l:LABEL_SECTION> <lend:@R> NEWLINE+ <i:Instruction> => ast::Statement::LabelledInstr((l[1..l.len()-1].to_string(), lstart..=lend-1), i),
+	<i:Instruction> => ast::Statement::Instr(i),
+	<lstart:@L> <l:MEM_LABEL_SECTION> <lend:@R> <d:MemData> => ast::Statement::MemoryData((l[1..l.len()-1].to_string(), lstart..=lend-1), d),
 }
 
 
@@ -59,7 +65,8 @@ pub Operand: ast::Operand = {
 	<start: @L> <s:FLOAT_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
 	<start: @L> <s:NEGATIVE_DECIMAL_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
 	<start: @L> <s:DECIMAL_CONSTANT> <end: @R> =>? Ok(ast::Operand::parse_constant(s, start..=end)?),
-	<l:LABEL_PARAM> =>? Ok(ast::Operand::Label(l[1..].to_string())),
+	<l:LABEL_PARAM> => ast::Operand::Label(l[1..].to_string()),
+	<ml:MEM_LABEL_PARAM> => ast::Operand::MemLabel(ml[1..].to_string()),
 	<o:RegOperand> => ast::Operand::Reg(o),
 };
 
@@ -73,3 +80,18 @@ pub RegOperand: ASTRegisterOperand = {
 	<start: @L> <s:SINGLE_REG> <end: @R> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e, start..=end)}),
 	<start: @L> <s:VECTOR_REG> <end: @R> =>? s.parse().map_err(|e| ParseError::User { error: UMCParseError::RegErr(e, start..=end)}),
 };
+
+// Memory Data
+pub MemData: Vec<u8> = {
+	// A series of hex bytes
+	OPEN_SQUARE_BRACKET <mut v:(<HexByte> COMMA)*> <x:HexByte?> CLOSE_SQUARE_BRACKET => match x {
+		None => v,
+		Some(x) => {
+			v.push(x);
+			v
+		},
+	}
+};
+
+// A single hex byte, checked to fit in one byte
+HexByte: u8 = <start:@L> <v:HEX_CONSTANT> <end:@R> =>? Ok(ast::parse_hex_byte(v, start..end)?);

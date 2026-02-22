@@ -24,7 +24,7 @@ use umc_model::reg_model::{
 // TODO: Make these helpers and the VM have a switchable Memory implementation
 type RegState = RegStateRaw<SafeAddress>;
 
-pub fn execute_mov(params: &MovParams, state: &mut RegState) {
+pub fn execute_mov(params: &MovParams, state: &mut RegState, memory_constants: &Vec<SafeAddress>) {
     match params {
         MovParams::UnsignedInt(r, reg_or_constant) => {
             let num_op = AnyConsistentNumOp::UnsignedInt(ConsistentOp::Single(
@@ -50,7 +50,7 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState) {
             ));
             execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
         }
-        MovParams::MemAddress(dst, p) => match read_mem_addr(p, state) {
+        MovParams::MemAddress(dst, p) => match read_mem_addr(p, state, memory_constants) {
             Some(v) => state.store(*dst, v.clone()),
             None => {}
         },
@@ -286,8 +286,13 @@ pub fn execute_bitwise(params: &AnyConsistentNumOp, op: BinaryBitwiseOp, state: 
     }
 }
 
-pub fn execute_comparison(cond: &BinaryCondition, params: &CompareParams, state: &mut RegState) {
-    let result = compare(&params.args, state)
+pub fn execute_comparison(
+    cond: &BinaryCondition,
+    params: &CompareParams,
+    state: &mut RegState,
+    memory_constants: &Vec<SafeAddress>,
+) {
+    let result = compare(&params.args, state, memory_constants)
         .map(|r| match cond {
             BinaryCondition::Equal => r.is_eq(),
             BinaryCondition::GreaterThan => r.is_gt(),
@@ -311,7 +316,11 @@ pub fn execute_comparison(cond: &BinaryCondition, params: &CompareParams, state:
     }
 }
 
-pub fn compare(comparison: &ConsistentComparison, state: &RegState) -> Option<Ordering> {
+pub fn compare(
+    comparison: &ConsistentComparison,
+    state: &RegState,
+    memory_constants: &Vec<SafeAddress>,
+) -> Option<Ordering> {
     /// Get the largest register widths of the two operands
     /// It is assumed that constants have been validated by the assembler
     /// to use less bits than the other operand
@@ -378,7 +387,10 @@ pub fn compare(comparison: &ConsistentComparison, state: &RegState) -> Option<Or
             }
         }
         ConsistentComparison::MemAddressCompare(op1, op2) => {
-            match (read_mem_addr(op1, state), read_mem_addr(op2, state)) {
+            match (
+                read_mem_addr(op1, state, memory_constants),
+                read_mem_addr(op2, state, memory_constants),
+            ) {
                 (Some(m1), Some(m2)) => m1.partial_cmp(m2),
                 _ => None,
             }
@@ -416,16 +428,17 @@ pub fn execute_not(params: &NotParams, state: &mut RegState) {
 
 pub fn execute_load(
     reg: &AnySingleReg,
-    mem_reg: &Reg<MemRegT>,
+    mem_addr: &RegOrConstant<MemRegT>,
     state: &mut RegState,
     memory: &SafeMemoryManager,
-) -> Result<(), MemoryAccessError> {
+    memory_constants: &Vec<SafeAddress>,
+) -> Result<(), MemoryAccessError<SafeAddress>> {
     fn load_prim<RT: RegTypeT, T>(
         reg: Reg<RT>,
         address: &SafeAddress,
         state: &mut RegState,
         memory: &SafeMemoryManager,
-    ) -> Result<(), MemoryAccessError>
+    ) -> Result<(), MemoryAccessError<SafeAddress>>
     where
         T: Serializable + Copy,
         RegState: StorePrim<T, RT>,
@@ -436,9 +449,8 @@ pub fn execute_load(
     }
 
     // If the memory register was never set, it is an invalid address
-    let address: SafeAddress = state
-        .read(*mem_reg)
-        .ok_or(MemoryAccessError::InvalidAddress)?
+    let address: SafeAddress = read_mem_addr(mem_addr, state, memory_constants)
+        .ok_or(MemoryAccessError::InvalidAddress(SafeAddress::NULL))?
         .clone();
 
     match reg {
@@ -468,16 +480,17 @@ pub fn execute_load(
 
 pub fn execute_store(
     reg: &AnySingleReg,
-    mem_reg: &Reg<MemRegT>,
+    mem_addr: &RegOrConstant<MemRegT>,
     state: &RegState,
     memory: &mut SafeMemoryManager,
-) -> Result<(), MemoryAccessError> {
+    memory_constants: &Vec<SafeAddress>,
+) -> Result<(), MemoryAccessError<SafeAddress>> {
     fn store_prim<RT: RegTypeT, T>(
         reg: Reg<RT>,
         address: &SafeAddress,
         state: &RegState,
         memory: &mut SafeMemoryManager,
-    ) -> Result<(), MemoryAccessError>
+    ) -> Result<(), MemoryAccessError<SafeAddress>>
     where
         T: Serializable + Copy + Default,
         RegState: StorePrim<T, RT>,
@@ -487,9 +500,8 @@ pub fn execute_store(
     }
 
     // If the memory register was never set, it is an invalid address
-    let address: SafeAddress = state
-        .read(*mem_reg)
-        .ok_or(MemoryAccessError::InvalidAddress)?
+    let address: SafeAddress = read_mem_addr(mem_addr, state, memory_constants)
+        .ok_or(MemoryAccessError::InvalidAddress(SafeAddress::NULL))?
         .clone();
 
     match reg {
@@ -723,10 +735,11 @@ pub fn read_iaddr(p: &RegOrConstant<InstrRegT>, state: &RegState) -> Instruction
 pub fn read_mem_addr<'a, 'b>(
     p: &'b RegOrConstant<MemRegT>,
     state: &'a RegState,
+    memory_constants: &'a Vec<SafeAddress>,
 ) -> Option<&'a SafeAddress> {
     match p {
         RegOrConstant::Reg(reg) => state.read(*reg),
-        RegOrConstant::Const(_) => unreachable!(),
+        RegOrConstant::Const(c) => memory_constants.get(*c as usize),
     }
 }
 

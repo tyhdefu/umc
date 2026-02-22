@@ -40,6 +40,7 @@ pub fn encode<W: io::Write>(program: &Program, mut dst: W) -> Result<(), EncodeE
                     RTHeaderEntry::Constant(RegType::Num(NumRegType::Float(64)))
                 }
                 Operand::LabelConstant(_) => RTHeaderEntry::Constant(RegType::InstructionAddress),
+                Operand::MemLabelConstant(_) => RTHeaderEntry::Constant(RegType::MemoryAddress),
             };
             *counts.entry(key).or_insert(0) += 1
         }
@@ -126,9 +127,19 @@ fn encode_instruction<W: io::Write>(
                     .expect("No register set for instruction address in table");
                 let rs_index_byte: u8 = rs_index
                     .try_into()
-                    .expect("No matching register set for unsigned constant");
+                    .expect("Instruction Address constant doesn't fit in byte");
                 dst.write(&[rs_index_byte])?;
 
+                dst.write(&(c as u64).to_le_bytes())?;
+            }
+            Operand::MemLabelConstant(c) => {
+                let rs_index = rt_header
+                    .reverse_lookup(RTHeaderEntry::Constant(RegType::MemoryAddress))
+                    .expect("No register set for memory address constant in table");
+                let rs_index_byte: u8 = rs_index
+                    .try_into()
+                    .expect("Memory Address constant index doesn't fit into byte");
+                dst.write(&[rs_index_byte])?;
                 dst.write(&(c as u64).to_le_bytes())?;
             }
         }
@@ -143,9 +154,7 @@ pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
     while let Some(instr) = decode_instruction(&mut src, &rt_header)? {
         instrs.push(instr);
     }
-    Ok(Program {
-        instructions: instrs,
-    })
+    Ok(Program::from_instrs(instrs))
 }
 
 pub fn decode_instruction<R: io::Read>(
@@ -193,11 +202,7 @@ pub fn decode_instruction<R: io::Read>(
                             Operand::FloatConstant(f64::from_bits(constant))
                         }
                         RegType::InstructionAddress => Operand::LabelConstant(constant as usize),
-                        RegType::MemoryAddress => {
-                            return Err(DecodeError::Malformed(format!(
-                                "Cannot decode constant for a memory address"
-                            )));
-                        }
+                        RegType::MemoryAddress => Operand::MemLabelConstant(constant as usize),
                     }
                 }
             };
@@ -333,14 +338,14 @@ pub fn decode_instruction<R: io::Read>(
                     )));
                 }
             };
-            let mem_reg = Reg::from_mem_reg(&op2).map_err(|_| {
+            let mem_reg = RegOrConstant::from_mem_addr(&op2).map_err(|_| {
                 DecodeError::Malformed(format!("Expected destination register for load"))
             })?;
             Instruction::Load(value_reg, mem_reg)
         }
         OpCode::STORE => {
             let [op1, op2] = operands(src, rt_header)?;
-            let mem_reg = Reg::from_mem_reg(&op1).map_err(|_| {
+            let mem_reg = RegOrConstant::from_mem_addr(&op1).map_err(|_| {
                 DecodeError::Malformed(format!("Expected destination register for load"))
             })?;
             let value_reg = match op2 {
@@ -750,9 +755,7 @@ mod test {
             },
             RegOrConstant::Const(12.5),
         ));
-        let prog = Program {
-            instructions: vec![instr],
-        };
+        let prog = Program::from_instrs(vec![instr]);
 
         let mut buf = vec![];
         encode(&prog, &mut buf).expect("Failed to encode program");
@@ -778,9 +781,7 @@ mod test {
             },
         };
 
-        let prog = Program {
-            instructions: vec![instr],
-        };
+        let prog = Program::from_instrs(vec![instr]);
 
         let mut buf = vec![];
         encode(&prog, &mut buf).expect("Failed to encode program");

@@ -33,7 +33,8 @@ impl ArbitraryUnsignedInt {
     }
 
     pub fn from_bytes(bits: u32, buf: &[u8]) -> Result<Self, ()> {
-        let full_chunks = (bits as usize).div_euclid(size_of::<usize>());
+        let full_chunks = (bits / usize::BITS) as usize;
+        println!("Full chunks: {}", full_chunks);
         let mut data = vec![];
         for i in 0..full_chunks {
             let c = i * size_of::<usize>();
@@ -42,11 +43,12 @@ impl ArbitraryUnsignedInt {
             data.push(chunk);
         }
 
-        let partial_chunks = (bits as usize).rem_euclid(size_of::<usize>());
+        let partial_chunks = ((bits % usize::BITS) / u8::BITS) as usize;
+        println!("Partial chunks: {}", partial_chunks);
         let mut last_chunk: usize = 0;
         for i in 0..partial_chunks {
-            let index = ((full_chunks + 1) * size_of::<usize>()) + i;
-            last_chunk += (buf[index] << (u8::BITS * i as u32)) as usize;
+            let index = (full_chunks * size_of::<usize>()) + i;
+            last_chunk += (buf[index] as usize) << (u8::BITS * i as u32);
         }
 
         data.push(last_chunk);

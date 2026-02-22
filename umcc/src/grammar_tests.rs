@@ -1,4 +1,4 @@
-use crate::ast::{ASTRegisterOperand, Instruction, Operand};
+use crate::ast::{ASTRegisterOperand, Instruction, Operand, Statement};
 use crate::grammar::{
     InstructionParser, OperandParser, ProgramParser, RegOperandParser, StatementParser,
 };
@@ -154,4 +154,12 @@ fn parse_simple_prog() {
     let prog_str = "mov u32:0, #1\n";
 
     parser.parse(prog_str).unwrap();
+}
+
+#[test]
+fn parse_pre_init_mem_statement() {
+    const STATEMENT: &str = "&XYZ: [0x01, 0x02, 0x03, 0x04]";
+    let expected = Statement::MemoryData(("XYZ".to_owned(), 0..=4), vec![0x01, 0x02, 0x03, 0x04]);
+    let parser = StatementParser::new();
+    assert_eq!(expected, parser.parse(STATEMENT).unwrap());
 }

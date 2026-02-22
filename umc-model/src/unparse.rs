@@ -34,10 +34,10 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Alloc(mem_reg, size) => vec![Operand::Reg(mem_reg.into()), size.into()],
         Instruction::Free(mem_reg) => vec![Operand::Reg(mem_reg.into())],
         Instruction::Load(reg, mem_reg) => {
-            vec![Operand::Reg(reg.into()), Operand::Reg(mem_reg.into())]
+            vec![Operand::Reg(reg.into()), mem_reg.into()]
         }
         Instruction::Store(mem_reg, reg) => {
-            vec![Operand::Reg(mem_reg.into()), Operand::Reg(reg.into())]
+            vec![mem_reg.into(), Operand::Reg(reg.into())]
         }
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
@@ -251,7 +251,7 @@ impl From<&RegOrConstant<MemRegT>> for Operand {
     fn from(value: &RegOrConstant<MemRegT>) -> Self {
         match value {
             RegOrConstant::Reg(reg) => Operand::Reg(reg.into()),
-            RegOrConstant::Const(_) => unreachable!(),
+            RegOrConstant::Const(c) => Operand::MemLabelConstant(*c as usize),
         }
     }
 }

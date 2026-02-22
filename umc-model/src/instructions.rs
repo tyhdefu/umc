@@ -54,10 +54,10 @@ pub enum Instruction {
     Free(Reg<MemRegT>),
 
     /// Load a register from a memory address
-    Load(AnySingleReg, Reg<MemRegT>),
+    Load(AnySingleReg, RegOrConstant<MemRegT>),
     /// Store a register into a memory address
     // TODO: Can we store constants? Not unless they are sized
-    Store(Reg<MemRegT>, AnySingleReg),
+    Store(RegOrConstant<MemRegT>, AnySingleReg),
 
     // Simple cast based on the registers
     Cast(SimpleCast),

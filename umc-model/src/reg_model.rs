@@ -88,7 +88,7 @@ pub struct MemRegT;
 impl RegTypeT for MemRegT {
     const LETTER: char = 'm';
     type WIDTH = NoWidth;
-    type C = std::convert::Infallible;
+    type C = u32;
 
     fn reg_type(_: &Self::WIDTH) -> RegType {
         RegType::MemoryAddress
@@ -223,7 +223,7 @@ impl Display for RegOrConstant<MemRegT> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(reg) => write!(f, "{}", reg),
-            RegOrConstant::Const(_) => unreachable!(),
+            RegOrConstant::Const(c) => write!(f, "&{:#X}", c),
         }
     }
 }
@@ -328,6 +328,7 @@ impl RegOrConstant<MemRegT> {
                 }
                 return Err(());
             }
+            Operand::MemLabelConstant(c) => Ok(Self::Const(*c as u32)),
             _ => Err(()),
         }
     }

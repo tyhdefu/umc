@@ -68,5 +68,5 @@ fn main() {
         verbose: args.verbose,
     };
     println!("Executing program");
-    VirtualMachine::new(prog, options).execute();
+    VirtualMachine::create(prog, options).unwrap().execute();
 }

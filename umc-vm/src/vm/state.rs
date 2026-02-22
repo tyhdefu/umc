@@ -141,7 +141,6 @@ where
 }
 
 /// Store based on HashMaps
-// TODO: Could improve performance with a non-crypto hasher
 struct HashMapStore<K: Hash + Eq, V> {
     single: HashMap<K, V, FxBuildHasher>,
     vector: HashMap<(K, usize), VecValue<V>, FxBuildHasher>,

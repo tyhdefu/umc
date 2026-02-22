@@ -7,8 +7,8 @@ mod helper;
 #[cfg(test)]
 mod test;
 
-use crate::vm::memory::MemoryManager;
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
+use crate::vm::memory::{AllocateError, MemoryManager};
 use crate::vm::state::{RegState, StoreFor};
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
@@ -24,6 +24,8 @@ pub struct VirtualMachine {
     pc: usize,
     state: RegState<SafeAddress>,
     memory: SafeMemoryManager,
+    // Memory Label id -> Allocated Memory Address
+    memory_constants: Vec<SafeAddress>,
     verbose: bool,
 }
 
@@ -39,16 +41,37 @@ impl VMOptions {
     }
 }
 
+#[derive(Debug)]
+pub enum CreateVMError {
+    /// Pre-initialised memory could not be allocated
+    AllocateError(AllocateError),
+}
+
 impl VirtualMachine {
     /// Initialise a new VM with the given program
-    pub fn new(program: Program, options: VMOptions) -> Self {
-        Self {
+    pub fn create(program: Program, options: VMOptions) -> Result<Self, CreateVMError> {
+        let mut memory = SafeMemoryManager::new();
+
+        // Allocate pre-initialised memory
+        let mut memory_constants = Vec::with_capacity(program.pre_init_mem.len());
+        for x in program.pre_init_mem {
+            let address = memory
+                .allocate_initalised(x)
+                .map_err(|e| CreateVMError::AllocateError(e))?;
+            memory_constants.push(address);
+        }
+
+        println!("Memory constants: {:?}", memory_constants);
+        println!("Memory {:?}", memory);
+
+        Ok(Self {
             program: program.instructions,
             pc: 0,
             state: RegState::new(),
-            memory: SafeMemoryManager::new(),
+            memory,
+            memory_constants: memory_constants,
             verbose: options.verbose,
-        }
+        })
     }
 
     /// Begin execution of the program until it completes
@@ -107,7 +130,7 @@ impl VirtualMachine {
         match instr {
             Instruction::Nop => {}
             Instruction::Mov(params) => {
-                helper::execute_mov(params, &mut self.state);
+                helper::execute_mov(params, &mut self.state, &self.memory_constants);
             }
             Instruction::Add(add_params) => {
                 helper::execute_add(add_params, &mut self.state);
@@ -137,7 +160,7 @@ impl VirtualMachine {
                 helper::execute_not(params, &mut self.state);
             }
             Instruction::Compare { cond, params } => {
-                helper::execute_comparison(cond, params, &mut self.state);
+                helper::execute_comparison(cond, params, &mut self.state, &self.memory_constants);
             }
             Instruction::Jmp(p) => {
                 let to = helper::read_iaddr(p, &self.state);
@@ -185,16 +208,28 @@ impl VirtualMachine {
                 self.memory.free(address);
             }
             Instruction::Load(dst_reg, mem_reg) => {
-                helper::execute_load(dst_reg, mem_reg, &mut self.state, &self.memory)
-                    .unwrap_or_else(|err| {
-                        panic!("Failed to load {} from {}: {:?}", dst_reg, mem_reg, err)
-                    });
+                helper::execute_load(
+                    dst_reg,
+                    mem_reg,
+                    &mut self.state,
+                    &self.memory,
+                    &self.memory_constants,
+                )
+                .unwrap_or_else(|err| {
+                    panic!("Failed to load {} from {}: {:?}", dst_reg, mem_reg, err)
+                });
             }
             Instruction::Store(mem_reg, from_reg) => {
-                helper::execute_store(from_reg, mem_reg, &self.state, &mut self.memory)
-                    .unwrap_or_else(|err| {
-                        panic!("Failed to store {} into {}: {:?}", from_reg, mem_reg, err)
-                    });
+                helper::execute_store(
+                    from_reg,
+                    mem_reg,
+                    &self.state,
+                    &mut self.memory,
+                    &self.memory_constants,
+                )
+                .unwrap_or_else(|err| {
+                    panic!("Failed to store {} into {}: {:?}", from_reg, mem_reg, err)
+                });
             }
             Instruction::Cast(simple_cast) => {
                 helper::execute_simple_cast(simple_cast, &mut self.state);

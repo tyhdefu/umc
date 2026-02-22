@@ -7,12 +7,32 @@ pub mod parse;
 pub mod reg_model;
 pub mod unparse;
 
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct Program {
     pub instructions: Vec<instructions::Instruction>,
+    /// List of pre-initialised memory
+    pub pre_init_mem: Vec<Vec<u8>>,
+
+    /// Labels to identify each pre-initialised memory block
+    pub mem_labels: HashMap<String, usize>,
+    /// Labels for instructions
+    pub instr_labels: HashMap<String, usize>,
+}
+
+impl Program {
+    /// Create a basic program from just instructions
+    pub fn from_instrs(instructions: Vec<instructions::Instruction>) -> Self {
+        Self {
+            instructions,
+            pre_init_mem: vec![],
+            mem_labels: HashMap::new(),
+            instr_labels: HashMap::new(),
+        }
+    }
 }
 
 impl Display for Program {

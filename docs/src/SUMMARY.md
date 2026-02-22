@@ -14,3 +14,4 @@
 - [Implicit and Explicit Casts](./rfcs/casting.md)
 - [Memory Model](./rfcs/memory.md)
 - [Binary Format](./rfcs/bytecode.md)
+- [Initialised Data](./rfcs/initialised_data.md)

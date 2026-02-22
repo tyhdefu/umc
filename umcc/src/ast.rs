@@ -1,4 +1,5 @@
 use std::num::ParseIntError;
+use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
@@ -9,6 +10,7 @@ use umc_model::RegisterSet;
 pub enum ParseError {
     RegErr(ParseRegError, RangeInclusive<usize>),
     InvalidConstant(RangeInclusive<usize>),
+    InvalidByteConstant(RangeInclusive<usize>),
 }
 
 #[derive(Debug)]
@@ -81,6 +83,7 @@ pub enum Operand {
     NegativeConstant(i64),
     FloatConstant(f64),
     Label(String),
+    MemLabel(String),
 }
 
 impl Operand {
@@ -124,9 +127,46 @@ pub struct Instruction {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Statement {
-    pub label: Option<(String, RangeInclusive<usize>)>,
-    pub instr: Instruction,
+pub enum Statement {
+    /// Unlabelled instruction
+    Instr(Instruction),
+    /// Labelled instruction
+    LabelledInstr((String, RangeInclusive<usize>), Instruction),
+    /// Labelled Intialised Memory
+    MemoryData((String, RangeInclusive<usize>), Vec<u8>),
+}
+
+impl Statement {
+    pub fn as_instr(&self) -> Option<(Option<&(String, RangeInclusive<usize>)>, &Instruction)> {
+        match self {
+            Statement::Instr(instruction) => Some((None, instruction)),
+            Statement::LabelledInstr(l, instruction) => Some((Some(l), instruction)),
+            Statement::MemoryData(_, _) => None,
+        }
+    }
+
+    pub fn into_instr(self) -> Option<(Option<(String, RangeInclusive<usize>)>, Instruction)> {
+        match self {
+            Statement::Instr(instruction) => Some((None, instruction)),
+            Statement::LabelledInstr(l, instruction) => Some((Some(l), instruction)),
+            Statement::MemoryData(_, _) => None,
+        }
+    }
+
+    pub fn as_memory_data(&self) -> Option<((&str, &RangeInclusive<usize>), &Vec<u8>)> {
+        match self {
+            Statement::MemoryData((s, loc), data) => Some(((s, loc), data)),
+            _ => None,
+        }
+    }
+}
+
+pub fn parse_hex_byte(hex_byte: &str, loc: Range<usize>) -> Result<u8, ParseError> {
+    match hex_byte.strip_prefix("0x") {
+        Some(s) => u8::from_str_radix(s, 16)
+            .map_err(|_| ParseError::InvalidByteConstant(loc.start..=(loc.end - 1))),
+        None => panic!("Hex bytes should start with 0x"),
+    }
 }
 
 #[cfg(test)]

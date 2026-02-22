@@ -19,14 +19,14 @@ pub fn assemble_prog(prog_str: &str) -> Result<Program, ()> {
         }
     };
 
-    let prog_bc = match assembler::compile_prog(ast_prog) {
+    let prog = match assembler::compile_prog(ast_prog) {
         Ok(p) => p,
         Err(errors) => {
             display_errors(&prog_str, errors);
             return Err(());
         }
     };
-    Ok(prog_bc)
+    Ok(prog)
 }
 
 fn display_errors(prog: &str, errors: Vec<AssembleError>) {
@@ -142,6 +142,18 @@ fn format_syntax_error<'a, T>(
                         ),
                     )]
                 }
+                ast::ParseError::InvalidByteConstant(range) => {
+                    let span = *range.start()..range.end() + 1;
+                    vec![
+                        Level::ERROR.primary_title("Invalid byte constant").element(
+                            Snippet::source(prog).annotation(
+                                AnnotationKind::Primary
+                                    .span(span)
+                                    .label("Byte constants must be in the range 0x00-0xFF"),
+                            ),
+                        ),
+                    ]
+                }
             }
         }
     }
@@ -151,7 +163,20 @@ fn format_assemble_error<'a>(error: &'a AssembleError, prog: &'a str) -> Vec<Gro
     match error {
         AssembleError::DuplicateLabel(l, range) => {
             vec![
-                Level::ERROR.primary_title("Repeated label").element(
+                Level::ERROR
+                    .primary_title("Repeated Instruction label")
+                    .element(
+                        Snippet::source(prog).annotation(
+                            AnnotationKind::Primary
+                                .span(*range.start()..range.end() + 1)
+                                .label(format!("The label `{}` is defined before this", l)),
+                        ),
+                    ),
+            ]
+        }
+        AssembleError::DuplicateMemLabel(l, range) => {
+            vec![
+                Level::ERROR.primary_title("Repeated Memory label").element(
                     Snippet::source(prog).annotation(
                         AnnotationKind::Primary
                             .span(*range.start()..range.end() + 1)
@@ -231,13 +256,26 @@ fn format_assemble_instruction_error<'a>(
                         ),
                 ],
                 InvalidOperandError::UnknownLabel(label) => vec![
-                    Level::ERROR.primary_title("Undefined Label").element(
-                        Snippet::source(prog).annotation(
-                            AnnotationKind::Primary
-                                .span(op_span)
-                                .label(format!("The label `{}` is undefined", label)),
+                    Level::ERROR
+                        .primary_title("Undefined Instruction Label")
+                        .element(
+                            Snippet::source(prog).annotation(
+                                AnnotationKind::Primary
+                                    .span(op_span)
+                                    .label(format!("The label `{}` is undefined", label)),
+                            ),
                         ),
-                    ),
+                ],
+                InvalidOperandError::UnknownMemLabel(label) => vec![
+                    Level::ERROR
+                        .primary_title("Undefined Memory Label")
+                        .element(
+                            Snippet::source(prog).annotation(
+                                AnnotationKind::Primary
+                                    .span(op_span)
+                                    .label(format!("The label `{}` is undefined", label)),
+                            ),
+                        ),
                 ],
                 InvalidOperandError::InvalidType => vec![
                     Level::ERROR

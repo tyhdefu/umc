@@ -17,11 +17,11 @@ impl Display for AllocateError {
 }
 
 #[derive(Debug)]
-pub enum MemoryAccessError {
+pub enum MemoryAccessError<A> {
     /// The address supplied was either never allocated or already freed
-    InvalidAddress,
+    InvalidAddress(A),
     /// The address did correspond to some "block" of memory, but the read/write was out of bounds
-    OutOfBounds,
+    OutOfBounds(A),
 }
 
 /// Required trait implementations for a MemoryAddress implementation
@@ -35,13 +35,20 @@ pub trait MemoryManager {
     /// This may fail if the requested number of bytes could not be allocated, or may appear to succeed
     fn allocate(&mut self, bytes: usize) -> Result<Self::Address, AllocateError>;
 
+    /// Allocate a block of pre-initialised memory
+    /// Returns the aloocated memory address.
+    fn allocate_initalised(&mut self, data: Vec<u8>) -> Result<Self::Address, AllocateError>;
+
     /// Free a block of memory
     /// It is only correct to free a memory address once, but implementations may be forgiving
     fn free(&mut self, address: &Self::Address);
 
     /// Load a primitive value from virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
-    fn load_prim<V: Serializable>(&self, address: &Self::Address) -> Result<V, MemoryAccessError>;
+    fn load_prim<V: Serializable>(
+        &self,
+        address: &Self::Address,
+    ) -> Result<V, MemoryAccessError<Self::Address>>;
 
     /// Load a specific bitwidth value from virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
@@ -49,7 +56,7 @@ pub trait MemoryManager {
         &self,
         bitwidth: usize,
         address: &Self::Address,
-    ) -> Result<V, MemoryAccessError>;
+    ) -> Result<V, MemoryAccessError<Self::Address>>;
 
     /// Store a primitive value into virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
@@ -57,7 +64,7 @@ pub trait MemoryManager {
         &mut self,
         v: V,
         address: &Self::Address,
-    ) -> Result<(), MemoryAccessError>;
+    ) -> Result<(), MemoryAccessError<Self::Address>>;
 
     /// Load a specific bitwidth value from virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
@@ -65,7 +72,7 @@ pub trait MemoryManager {
         &mut self,
         v: V,
         address: &Self::Address,
-    ) -> Result<(), MemoryAccessError>;
+    ) -> Result<(), MemoryAccessError<Self::Address>>;
 }
 
 pub trait Serializable: Sized {
@@ -95,12 +102,12 @@ macro_rules! impl_serialize_prim {
         impl Serializable for $p {
             fn read_from(bytes: &[u8]) -> Result<Self, ()> {
                 let slice = bytes.get(..size_of::<Self>()).ok_or(())?;
-                Ok(Self::from_be_bytes(slice.try_into().unwrap()))
+                Ok(Self::from_le_bytes(slice.try_into().unwrap()))
             }
 
             fn write_to(&self, bytes: &mut [u8]) -> Result<(), ()> {
                 let slice = bytes.get_mut(..size_of::<Self>()).ok_or(())?;
-                slice.clone_from_slice(self.to_be_bytes().as_slice());
+                slice.clone_from_slice(self.to_le_bytes().as_slice());
                 Ok(())
             }
         }

@@ -21,6 +21,7 @@ pub enum Operand {
     SignedConstant(i64),
     FloatConstant(f64),
     LabelConstant(usize),
+    MemLabelConstant(usize),
 }
 
 impl Display for Operand {
@@ -31,6 +32,7 @@ impl Display for Operand {
             Operand::SignedConstant(c) => write!(f, "{:#X}", c),
             Operand::FloatConstant(c) => write!(f, "{:}", c),
             Operand::LabelConstant(c) => write!(f, "{:#X}", c),
+            Operand::MemLabelConstant(c) => write!(f, "{:#X}", c),
         }
     }
 }

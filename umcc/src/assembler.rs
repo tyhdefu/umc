@@ -16,6 +16,7 @@ type Loc = RangeInclusive<usize>;
 
 pub enum AssembleError {
     DuplicateLabel(String, Loc),
+    DuplicateMemLabel(String, Loc),
     InvalidInstruction(AssembleInstructionError, Loc),
 }
 
@@ -47,6 +48,7 @@ pub enum InvalidOperandError {
     ExpectedReg,
     CannotInferReg,
     UnknownLabel(String),
+    UnknownMemLabel(String),
     /// The type of the operand does not agree with the destination / instruction
     InvalidType,
 }
@@ -83,15 +85,24 @@ fn add_ctx(err: InstructionValidateError, instr: &ast::Instruction) -> AssembleI
     instr_err
 }
 
+pub struct Labels {
+    instrs: HashMap<String, usize>,
+    mem: HashMap<String, usize>,
+}
+
 pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Program, Vec<AssembleError>> {
-    let mut labels: HashMap<String, usize> = HashMap::new();
+    let mut labels = Labels {
+        instrs: HashMap::new(),
+        mem: HashMap::new(),
+    };
     let mut instrs = Vec::new();
+    let mut pre_init_mem = Vec::new();
 
     let mut errors = vec![];
 
-    for (i, statement) in ast_prog.iter().enumerate() {
-        if let Some(label) = &statement.label {
-            if labels.insert(label.0.clone(), i).is_some() {
+    for (i, statement) in ast_prog.iter().filter_map(|s| s.as_instr()).enumerate() {
+        if let Some(label) = &statement.0 {
+            if labels.instrs.insert(label.0.clone(), i).is_some() {
                 errors.push(AssembleError::DuplicateLabel(
                     label.0.to_owned(),
                     label.1.clone(),
@@ -100,10 +111,28 @@ pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Program, Vec<Assemb
         }
     }
 
+    for (i, (label, _)) in ast_prog
+        .iter()
+        .filter_map(|s| s.as_memory_data())
+        .enumerate()
+    {
+        if labels.mem.insert(label.0.to_owned(), i).is_some() {
+            errors.push(AssembleError::DuplicateMemLabel(
+                label.0.to_owned(),
+                label.1.clone(),
+            ));
+        }
+    }
+
     for statement in ast_prog.into_iter() {
-        match ast_to_bytecode(statement.instr.clone(), &labels) {
+        let mut parse_instr = |i: ast::Instruction| match ast_to_bytecode(i.clone(), &labels) {
             Ok(bc) => instrs.push(bc),
-            Err(e) => errors.push(AssembleError::bad_instruction(e, &statement.instr)),
+            Err(e) => errors.push(AssembleError::bad_instruction(e, &i)),
+        };
+        match statement {
+            ast::Statement::Instr(i) => parse_instr(i),
+            ast::Statement::LabelledInstr(_, i) => parse_instr(i),
+            ast::Statement::MemoryData(_, data) => pre_init_mem.push(data),
         }
     }
     if !errors.is_empty() {
@@ -111,6 +140,9 @@ pub fn compile_prog(ast_prog: Vec<ast::Statement>) -> Result<Program, Vec<Assemb
     }
     Ok(Program {
         instructions: instrs,
+        pre_init_mem: pre_init_mem,
+        mem_labels: labels.mem,
+        instr_labels: labels.instrs,
     })
 }
 
@@ -125,11 +157,11 @@ fn ops<const N: usize>(
 
 pub fn ast_to_bytecode(
     instr: ast::Instruction,
-    labels: &HashMap<String, usize>,
+    labels: &Labels,
 ) -> Result<Instruction, AssembleInstructionError> {
     fn infer_ops<'a, const N: usize>(
         instr: &ast::Instruction,
-        labels: &HashMap<String, usize>,
+        labels: &Labels,
     ) -> Result<Vec<Operand>, AssembleInstructionError> {
         let dst = instr
             .operands
@@ -148,7 +180,7 @@ pub fn ast_to_bytecode(
 
     fn add_op(
         instr: &ast::Instruction,
-        labels: &HashMap<String, usize>,
+        labels: &Labels,
     ) -> Result<AddParams, AssembleInstructionError> {
         let inferred = infer_ops::<3>(instr, labels)?;
         let refs: Vec<&Operand> = inferred.iter().collect();
@@ -158,7 +190,7 @@ pub fn ast_to_bytecode(
 
     fn coherent_num_op(
         instr: &ast::Instruction,
-        labels: &HashMap<String, usize>,
+        labels: &Labels,
     ) -> Result<AnyConsistentNumOp, AssembleInstructionError> {
         let inferred = infer_ops::<3>(instr, labels)?;
         let refs: Vec<&Operand> = inferred.iter().collect();
@@ -168,7 +200,7 @@ pub fn ast_to_bytecode(
 
     fn comparison_op(
         instr: &ast::Instruction,
-        labels: &HashMap<String, usize>,
+        labels: &Labels,
     ) -> Result<CompareParams, AssembleInstructionError> {
         let [p0, p1, p2] = ops(instr)?;
         let dst_op = parse_dst_reg(p0)?;
@@ -183,7 +215,7 @@ pub fn ast_to_bytecode(
 
     fn cond_branch(
         instr: &ast::Instruction,
-        labels: &HashMap<String, usize>,
+        labels: &Labels,
     ) -> Result<(RegOrConstant<InstrRegT>, CompareToZero), AssembleInstructionError> {
         let [p0, p1] = ops(instr)?;
         let dst_loc = parse_reg_or_constant(
@@ -241,6 +273,13 @@ pub fn ast_to_bytecode(
             let refs: Vec<&Operand> = inferred.iter().collect();
             let params = NotParams::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
             Ok(Instruction::Not(params))
+        }
+        "eq" => {
+            let params = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::Equal,
+                params,
+            })
         }
         "gt" => {
             let params = comparison_op(&instr, labels)?;
@@ -314,14 +353,14 @@ pub fn ast_to_bytecode(
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
 
             let mem_reg = parse_reg_or_constant(p2, None, labels)?;
-            let mem_reg = Reg::from_mem_reg(&mem_reg)
+            let mem_reg = RegOrConstant::from_mem_addr(&mem_reg)
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
             Ok(Instruction::Load(dst_reg, mem_reg))
         }
         "store" => {
             let [p1, p2] = ops::<2>(&instr)?;
             let mem_reg = parse_dst_reg(p1)?;
-            let mem_reg = Reg::from_mem_reg(&Operand::Reg(mem_reg))
+            let mem_reg = RegOrConstant::from_mem_addr(&Operand::Reg(mem_reg))
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
 
             let value_op = parse_reg(p2, None)?;
@@ -400,7 +439,7 @@ fn parse_reg(
 fn parse_reg_or_constant(
     operand: &OperandWithLoc,
     infer_as: Option<&RegisterSet>,
-    labels: &HashMap<String, usize>,
+    labels: &Labels,
 ) -> Result<bc::Operand, AssembleInstructionError> {
     match &operand.0 {
         ast::Operand::Reg(reg) => match infer_as {
@@ -422,7 +461,7 @@ fn parse_reg_or_constant(
         ast::Operand::NegativeConstant(x) => Ok(bc::Operand::SignedConstant(*x)),
         ast::Operand::FloatConstant(x) => Ok(bc::Operand::FloatConstant(*x)),
         ast::Operand::Label(label) => {
-            let pc = labels.get(label).ok_or_else(|| {
+            let pc = labels.instrs.get(label).ok_or_else(|| {
                 AssembleInstructionError::invalid_op(
                     InvalidOperandError::UnknownLabel(label.to_owned()),
                     operand,
@@ -430,12 +469,21 @@ fn parse_reg_or_constant(
             })?;
             Ok(bc::Operand::LabelConstant(*pc))
         }
+        ast::Operand::MemLabel(label) => {
+            let mem_id = labels.mem.get(label).ok_or_else(|| {
+                AssembleInstructionError::invalid_op(
+                    InvalidOperandError::UnknownMemLabel(label.to_owned()),
+                    operand,
+                )
+            })?;
+            Ok(bc::Operand::MemLabelConstant(*mem_id))
+        }
     }
 }
 
 fn parse_iaddress_operand(
     operand: &OperandWithLoc,
-    labels: &HashMap<String, usize>,
+    labels: &Labels,
 ) -> Result<RegOrConstant<InstrRegT>, AssembleInstructionError> {
     let op = parse_reg_or_constant(
         operand,
