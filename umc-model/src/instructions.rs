@@ -236,7 +236,7 @@ pub enum AddParams {
     SignedInt(ConsistentOp<SignedRegT>),
     Float(ConsistentOp<FloatRegT>),
 
-    MemAddress(Reg<MemRegT>, Reg<MemRegT>, OffsetOp),
+    MemAddress(Reg<MemRegT>, RegOrConstant<MemRegT>, OffsetOp),
     InstrAddress(Reg<InstrRegT>, RegOrConstant<InstrRegT>, OffsetOp),
 }
 

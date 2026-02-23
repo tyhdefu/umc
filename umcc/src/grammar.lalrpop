@@ -10,10 +10,13 @@ extern {
 	type Error = UMCParseError;
 }
 
+// Each tier has lower precedence, the first tier has the highest precendence
 match {
     // Ignore ; ... comments
 	r";[^\n\r]*" => {},
-    r"\n\s*" => NEWLINE,
+	// Collapse newline + whitespace into a single newline
+	r"\n\s*" => NEWLINE,
+
 	r"," => COMMA,
 	r"\[" => OPEN_SQUARE_BRACKET,
 	r"\]" => CLOSE_SQUARE_BRACKET,
@@ -36,6 +39,12 @@ match {
 	r"#(-?)[0-9]+\.[0-9]+" => FLOAT_CONSTANT,
 	r"#-[0-9]+" => NEGATIVE_DECIMAL_CONSTANT,
 	r"#[0-9]+" => DECIMAL_CONSTANT,
+	// A quoted string literal starts and ends with an unescaped quotation mark, and contains:
+	// - Any common letter, digit or symbol
+	// - An ascii escape: \0, \n, \r, \t
+	// - An escaped quote or backslash: \\, \"
+	// - A single byte hexadecimal escape
+	r##""([a-zA-Z0-9!-/:-@#\\-`{}-~_() ]|(\\[nrt0"])|(\\x[0-9A-F]{2}))*""## => QUOTED_STRING_LITERAL,
 } else {
 	r"\s+" => {},
 	_
@@ -90,7 +99,9 @@ pub MemData: Vec<u8> = {
 			v.push(x);
 			v
 		},
-	}
+	},
+	// A quoted literal
+	<start: @L> <s:QUOTED_STRING_LITERAL> <end:@R> =>? Ok(ast::parse_quoted_literal(&s[1..s.len()-1], start..=end-1)?),
 };
 
 // A single hex byte, checked to fit in one byte

@@ -170,7 +170,7 @@ fn compute_float<O, T>(
     state.store_prim(*dst, result);
 }
 
-pub fn execute_add(params: &AddParams, state: &mut RegState) {
+pub fn execute_add(params: &AddParams, state: &mut RegState, memory_constants: &Vec<SafeAddress>) {
     match params {
         AddParams::UnsignedInt(consistent_op) => execute_arithmetic(
             &AnyConsistentNumOp::UnsignedInt(consistent_op.clone()),
@@ -188,8 +188,7 @@ pub fn execute_add(params: &AddParams, state: &mut RegState) {
             state,
         ),
         AddParams::MemAddress(dst, reg, offset) => {
-            let mut address = state
-                .read(*reg)
+            let mut address = read_mem_addr(reg, state, memory_constants)
                 .expect("Tried to add to an unset memory register")
                 .clone();
             // TODO: Arbitrary Unsigned or specialisation
@@ -605,6 +604,16 @@ pub fn execute_debug(reg: &AnyReg, state: &RegState) {
     match reg {
         AnyReg::Single(AnySingleReg::Unsigned(reg)) => {
             let x: ArbitraryUnsignedInt = read_uint(&RegOrConstant::Reg(reg.clone()), state);
+            if reg.width == u8::BITS {
+                let v: u32 = x.cast_into();
+                println!(
+                    "{} = {} ('{}')",
+                    reg,
+                    x,
+                    std::ascii::escape_default(v as u8)
+                );
+                return;
+            }
             println!("{} = {}", reg, x);
         }
         AnyReg::Single(AnySingleReg::Signed(reg)) => {

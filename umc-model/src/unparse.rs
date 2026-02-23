@@ -70,7 +70,7 @@ fn add_op_to_raw(add_op: &AddParams) -> Vec<Operand> {
         AddParams::MemAddress(reg, reg1, reg_or_constant) => {
             vec![
                 Operand::Reg(reg.into()),
-                Operand::Reg(reg1.into()),
+                reg1.into(),
                 reg_or_constant.into(),
             ]
         }

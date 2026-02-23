@@ -154,6 +154,20 @@ fn format_syntax_error<'a, T>(
                         ),
                     ]
                 }
+                ast::ParseError::InvalidStringLiteral(_literal_range, invalid_range) => {
+                    let span = *invalid_range.start()..invalid_range.end() + 1;
+                    vec![
+                        Level::ERROR
+                            .primary_title("Invalid string constant")
+                            .element(
+                                Snippet::source(prog).annotation(
+                                    AnnotationKind::Primary
+                                        .span(span)
+                                        .label("Invalid string literal"),
+                                ),
+                            ),
+                    ]
+                }
             }
         }
     }

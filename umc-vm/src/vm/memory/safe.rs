@@ -126,7 +126,6 @@ impl MemoryManager for SafeMemoryManager {
         bitwidth: usize,
         address: &Self::Address,
     ) -> Result<V, MemoryAccessError<Self::Address>> {
-        println!("Blocks {:?}", self.blocks);
         let block = self
             .get_block(address)
             .ok_or_else(|| MemoryAccessError::InvalidAddress(address.clone()))?;

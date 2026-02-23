@@ -68,7 +68,7 @@ impl TryFrom<&[&Operand]> for AddParams {
                 }
             }
             RegisterSet::Single(RegType::MemoryAddress) => {
-                let p1 = Reg::from_mem_reg(ops[1])
+                let p1 = RegOrConstant::from_mem_addr(ops[1])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 1 })?;
                 let p2 = parse_offset(ops[2])
                     .map_err(|_| InstructionValidateError::InconsistentOperand { op_index: 2 })?;

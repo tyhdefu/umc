@@ -11,6 +11,8 @@ pub enum ParseError {
     RegErr(ParseRegError, RangeInclusive<usize>),
     InvalidConstant(RangeInclusive<usize>),
     InvalidByteConstant(RangeInclusive<usize>),
+    /// An invalid string literal, such as an invalid escape sequence
+    InvalidStringLiteral(RangeInclusive<usize>, RangeInclusive<usize>),
 }
 
 #[derive(Debug)]
@@ -166,6 +168,66 @@ pub fn parse_hex_byte(hex_byte: &str, loc: Range<usize>) -> Result<u8, ParseErro
         Some(s) => u8::from_str_radix(s, 16)
             .map_err(|_| ParseError::InvalidByteConstant(loc.start..=(loc.end - 1))),
         None => panic!("Hex bytes should start with 0x"),
+    }
+}
+
+/// Parse a quoted umc literal
+pub fn parse_quoted_literal(s: &str, loc: RangeInclusive<usize>) -> Result<Vec<u8>, ParseError> {
+    let bytes = s.as_bytes();
+    let mut vec = Vec::with_capacity(bytes.len());
+
+    for (i, b) in bytes.iter().enumerate() {
+        if *b == b'\\' {
+            let byte: u8 = match bytes[i + 1] {
+                b'n' => b'\n',
+                b'r' => b'\r',
+                b't' => b'\t',
+                b'0' => b'\0',
+                b'\\' => b'\\',
+                b'x' => {
+                    let range = i..=(i + 2);
+                    match bytes.get(range.clone()) {
+                        Some(hex_escape) => parse_escaped_hex(hex_escape)
+                            .map_err(|_| ParseError::InvalidStringLiteral(loc.clone(), range))?,
+                        None => {
+                            return Err(ParseError::InvalidStringLiteral(
+                                loc.clone(),
+                                i..=s.len() - 1,
+                            ));
+                        }
+                    }
+                }
+                _ => return Err(ParseError::InvalidStringLiteral(loc, i..=i)),
+            };
+            vec.push(byte);
+        } else {
+            vec.push(*b);
+        }
+    }
+    Ok(vec)
+}
+
+/// Parse an escaped ascii character
+pub fn parse_escaped_ascii(s: &str) -> u8 {
+    assert_eq!(2, s.len(), "Escaped ascii should be 2 characters: {:?}", s);
+    match s.strip_prefix('\\') {
+        Some(v) => match v.as_bytes()[0] {
+            b'n' => b'\n',
+            b'r' => b'\r',
+            b't' => b'\t',
+            b'0' => b'\0',
+            b'\\' => b'\\',
+            x => panic!("Unhandled ascii escape: {:?}", x),
+        },
+        None => panic!("Escaped ascii did not start with a backslash: {:?}", s),
+    }
+}
+
+pub fn parse_escaped_hex(s: &[u8]) -> Result<u8, ()> {
+    let s = str::from_utf8(s).map_err(|_| ())?;
+    match s.strip_prefix("\\x") {
+        Some(v) => u8::from_str_radix(v, 16).map_err(|_| ()),
+        None => Err(()),
     }
 }
 

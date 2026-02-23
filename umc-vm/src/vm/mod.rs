@@ -61,9 +61,6 @@ impl VirtualMachine {
             memory_constants.push(address);
         }
 
-        println!("Memory constants: {:?}", memory_constants);
-        println!("Memory {:?}", memory);
-
         Ok(Self {
             program: program.instructions,
             pc: 0,
@@ -133,7 +130,7 @@ impl VirtualMachine {
                 helper::execute_mov(params, &mut self.state, &self.memory_constants);
             }
             Instruction::Add(add_params) => {
-                helper::execute_add(add_params, &mut self.state);
+                helper::execute_add(add_params, &mut self.state, &self.memory_constants);
             }
             Instruction::Sub(num_op) => {
                 helper::execute_arithmetic(num_op, BinaryArithmeticOp::Sub, &mut self.state);

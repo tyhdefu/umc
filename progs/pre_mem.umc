@@ -1,6 +1,8 @@
 &X: [0x01, 0x00, 0x00, 0x00]
 &Y: [0x00, 0x00, 0x00, 0xA0]
 
+&MY_STRING: "hello world\n\0"
+
 load u32:0, &X
 load u32:1, &Y
 
@@ -9,3 +11,16 @@ dbg u32:1
 
 add u32:2, u32:0, u32:1
 dbg u32:2
+
+mov m:0, &MY_STRING
+
+load u8:0, m:0
+dbg u8:0
+
+add m:0, &MY_STRING, #1
+load u8:0, m:0
+dbg u8:0
+
+add m:0, &MY_STRING, #11
+load u8:0, m:0
+dbg u8:0
