@@ -16,34 +16,66 @@ An environment call requests the the VM perform privilleged, (likely platform sp
 ## External Call List
 
 ### exit
-Exits with the given exit code (should this be kept?)
+Exits with the given exit code
 
-Example:
+Parameters:
+- Result Register (Ignored)
+- External Call Code
+- Exit Code
 ```
 ecall u1:0, 0x0, #1 ; Exit the VM with exit code 1
 ```
 
 ### open
+Open attempts to open a file with the given filename.
+On success, it returns a positive integer filename handle
+
+Parameters:
+- Result Register (signed integer)
+- External Call Code
+- Null terminated filename (memory address)
+
 ```
-ecall m:1, 0x1, m:0, #10 ; Filename of length 10
+ecall i32:1, 0x1, m:0
 ```
 
 ### close
-Close the given file
+Close the given file.
+On success, 1 is stored into the result register
+Parameters:
+- Result Register (unsigned, at least 1 bit)
+- External Call Code
+- File handle (unsigned integer)
+
 ```
-ecall u1:0, 0x2, m:1
+ecall u1:0, 0x2, u32:1
 ```
 
 ### read
-Read up to the given number of bytes from the file
+Read up to the given number of bytes from the file.
+On success, the number of bytes read is stored into the result register.
+Parameters:
+- Result Register (unsigned)
+- External Call Code
+- File handle (unsigned integer)
+- Buffer (memory address)
+- Maximum number of bytes to read (unsigned integer)
+
 ```
-ecall u64:1, 0x3, m:1, m:2, u64:0
+ecall u64:1, 0x3, u32:0, m:1, u64:0
 ```
 
 ### write
 Write the given number of bytes from a memory address into a file
+Stores the number of bytes successfully written into the result register
+Parameters:
+- Result Register (unsigned)
+- External Call Code
+- File handle (unsigned integer)
+- Buffer (memory address)
+- Maximum number of bytes to write (unsigned integer)
 ```
-ecall u1:0, 0x4, m:1, m:2, u64:0
+ecall u64:0, 0x4, u32:0, m:2, u64:1
 ```
 
 ### getarg
