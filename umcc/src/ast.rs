@@ -117,6 +117,13 @@ impl Operand {
         }
         Err(ParseError::InvalidConstant(range))
     }
+
+    pub fn reg(&self) -> Option<&ASTRegisterOperand> {
+        match self {
+            Operand::Reg(reg) => Some(reg),
+            _ => None,
+        }
+    }
 }
 
 pub type OperandWithLoc = (Operand, usize, RangeInclusive<usize>);

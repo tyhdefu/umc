@@ -136,6 +136,36 @@ impl MemoryManager for SafeMemoryManager {
         V::read_from(slice, bitwidth).map_err(|_| MemoryAccessError::OutOfBounds(address.clone()))
     }
 
+    fn get_null_terminated(
+        &self,
+        address: &Self::Address,
+    ) -> Result<&[u8], MemoryAccessError<Self::Address>> {
+        let block = self
+            .get_block(address)
+            .ok_or_else(|| MemoryAccessError::InvalidAddress(address.clone()))?;
+        let end_index = block
+            .0
+            .iter()
+            .position(|x| *x == b'\0')
+            .ok_or_else(|| MemoryAccessError::OutOfBounds(address.clone()))?;
+
+        Ok(block.0.get(0..end_index).unwrap())
+    }
+
+    fn get_mut_length(
+        &mut self,
+        address: &Self::Address,
+        length: usize,
+    ) -> Result<&mut [u8], MemoryAccessError<Self::Address>> {
+        let block = self
+            .get_block_mut(address)
+            .ok_or_else(|| MemoryAccessError::InvalidAddress(address.clone()))?;
+        block
+            .0
+            .get_mut(0..length)
+            .ok_or_else(|| MemoryAccessError::OutOfBounds(address.clone()))
+    }
+
     fn store_prim<V: Serializable>(
         &mut self,
         v: V,
@@ -154,7 +184,7 @@ impl MemoryManager for SafeMemoryManager {
 
     fn store<V: SerializableArb>(
         &mut self,
-        v: V,
+        v: &V,
         address: &Self::Address,
     ) -> Result<(), MemoryAccessError<Self::Address>> {
         let block = self

@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::iter::repeat_n;
 
+use crate::vm::environment::{ECallCode, Environment};
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::memory::{MemoryAccessError, MemoryManager, Serializable};
 use crate::vm::state::{RegState as RegStateRaw, StoreFor, StorePrim};
@@ -9,13 +10,14 @@ use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, BinaryOp, CastInto, CastSingleFloat, CastSingleSigned,
-    CastSingleUnsigned, UMCBitwise, UMCOffset,
+    CastSingleUnsigned, MovOp, NotOp, UMCOffset,
 };
+use crate::vm::widths::{UIntWidth, WidthBinaryOp, WidthOptions, WidthUnaryOp};
 use umc_model::RegWidth;
 use umc_model::instructions::{
-    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, BinaryCondition, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, MovParams, NotParams, OffsetOp, ResizeCast,
-    SimpleCast, VectorBroadcastParams, VectorVectorParams,
+    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, BinaryCondition,
+    CompareParams, CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, MovParams,
+    NotParams, OffsetOp, ResizeCast, SimpleCast,
 };
 use umc_model::reg_model::{
     FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
@@ -27,12 +29,8 @@ type RegState = RegStateRaw<SafeAddress>;
 pub fn execute_mov(params: &MovParams, state: &mut RegState, memory_constants: &Vec<SafeAddress>) {
     match params {
         MovParams::UnsignedInt(r, reg_or_constant) => {
-            let num_op = AnyConsistentNumOp::UnsignedInt(ConsistentOp::Single(
-                r.clone(),
-                reg_or_constant.clone(),
-                RegOrConstant::Const(0),
-            ));
-            execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
+            let domain = UIntWidth::from_width(r.width);
+            domain.operate_unary_in_domain(*r, reg_or_constant, state, &MovOp);
         }
         MovParams::SignedInt(r, reg_or_constant) => {
             let num_op = AnyConsistentNumOp::SignedInt(ConsistentOp::Single(
@@ -70,74 +68,6 @@ where
     let p2: T = read(p2);
     op.operate(&mut p1, &p2);
     p1
-}
-
-fn compute_unsigned<O, T>(
-    op: O,
-    dst: &Reg<UnsignedRegT>,
-    p1: &RegOrConstant<UnsignedRegT>,
-    p2: &RegOrConstant<UnsignedRegT>,
-    state: &mut RegState,
-) where
-    O: BinaryOp<T>,
-    T: CastSingleUnsigned + Copy,
-    RegState: StorePrim<T, UnsignedRegT>,
-{
-    let result: T = compute_binary(op, |r| read_uint(r, state), p1, p2);
-    state.store_prim(*dst, result);
-}
-
-fn compute_unsigned_broadcast<O, T>(
-    op: O,
-    params: &VectorBroadcastParams<UnsignedRegT>,
-    state: &mut RegState,
-) where
-    O: BinaryOp<T>,
-    T: CastSingleUnsigned + Copy + Default,
-    RegState: StorePrim<T, UnsignedRegT>,
-{
-    let mut x: VecValue<T> = state
-        .read_multi_prim(params.vec_param(), params.length() as usize)
-        .cloned()
-        .unwrap_or_else(|| VecValue::from_repeated_default(params.length() as usize));
-
-    let v: T = read_uint(params.value_param(), state);
-
-    if params.is_reversed() {
-        x.broadcast_op_reversed(&v, |a, b| op.operate(a, b));
-    } else {
-        x.broadcast_op(&v, |a, b| op.operate(a, b));
-    }
-
-    state.store_multi_copy_prim(*params.dst(), x.as_slice());
-}
-
-fn compute_vec<O, RT, T>(op: O, params: &VectorVectorParams<RT>, state: &mut RegState)
-where
-    O: BinaryOp<T>,
-    RT: RegTypeT,
-    T: Copy + Default,
-    RegState: StorePrim<T, RT>,
-{
-    let mut x: VecValue<T> = state
-        .read_multi_prim(params.p1(), params.length() as usize)
-        .cloned()
-        .unwrap_or_else(|| VecValue::from_repeated_default(params.length() as usize));
-    let y: Option<&VecValue<T>> = state.read_multi_prim(params.p2(), params.length() as usize);
-
-    match y {
-        Some(y) => {
-            x.vector_op(y, |a, b| op.operate(a, b));
-        }
-        None => {
-            let zero = Default::default();
-            for v in x.as_slice_mut() {
-                op.operate(v, &zero);
-            }
-        }
-    }
-
-    state.store_multi_copy_prim(params.dst().clone(), x.as_slice());
 }
 
 fn compute_signed<O, T>(
@@ -212,27 +142,18 @@ pub fn execute_arithmetic(
 ) {
     match params {
         AnyConsistentNumOp::UnsignedInt(param_kind) => match param_kind {
-            ConsistentOp::Single(dst, p1, p2) => match dst.width {
-                u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
-                u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
-                _ => {
-                    let mut p1: ArbitraryUnsignedInt = read_uint(&p1, state);
-                    let p2: ArbitraryUnsignedInt = read_uint(&p2, state);
-                    p1.set_bits(dst.width);
-                    op.operate(&mut p1, &p2);
-                    state.store(*dst, p1);
-                }
-            },
-            ConsistentOp::VectorBroadcast(params) => match params.width() {
-                u32::BITS => compute_unsigned_broadcast::<_, u32>(op, params, state),
-                u64::BITS => compute_unsigned_broadcast::<_, u32>(op, params, state),
-                _ => todo!("Unsigned Arbitrary Vectors todo"),
-            },
-            ConsistentOp::VectorVector(params) => match params.width() {
-                u32::BITS => compute_vec::<_, _, u32>(op, params, state),
-                u64::BITS => compute_vec::<_, _, u64>(op, params, state),
-                _ => todo!("Unsigned Arbitrary Vectors todo"),
-            },
+            ConsistentOp::Single(dst, p1, p2) => {
+                let domain = UIntWidth::from_width(dst.width);
+                domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
+            }
+            ConsistentOp::VectorBroadcast(params) => {
+                let domain = UIntWidth::from_width(params.dst().width);
+                domain.operate_binary_broadcast_in_domain(params, state, &op);
+            }
+            ConsistentOp::VectorVector(params) => {
+                let domain = UIntWidth::from_width(params.dst().width);
+                domain.operate_binary_vector_in_domain(params, &op, state);
+            }
         },
         AnyConsistentNumOp::SignedInt(param_kind) => match param_kind {
             ConsistentOp::Single(dst, p1, p2) => match dst.width {
@@ -258,17 +179,10 @@ pub fn execute_arithmetic(
 pub fn execute_bitwise(params: &AnyConsistentNumOp, op: BinaryBitwiseOp, state: &mut RegState) {
     match params {
         AnyConsistentNumOp::UnsignedInt(num_op) => match num_op {
-            ConsistentOp::Single(dst, p1, p2) => match dst.width {
-                u32::BITS => compute_unsigned::<_, u32>(op, dst, p1, p2, state),
-                u64::BITS => compute_unsigned::<_, u64>(op, dst, p1, p2, state),
-                _ => {
-                    let mut p1: ArbitraryUnsignedInt = read_uint(&p1, state);
-                    let p2: ArbitraryUnsignedInt = read_uint(&p2, state);
-                    p1.set_bits(dst.width);
-                    op.operate(&mut p1, &p2);
-                    state.store(*dst, p1);
-                }
-            },
+            ConsistentOp::Single(dst, p1, p2) => {
+                let domain = UIntWidth::from_width(dst.width);
+                domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
+            }
             ConsistentOp::VectorBroadcast(_) => todo!(),
             ConsistentOp::VectorVector(_) => todo!(),
         },
@@ -301,18 +215,7 @@ pub fn execute_comparison(
         })
         .unwrap_or(false);
     let dst = &params.dst;
-    match dst.width {
-        u32::BITS => {
-            state.store_prim(*dst, result as u32);
-        }
-        u64::BITS => {
-            state.store_prim(*dst, result as u64);
-        }
-        _ => {
-            let v: ArbitraryUnsignedInt = (result as u32).cast_into();
-            state.store(*dst, v);
-        }
-    }
+    UIntWidth::store_u64(*dst, state, result as u64);
 }
 
 pub fn compare(
@@ -333,26 +236,7 @@ pub fn compare(
     }
 
     match comparison {
-        ConsistentComparison::UnsignedCompare(op1, op2) => {
-            let width = largest_width(op1.width(), op2.width(), u64::BITS);
-            match width {
-                w if w <= u32::BITS => {
-                    let v1: u32 = read_uint(op1, state);
-                    let v2: u32 = read_uint(op2, state);
-                    v1.partial_cmp(&v2)
-                }
-                w if w <= u64::BITS => {
-                    let v1: u64 = read_uint(op1, state);
-                    let v2: u64 = read_uint(op2, state);
-                    v1.partial_cmp(&v2)
-                }
-                _ => {
-                    let v1: ArbitraryUnsignedInt = read_uint(op1, state);
-                    let v2: ArbitraryUnsignedInt = read_uint(op2, state);
-                    v1.partial_cmp(&v2)
-                }
-            }
-        }
+        ConsistentComparison::UnsignedCompare(op1, op2) => UIntWidth::compare(op1, op2, state),
         ConsistentComparison::SignedCompare(op1, op2) => {
             let width = op1.width().or(op2.width()).unwrap_or(i64::BITS);
             match width {
@@ -404,23 +288,9 @@ pub fn compare(
 
 pub fn execute_not(params: &NotParams, state: &mut RegState) {
     match params {
-        NotParams::UnsignedInt(d, p1) => match d.width {
-            u32::BITS => {
-                let mut v: u32 = read_uint(p1, state);
-                v.not();
-                state.store_prim(*d, v);
-            }
-            u64::BITS => {
-                let mut v: u64 = read_uint(p1, state);
-                v.not();
-                state.store_prim(*d, v);
-            }
-            _ => {
-                let mut v: ArbitraryUnsignedInt = read_uint(p1, state);
-                v.not();
-                state.store(*d, v);
-            }
-        },
+        NotParams::UnsignedInt(d, p) => {
+            UIntWidth::from_width(d.width).operate_unary_in_domain(*d, p, state, &NotOp);
+        }
         NotParams::SignedInt(..) => todo!(),
     }
 }
@@ -504,14 +374,7 @@ pub fn execute_store(
         .clone();
 
     match reg {
-        AnySingleReg::Unsigned(reg) => match reg.width {
-            u32::BITS => store_prim::<_, u32>(*reg, &address, state, memory),
-            u64::BITS => store_prim::<_, u64>(*reg, &address, state, memory),
-            _ => {
-                let val: ArbitraryUnsignedInt = state.read(*reg).unwrap().clone();
-                memory.store(val, &address)
-            }
-        },
+        AnySingleReg::Unsigned(reg) => UIntWidth::store_into_memory(*reg, state, memory, &address),
         AnySingleReg::Signed(reg) => match reg.width {
             i32::BITS => store_prim::<_, i32>(*reg, &address, state, memory),
             i64::BITS => store_prim::<_, i64>(*reg, &address, state, memory),
@@ -530,21 +393,10 @@ pub fn execute_store(
 pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
     // Note that most of these simple casts are performed by read_uint itself
     match cast {
-        SimpleCast::Resize(ResizeCast::Unsigned(dst, p)) => match dst.width {
-            u32::BITS => {
-                let v: u32 = read_uint(&p, state);
-                state.store_prim(*dst, v);
-            }
-            u64::BITS => {
-                let v: u32 = read_uint(&p, state);
-                state.store_prim(*dst, v);
-            }
-            w => {
-                let mut v: ArbitraryUnsignedInt = read_uint(&p, state);
-                v.resize_to(w);
-                state.store(*dst, v);
-            }
-        },
+        SimpleCast::Resize(ResizeCast::Unsigned(dst, p)) => {
+            let domain = UIntWidth::from_width(dst.width);
+            domain.operate_unary_in_domain(*dst, p, state, &MovOp);
+        }
         SimpleCast::Resize(ResizeCast::Signed(dst, p)) => match dst.width {
             u32::BITS => {
                 let v: i32 = read_int(&p, state);
@@ -600,6 +452,134 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
     }
 }
 
+#[derive(Debug)]
+pub enum ECallError {
+    InvalidECallCode(u32),
+    /// List of arguments did not match the expected argument format
+    InvalidArguments,
+    /// A particular argument had an invalid value
+    InvalidArgValue(usize),
+    InvalidDestination,
+}
+
+pub fn execute_ecall<E: Environment>(
+    ecall: &ECallParams,
+    state: &mut RegStateRaw<SafeAddress>,
+    memory_state: &mut SafeMemoryManager,
+    memory_constants: &Vec<SafeAddress>,
+    environment: &mut E,
+) -> Result<(), ECallError> {
+    let ecall_code: u32 = read_uint(&ecall.code, state);
+    let ecall_code: ECallCode = ecall_code
+        .try_into()
+        .map_err(|x| ECallError::InvalidECallCode(x))?;
+
+    fn args<const N: usize>(
+        slice: &[AnySingleRegOrConstant],
+    ) -> Result<&[AnySingleRegOrConstant; N], ECallError> {
+        slice.try_into().map_err(|_| ECallError::InvalidArguments)
+    }
+
+    match ecall_code {
+        ECallCode::EXIT => todo!(),
+        ECallCode::OPEN => {
+            let dst_reg = match ecall.dst {
+                AnyReg::Single(AnySingleReg::Unsigned(r)) => r,
+                _ => return Err(ECallError::InvalidDestination),
+            };
+
+            let [filename] = args(&ecall.args)?;
+            let mem_addr = match filename {
+                AnySingleRegOrConstant::Mem(x) => x,
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            // TODO: Handle these errors better
+            let filename_ptr = read_mem_addr(mem_addr, state, memory_constants)
+                .ok_or(ECallError::InvalidArgValue(0))?;
+            let filename = memory_state
+                .get_null_terminated(filename_ptr)
+                .map_err(|_| ECallError::InvalidArgValue(0))?;
+            let filename_str =
+                str::from_utf8(filename).map_err(|_| ECallError::InvalidArgValue(0))?;
+
+            // TODO: Open file failed
+            let file_handle = environment.open(filename_str).unwrap();
+
+            UIntWidth::store_u64(dst_reg, state, file_handle as u64);
+        }
+        ECallCode::CLOSE => {
+            let dst_reg = match ecall.dst {
+                AnyReg::Single(AnySingleReg::Unsigned(r)) => r,
+                _ => return Err(ECallError::InvalidDestination),
+            };
+
+            let [file_handle] = args(&ecall.args)?;
+            let file_handle: u32 = match file_handle {
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let suc = environment.close(file_handle).is_err();
+            UIntWidth::store_u64(dst_reg, state, suc as u64);
+            return Ok(());
+        }
+        ECallCode::READ => {
+            let dst_reg = match ecall.dst {
+                AnyReg::Single(AnySingleReg::Unsigned(r)) => r,
+                _ => return Err(ECallError::InvalidDestination),
+            };
+
+            let [file_handle, buf_addr, size_reg] = args(&ecall.args)?;
+            let file_handle: u32 = match file_handle {
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let mem_addr = match buf_addr {
+                AnySingleRegOrConstant::Mem(x) => {
+                    read_mem_addr(x, state, memory_constants).unwrap()
+                }
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let size: u64 = match size_reg {
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let buf = memory_state
+                .get_mut_length(mem_addr, size as usize)
+                .unwrap();
+            let read_bytes = environment.read(file_handle, buf).unwrap();
+            UIntWidth::store_u64(dst_reg, state, read_bytes as u64);
+        }
+        ECallCode::WRITE => {
+            let dst_reg = match ecall.dst {
+                AnyReg::Single(AnySingleReg::Unsigned(r)) => r,
+                _ => return Err(ECallError::InvalidDestination),
+            };
+
+            let [file_handle, buf_addr, size_reg] = args(&ecall.args)?;
+            let file_handle: u32 = match file_handle {
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let mem_addr = match buf_addr {
+                AnySingleRegOrConstant::Mem(x) => {
+                    read_mem_addr(x, state, memory_constants).unwrap()
+                }
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let size: u64 = match size_reg {
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                _ => return Err(ECallError::InvalidArguments),
+            };
+            let buf = memory_state
+                .get_mut_length(mem_addr, size as usize)
+                .unwrap();
+            let wrote_bytes = environment.write(file_handle, &buf).unwrap();
+            UIntWidth::store_u64(dst_reg, state, wrote_bytes as u64);
+        }
+    }
+    Ok(())
+}
+
 pub fn execute_debug(reg: &AnyReg, state: &RegState) {
     match reg {
         AnyReg::Single(AnySingleReg::Unsigned(reg)) => {
@@ -643,9 +623,12 @@ pub fn execute_debug(reg: &AnyReg, state: &RegState) {
     }
 }
 
-pub fn read_uint<T>(op: &RegOrConstant<UnsignedRegT>, state: &RegState) -> T
+pub fn read_uint<T, S>(op: &RegOrConstant<UnsignedRegT>, state: &S) -> T
 where
     T: CastSingleUnsigned,
+    S: StorePrim<u32, UnsignedRegT>
+        + StorePrim<u64, UnsignedRegT>
+        + StoreFor<ArbitraryUnsignedInt, UnsignedRegT>,
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {
@@ -755,14 +738,14 @@ pub fn read_mem_addr<'a, 'b>(
 pub fn is_zero(p: &CompareToZero, state: &RegState) -> bool {
     // TODO: This isn't right
     match p {
-        CompareToZero::Unsigned(r) => read_uint::<u32>(r, state) == 0,
+        CompareToZero::Unsigned(r) => UIntWidth::is_zero(r, state),
         CompareToZero::Signed(r) => read_int::<i32>(r, state) == 0,
     }
 }
 
 pub fn read_offset(p: &OffsetOp, state: &RegState) -> isize {
     match p {
-        OffsetOp::Unsigned(op) => read_uint::<u64>(op, state) as isize,
+        OffsetOp::Unsigned(op) => read_uint::<u64, _>(op, state) as isize,
         OffsetOp::Signed(op) => read_int::<i64>(op, state) as isize,
     }
 }

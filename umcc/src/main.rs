@@ -1,6 +1,10 @@
 pub mod ast;
 
-use std::{env, ffi::OsStr, fs::File, io::BufWriter, path::Path};
+use std::env;
+use std::ffi::OsStr;
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::Path;
 
 use lalrpop_util::lalrpop_mod;
 use umc_model::binary::encode;

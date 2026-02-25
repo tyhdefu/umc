@@ -41,6 +41,25 @@ pub trait UMCBitwise: PartialEq {
     fn not(&mut self);
 }
 
+pub trait UnaryOp<V> {
+    fn operate(&self, v: &mut V);
+}
+
+pub struct MovOp;
+impl<V> UnaryOp<V> for MovOp {
+    fn operate(&self, _: &mut V) {}
+}
+
+pub struct NotOp;
+impl<V> UnaryOp<V> for NotOp
+where
+    V: UMCBitwise,
+{
+    fn operate(&self, v: &mut V) {
+        v.not();
+    }
+}
+
 pub trait BinaryOp<V> {
     fn operate(&self, a: &mut V, b: &V);
 }

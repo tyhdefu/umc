@@ -4,10 +4,12 @@ use std::ops::RangeInclusive;
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero,
-    ConsistentComparison, Instruction, MovParams, NotParams, SimpleCast,
+    ConsistentComparison, ECallParams, Instruction, MovParams, NotParams, SimpleCast,
 };
 use umc_model::operand::{Operand, RegOperand};
-use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
+use umc_model::parse::{
+    InstructionValidateError, parse_any_reg, parse_any_reg_or_constant, parse_any_single_reg,
+};
 use umc_model::reg_model::{InstrRegT, Reg, RegOrConstant};
 use umc_model::{Program, operand as bc};
 use umc_model::{RegType, RegisterSet};
@@ -23,6 +25,7 @@ pub enum AssembleError {
 #[derive(Debug)]
 pub enum AssembleInstructionError {
     UnknownOpCode(Loc),
+    // Expected, got
     InvalidOperandCount(usize, usize),
     InvalidOperand(InvalidOperandError, usize, Loc),
 }
@@ -233,6 +236,39 @@ pub fn ast_to_bytecode(
         Ok((jump_loc, cmp_zero))
     }
 
+    fn ecall_instr(
+        instr: &ast::Instruction,
+        labels: &Labels,
+    ) -> Result<ECallParams, AssembleInstructionError> {
+        if instr.operands.len() < 2 {
+            return Err(AssembleInstructionError::InvalidOperandCount(
+                2,
+                instr.operands.len(),
+            ));
+        }
+        let dst_reg = parse_dst_reg(&instr.operands[0])?;
+        let dst_reg = parse_any_reg(&dst_reg);
+
+        let ecall_code = parse_reg_or_constant(&instr.operands[1], None, labels)?;
+        let ecall_code = RegOrConstant::from_unsigned(&ecall_code)
+            .map_err(|_| AssembleInstructionError::invalid_op_type(&instr.operands[1]))?;
+
+        // TODO: Should check arguments based on the ecall code
+        let mut args = vec![];
+        for i in 2..(instr.operands.len()) {
+            let arg = parse_reg_or_constant(&instr.operands[i], None, labels)?;
+            let arg = parse_any_reg_or_constant(&arg)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(&instr.operands[i]))?;
+
+            args.push(arg);
+        }
+        Ok(ECallParams {
+            dst: dst_reg,
+            code: ecall_code,
+            args,
+        })
+    }
+
     match instr.opcode.as_str() {
         "mov" => {
             let inferred = infer_ops::<2>(&instr, labels)?;
@@ -373,6 +409,10 @@ pub fn ast_to_bytecode(
             let refs: Vec<&Operand> = inferred.iter().collect();
             let cast = SimpleCast::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
             Ok(Instruction::Cast(cast))
+        }
+        "ecall" => {
+            let ecall = ecall_instr(&instr, labels)?;
+            Ok(Instruction::ECall(ecall))
         }
         "dbg" => {
             let [op1] = ops(&instr)?;

@@ -88,8 +88,11 @@ impl ArbitraryUnsignedInt {
         self.bits = new_bits;
     }
 
+    /// Resize to the given number of bits, narrowing the value if necessary
     pub fn resize_to(&mut self, bits: u32) {
         self.set_bits(bits);
+        self.data.truncate(self.max_size());
+        self.mask_top();
     }
 
     pub fn data(&self) -> &[usize] {

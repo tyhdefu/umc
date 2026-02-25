@@ -366,6 +366,7 @@ pub fn decode_instruction<R: io::Read>(
                 .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
             Instruction::Cast(cast)
         }
+        OpCode::ECALL => todo!("Parsing environment calls in the binary format is not supported!"),
         OpCode::DBG => {
             let [op] = operands::<R, 1>(src, rt_header)?;
             match op {
@@ -416,6 +417,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Load(_, _) => OpCode::LOAD,
         Instruction::Store(_, _) => OpCode::STORE,
         Instruction::Cast(_) => OpCode::CAST,
+        Instruction::ECall(_) => OpCode::ECALL,
         Instruction::Dbg(_) => OpCode::DBG,
     };
 
@@ -622,6 +624,9 @@ enum OpCode {
 
     // Cast
     CAST = 0b110001,
+
+    // Environment call
+    ECALL = 0b110100,
 
     // Debug
     DBG = 0b111111,

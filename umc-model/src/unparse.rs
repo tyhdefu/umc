@@ -40,6 +40,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
             vec![mem_reg.into(), Operand::Reg(reg.into())]
         }
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
+        Instruction::ECall(ecall) => todo!("converting ecall to raw"),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
 }

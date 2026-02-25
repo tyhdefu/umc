@@ -61,6 +61,9 @@ pub enum Instruction {
 
     // Simple cast based on the registers
     Cast(SimpleCast),
+
+    /// Environment call
+    ECall(ECallParams),
     // TODO: Float to integer cast
     /// Print the given register (debugging)
     Dbg(AnyReg),
@@ -286,6 +289,14 @@ pub enum CompareToZero {
     Signed(RegOrConstant<SignedRegT>),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ECallParams {
+    pub dst: AnyReg,
+    pub code: RegOrConstant<UnsignedRegT>,
+    // TODO: Allow vector arguments too
+    pub args: Vec<AnySingleRegOrConstant>,
+}
+
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -331,6 +342,7 @@ impl Display for Instruction {
                 write!(f, "store {}, {}", mem_reg, reg)
             }
             Instruction::Cast(cast) => write!(f, "cast {}", cast),
+            Instruction::ECall(ecall) => write!(f, "ecall {}", ecall),
             Instruction::Dbg(reg_operand) => write!(f, "dbg {}", reg_operand),
         }
     }
@@ -604,5 +616,15 @@ impl Display for AnySingleRegOrConstant {
             AnySingleRegOrConstant::Instr(x) => write!(f, "{}", x),
             AnySingleRegOrConstant::Mem(x) => write!(f, "{}", x),
         }
+    }
+}
+
+impl Display for ECallParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}, {}", self.dst, self.code)?;
+        for arg in &self.args {
+            write!(f, ", {}", arg)?;
+        }
+        Ok(())
     }
 }

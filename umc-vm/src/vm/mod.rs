@@ -2,11 +2,14 @@ mod memory;
 mod state;
 mod types;
 
+mod environment;
 mod helper;
+mod widths;
 
 #[cfg(test)]
 mod test;
 
+use crate::vm::environment::AnyEnvironment;
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::memory::{AllocateError, MemoryManager};
 use crate::vm::state::{RegState, StoreFor};
@@ -26,6 +29,7 @@ pub struct VirtualMachine {
     memory: SafeMemoryManager,
     // Memory Label id -> Allocated Memory Address
     memory_constants: Vec<SafeAddress>,
+    environment: AnyEnvironment,
     verbose: bool,
 }
 
@@ -68,6 +72,7 @@ impl VirtualMachine {
             memory,
             memory_constants: memory_constants,
             verbose: options.verbose,
+            environment: AnyEnvironment::new(),
         })
     }
 
@@ -85,7 +90,7 @@ impl VirtualMachine {
         T: Default,
     {
         let reg = RegOrConstant::from_reg(Reg { index, width });
-        helper::read_uint::<T>(&reg, &self.state)
+        helper::read_uint::<T, _>(&reg, &self.state)
     }
 
     pub fn inspect_uint_vec<T>(
@@ -231,6 +236,14 @@ impl VirtualMachine {
             Instruction::Cast(simple_cast) => {
                 helper::execute_simple_cast(simple_cast, &mut self.state);
             }
+            Instruction::ECall(ecall) => helper::execute_ecall(
+                ecall,
+                &mut self.state,
+                &mut self.memory,
+                &self.memory_constants,
+                &mut self.environment,
+            )
+            .unwrap_or_else(|err| panic!("Environment Call Failed: {:?} ({})", err, instr)),
             Instruction::Dbg(reg) => helper::execute_debug(reg, &self.state),
         };
         self.pc += 1;

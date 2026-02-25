@@ -598,6 +598,7 @@ name = "umc-vm"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "int-enum",
  "rustc-hash",
  "umc-model",
  "umcc",

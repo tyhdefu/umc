@@ -58,6 +58,20 @@ pub trait MemoryManager {
         address: &Self::Address,
     ) -> Result<V, MemoryAccessError<Self::Address>>;
 
+    /// Read a null terminated sequence of bytes from the given memory address
+    /// Returns the sequence without the null terminator
+    fn get_null_terminated(
+        &self,
+        address: &Self::Address,
+    ) -> Result<&[u8], MemoryAccessError<Self::Address>>;
+
+    /// Get mut buffer of a given length
+    fn get_mut_length(
+        &mut self,
+        address: &Self::Address,
+        length: usize,
+    ) -> Result<&mut [u8], MemoryAccessError<Self::Address>>;
+
     /// Store a primitive value into virtual memory
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
     fn store_prim<V: Serializable>(
@@ -70,7 +84,7 @@ pub trait MemoryManager {
     /// This may fail if the given address was invalid, or may cause implementation-defined behaviour
     fn store<V: SerializableArb>(
         &mut self,
-        v: V,
+        v: &V,
         address: &Self::Address,
     ) -> Result<(), MemoryAccessError<Self::Address>>;
 }

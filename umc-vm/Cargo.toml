@@ -11,3 +11,4 @@ umcc = { path = "../umcc" }
 # For Command line args parsing
 clap = { version = "4.5.55", features = ["derive"]}
 rustc-hash = "2.1.1"
+int-enum = "1.2.0"
