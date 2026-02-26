@@ -376,3 +376,15 @@ fn pre_init_addresses() {
     assert_eq!(0x12, u8_1);
     assert_eq!(false as u32, u1_0);
 }
+
+#[test]
+fn test_compare_uint_constant() {
+    const PROG: &str = "
+        mov u32:0, 0x1
+        lt u1:0, u32:0, 0x800000000
+        dbg u1:0
+    ";
+    let vm = compile_and_run(PROG);
+    let u1_0: u32 = vm.inspect_uint(0, 1);
+    assert_eq!(true as u32, u1_0);
+}

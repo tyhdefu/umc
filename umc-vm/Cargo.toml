@@ -8,6 +8,9 @@ edition = "2024"
 umc-model = { path = "../umc-model" }
 umcc = { path = "../umcc" }
 
+# Arbitrary manually controlled width integers
+awint = {version = "0.18.1" }
+
 # For Command line args parsing
 clap = { version = "4.5.55", features = ["derive"]}
 rustc-hash = "2.1.1"

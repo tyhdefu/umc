@@ -113,7 +113,7 @@ impl VirtualMachine {
         T: Default,
     {
         let reg = RegOrConstant::from_reg(Reg { index, width });
-        helper::read_int::<T>(&reg, &self.state)
+        helper::read_int::<T, _>(&reg, &self.state)
     }
 
     pub fn inspect_float<T>(&self, index: RegIndex, width: RegWidth) -> T

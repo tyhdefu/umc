@@ -45,11 +45,14 @@ pub trait UnaryOp<V> {
     fn operate(&self, v: &mut V);
 }
 
+/// Don't modify the value.
+/// However, value may be implicitly modified by resizing in the same instruction
 pub struct MovOp;
 impl<V> UnaryOp<V> for MovOp {
     fn operate(&self, _: &mut V) {}
 }
 
+/// Bitwise negation of the value
 pub struct NotOp;
 impl<V> UnaryOp<V> for NotOp
 where

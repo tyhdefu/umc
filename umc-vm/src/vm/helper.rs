@@ -6,13 +6,16 @@ use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::memory::{MemoryAccessError, MemoryManager, Serializable};
 use crate::vm::state::{RegState as RegStateRaw, StoreFor, StorePrim};
 use crate::vm::types::address::InstructionAddress;
+use crate::vm::types::int::ArbitraryInt;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, BinaryOp, CastInto, CastSingleFloat, CastSingleSigned,
     CastSingleUnsigned, MovOp, NotOp, UMCOffset,
 };
-use crate::vm::widths::{UIntWidth, WidthBinaryOp, WidthOptions, WidthUnaryOp};
+use crate::vm::widths::int::IntWidth;
+use crate::vm::widths::uint::UIntWidth;
+use crate::vm::widths::{WidthBinaryOp, WidthOptions, WidthUnaryOp};
 use umc_model::RegWidth;
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, BinaryCondition,
@@ -33,12 +36,8 @@ pub fn execute_mov(params: &MovParams, state: &mut RegState, memory_constants: &
             domain.operate_unary_in_domain(*r, reg_or_constant, state, &MovOp);
         }
         MovParams::SignedInt(r, reg_or_constant) => {
-            let num_op = AnyConsistentNumOp::SignedInt(ConsistentOp::Single(
-                r.clone(),
-                reg_or_constant.clone(),
-                RegOrConstant::Const(0),
-            ));
-            execute_arithmetic(&num_op, BinaryArithmeticOp::Add, state);
+            let domain = IntWidth::from_width(r.width);
+            domain.operate_unary_in_domain(*r, reg_or_constant, state, &MovOp);
         }
         MovParams::Float(r, reg_or_constant) => {
             let num_op = AnyConsistentNumOp::Float(ConsistentOp::Single(
@@ -68,21 +67,6 @@ where
     let p2: T = read(p2);
     op.operate(&mut p1, &p2);
     p1
-}
-
-fn compute_signed<O, T>(
-    op: O,
-    dst: &Reg<SignedRegT>,
-    p1: &RegOrConstant<SignedRegT>,
-    p2: &RegOrConstant<SignedRegT>,
-    state: &mut RegState,
-) where
-    O: BinaryOp<T>,
-    T: CastSingleSigned + Copy,
-    RegState: StorePrim<T, SignedRegT>,
-{
-    let result: T = compute_binary(op, |r| read_int(r, state), p1, p2);
-    state.store_prim(*dst, result);
 }
 
 fn compute_float<O, T>(
@@ -156,11 +140,10 @@ pub fn execute_arithmetic(
             }
         },
         AnyConsistentNumOp::SignedInt(param_kind) => match param_kind {
-            ConsistentOp::Single(dst, p1, p2) => match dst.width {
-                i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
-                i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
-                _ => todo!(),
-            },
+            ConsistentOp::Single(dst, p1, p2) => {
+                let domain = IntWidth::from_width(dst.width);
+                domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
+            }
             ConsistentOp::VectorBroadcast(_) => todo!(),
             ConsistentOp::VectorVector(_) => todo!(),
         },
@@ -187,11 +170,10 @@ pub fn execute_bitwise(params: &AnyConsistentNumOp, op: BinaryBitwiseOp, state: 
             ConsistentOp::VectorVector(_) => todo!(),
         },
         AnyConsistentNumOp::SignedInt(num_op) => match num_op {
-            ConsistentOp::Single(dst, p1, p2) => match dst.width {
-                i32::BITS => compute_signed::<_, i32>(op, dst, p1, p2, state),
-                i64::BITS => compute_signed::<_, i64>(op, dst, p1, p2, state),
-                _ => todo!(),
-            },
+            ConsistentOp::Single(dst, p1, p2) => {
+                let domain = IntWidth::from_width(dst.width);
+                domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
+            }
             ConsistentOp::VectorBroadcast(_) => todo!(),
             ConsistentOp::VectorVector(_) => todo!(),
         },
@@ -223,36 +205,9 @@ pub fn compare(
     state: &RegState,
     memory_constants: &Vec<SafeAddress>,
 ) -> Option<Ordering> {
-    /// Get the largest register widths of the two operands
-    /// It is assumed that constants have been validated by the assembler
-    /// to use less bits than the other operand
-    fn largest_width(a: Option<RegWidth>, b: Option<RegWidth>, default: RegWidth) -> RegWidth {
-        match (a, b) {
-            (Some(x), Some(y)) => x.max(y),
-            (Some(x), None) => x,
-            (None, Some(y)) => y,
-            (None, None) => default,
-        }
-    }
-
     match comparison {
         ConsistentComparison::UnsignedCompare(op1, op2) => UIntWidth::compare(op1, op2, state),
-        ConsistentComparison::SignedCompare(op1, op2) => {
-            let width = op1.width().or(op2.width()).unwrap_or(i64::BITS);
-            match width {
-                w if w <= i32::BITS => {
-                    let v1: i32 = read_int(op1, state);
-                    let v2: i32 = read_int(op2, state);
-                    v1.partial_cmp(&v2)
-                }
-                w if w <= i64::BITS => {
-                    let v1: i64 = read_int(op1, state);
-                    let v2: i64 = read_int(op2, state);
-                    v1.partial_cmp(&v2)
-                }
-                _ => todo!(),
-            }
-        }
+        ConsistentComparison::SignedCompare(op1, op2) => IntWidth::compare(op1, op2, state),
         ConsistentComparison::FloatCompare(op1, op2) => {
             let width = op1.width().or(op2.width()).unwrap_or(64);
             match width {
@@ -375,11 +330,7 @@ pub fn execute_store(
 
     match reg {
         AnySingleReg::Unsigned(reg) => UIntWidth::store_into_memory(*reg, state, memory, &address),
-        AnySingleReg::Signed(reg) => match reg.width {
-            i32::BITS => store_prim::<_, i32>(*reg, &address, state, memory),
-            i64::BITS => store_prim::<_, i64>(*reg, &address, state, memory),
-            _ => todo!(),
-        },
+        AnySingleReg::Signed(reg) => IntWidth::store_into_memory(*reg, state, memory, &address),
         AnySingleReg::Float(reg) => match reg.width {
             32 => store_prim::<_, f32>(*reg, &address, state, memory),
             64 => store_prim::<_, f64>(*reg, &address, state, memory),
@@ -397,20 +348,10 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
             let domain = UIntWidth::from_width(dst.width);
             domain.operate_unary_in_domain(*dst, p, state, &MovOp);
         }
-        SimpleCast::Resize(ResizeCast::Signed(dst, p)) => match dst.width {
-            u32::BITS => {
-                let v: i32 = read_int(&p, state);
-                state.store_prim(*dst, v);
-            }
-            u64::BITS => {
-                let v: i64 = read_int(&p, state);
-                state.store_prim(*dst, v);
-            }
-            _ => {
-                // Need to sign extend or truncate
-                todo!("Arbitrary unsigned integers not yet supported");
-            }
-        },
+        SimpleCast::Resize(ResizeCast::Signed(dst, p)) => {
+            let domain = IntWidth::from_width(dst.width);
+            domain.operate_unary_in_domain(*dst, p, state, &MovOp);
+        }
         SimpleCast::Resize(ResizeCast::Float(dst, p)) => match dst.width {
             32 => {
                 let v: f32 = read_float(&p, state);
@@ -675,9 +616,10 @@ where
     })
 }
 
-pub fn read_int<T>(op: &RegOrConstant<SignedRegT>, state: &RegState) -> T
+pub fn read_int<T, S>(op: &RegOrConstant<SignedRegT>, state: &S) -> T
 where
     T: CastSingleSigned,
+    S: StorePrim<i32, SignedRegT> + StorePrim<i64, SignedRegT>, /*+ StoreFor<ArbitraryInt, SignedRegT>*/
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {
@@ -739,13 +681,13 @@ pub fn is_zero(p: &CompareToZero, state: &RegState) -> bool {
     // TODO: This isn't right
     match p {
         CompareToZero::Unsigned(r) => UIntWidth::is_zero(r, state),
-        CompareToZero::Signed(r) => read_int::<i32>(r, state) == 0,
+        CompareToZero::Signed(r) => IntWidth::is_zero(r, state),
     }
 }
 
 pub fn read_offset(p: &OffsetOp, state: &RegState) -> isize {
     match p {
         OffsetOp::Unsigned(op) => read_uint::<u64, _>(op, state) as isize,
-        OffsetOp::Signed(op) => read_int::<i64>(op, state) as isize,
+        OffsetOp::Signed(op) => read_int::<i64, _>(op, state) as isize,
     }
 }

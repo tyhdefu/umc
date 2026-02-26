@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 use crate::vm::memory::MemoryAddress;
 use crate::vm::types::address::InstructionAddress;
+use crate::vm::types::int::ArbitraryInt;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::vector::VecValue;
 use rustc_hash::FxBuildHasher;
@@ -46,6 +47,7 @@ pub struct RegState<M: MemoryAddress> {
     uas: HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt>,
     i32s: HashMapStore<RegIndex, i32>,
     i64s: HashMapStore<RegIndex, i64>,
+    ias: HashMapStore<Reg<SignedRegT>, ArbitraryInt>,
     f32s: HashMapStore<RegIndex, f32>,
     f64s: HashMapStore<RegIndex, f64>,
     addresses: HashMapStore<Reg<InstrRegT>, InstructionAddress>,
@@ -60,6 +62,7 @@ impl<M: MemoryAddress> RegState<M> {
             uas: HashMapStore::new(),
             i32s: HashMapStore::new(),
             i64s: HashMapStore::new(),
+            ias: HashMapStore::new(),
             f32s: HashMapStore::new(),
             f64s: HashMapStore::new(),
             addresses: HashMapStore::new(),
@@ -281,6 +284,16 @@ impl<M: MemoryAddress> DStoreFor<UnsignedRegT, ArbitraryUnsignedInt> for RegStat
 
     fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt> {
         &mut self.uas
+    }
+}
+
+impl<M: MemoryAddress> DStoreFor<SignedRegT, ArbitraryInt> for RegState<M> {
+    fn get_store(&self) -> &HashMapStore<Reg<SignedRegT>, ArbitraryInt> {
+        &self.ias
+    }
+
+    fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<SignedRegT>, ArbitraryInt> {
+        &mut self.ias
     }
 }
 
