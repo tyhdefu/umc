@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::Display;
 use std::num::NonZeroUsize;
 use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
@@ -8,7 +9,7 @@ use umc_model::RegWidth;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct ArbitraryInt {
     // None signifies a zero-width integer
     inner: Option<Awi>,
@@ -55,6 +56,12 @@ impl ArbitraryInt {
         }
     }
 
+    fn to_same_bw(bw: NonZeroUsize, o: &Awi) -> Awi {
+        let mut awi = Awi::zero(bw);
+        awi.sign_resize_(o);
+        awi
+    }
+
     fn op_nonzero<F>(&mut self, other: &Self, op: F)
     where
         F: FnOnce(&mut Awi, &Awi),
@@ -90,8 +97,82 @@ impl Default for ArbitraryInt {
 impl Display for ArbitraryInt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.inner {
-            Some(i) => write!(f, "{:b}", i),
+            Some(i) => write!(
+                f,
+                "{}",
+                Awi::bits_to_string_radix(i, false, 16, true, 0).unwrap()
+            ),
             None => write!(f, "0"),
+        }
+    }
+}
+
+impl PartialEq for ArbitraryInt {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.inner, &other.inner) {
+            (Some(a), Some(b)) => {
+                if a.bw() == b.bw() {
+                    return true;
+                }
+                let b = Self::to_same_bw(a.nzbw(), b);
+                a == &b
+            }
+            (Some(a), None) => a.is_zero(),
+            (None, Some(b)) => b.is_zero(),
+            (None, None) => true,
+        }
+    }
+}
+
+impl Eq for ArbitraryInt {}
+
+impl PartialOrd for ArbitraryInt {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ArbitraryInt {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self.inner, &other.inner) {
+            (Some(a), Some(b)) => {
+                if a.bw() != b.bw() {
+                    let b = Self::to_same_bw(a.nzbw(), &b);
+                    if *a == b {
+                        return Ordering::Equal;
+                    } else if a.ilt(&b).unwrap() {
+                        return Ordering::Less;
+                    } else {
+                        return Ordering::Greater;
+                    }
+                }
+                if a == b {
+                    return Ordering::Equal;
+                } else if a.ilt(&b).unwrap() {
+                    return Ordering::Less;
+                } else {
+                    return Ordering::Greater;
+                }
+            }
+            (Some(a), None) => {
+                if a.is_zero() {
+                    return Ordering::Equal;
+                } else if a.msb() == true {
+                    return Ordering::Less;
+                } else {
+                    return Ordering::Greater;
+                }
+            }
+            (None, Some(b)) => {
+                if b.is_zero() {
+                    return Ordering::Equal;
+                } else if b.msb() == false {
+                    return Ordering::Less;
+                } else {
+                    return Ordering::Greater;
+                }
+            }
+            (None, None) => Ordering::Equal,
         }
     }
 }
@@ -320,7 +401,26 @@ impl CastFrom<i64> for ArbitraryInt {
 
 #[cfg(test)]
 mod test {
-    use crate::vm::types::{UMCArithmetic, int::ArbitraryInt};
+    use crate::vm::types::{int::ArbitraryInt, UMCArithmetic};
+
+    #[test]
+    fn equal_different_bitwidth() {
+        assert_eq!(
+            ArbitraryInt::zero(5),
+            ArbitraryInt::zero(8),
+            "zeros not equal"
+        );
+    }
+
+    #[test]
+    fn mixed_compare() {
+        let mut a = ArbitraryInt::zero(16);
+        a.add_u32(u16::MAX as u32);
+        let mut b = ArbitraryInt::zero(8);
+        b.add_u32(5);
+        assert!(a < b, "a < b");
+        assert!(b > a, "b > a");
+    }
 
     #[test]
     fn add_wrapping_arbitrary_int() {
@@ -332,6 +432,8 @@ mod test {
 
         a.add(&b);
 
-        panic!("{}", a);
+        assert_eq!("0x82", format!("0x{}", a), "Debug {:?}", a);
+
+        assert!(a < ArbitraryInt::zero(8), "Should become negative!");
     }
 }

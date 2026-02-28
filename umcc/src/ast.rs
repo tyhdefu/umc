@@ -183,7 +183,8 @@ pub fn parse_quoted_literal(s: &str, loc: RangeInclusive<usize>) -> Result<Vec<u
     let bytes = s.as_bytes();
     let mut vec = Vec::with_capacity(bytes.len());
 
-    for (i, b) in bytes.iter().enumerate() {
+    let mut iter = bytes.iter().enumerate();
+    while let Some((i, b)) = iter.next() {
         if *b == b'\\' {
             let byte: u8 = match bytes[i + 1] {
                 b'n' => b'\n',
@@ -193,7 +194,7 @@ pub fn parse_quoted_literal(s: &str, loc: RangeInclusive<usize>) -> Result<Vec<u
                 b'\\' => b'\\',
                 b'x' => {
                     let range = i..=(i + 2);
-                    match bytes.get(range.clone()) {
+                    let c = match bytes.get(range.clone()) {
                         Some(hex_escape) => parse_escaped_hex(hex_escape)
                             .map_err(|_| ParseError::InvalidStringLiteral(loc.clone(), range))?,
                         None => {
@@ -202,10 +203,15 @@ pub fn parse_quoted_literal(s: &str, loc: RangeInclusive<usize>) -> Result<Vec<u
                                 i..=s.len() - 1,
                             ));
                         }
-                    }
+                    };
+                    // Remove two hex characters from the stream
+                    let (_, _) = (iter.next(), iter.next());
+                    c
                 }
                 _ => return Err(ParseError::InvalidStringLiteral(loc, i..=i)),
             };
+            // Remove character following backslash
+            let _ = iter.next();
             vec.push(byte);
         } else {
             vec.push(*b);
@@ -240,7 +246,7 @@ pub fn parse_escaped_hex(s: &[u8]) -> Result<u8, ()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{ASTRegisterOperand, RegType, RegisterSet};
+    use crate::ast::{ASTRegisterOperand, RegType, RegisterSet, parse_quoted_literal};
     use umc_model::NumRegType;
 
     #[test]
@@ -276,5 +282,21 @@ mod tests {
             },
             "f64x4:0".parse().unwrap()
         )
+    }
+
+    #[test]
+    fn parse_escaped_newline() {
+        const STRING: &str = r#"hello world\n"#;
+        let raw_result = parse_quoted_literal(STRING, 0..=STRING.len() - 1).unwrap();
+        let result = String::from_utf8(raw_result).unwrap();
+        assert_eq!(result, "hello world\n");
+    }
+
+    #[test]
+    fn parse_escaped_hex_in_string_literal() {
+        const STRING: &str = r#"hello world\x00"#;
+        let raw_result = parse_quoted_literal(STRING, 0..=STRING.len() - 1).unwrap();
+        let result = String::from_utf8(raw_result).unwrap();
+        assert_eq!(result, "hello world\0");
     }
 }
