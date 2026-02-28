@@ -23,9 +23,33 @@ impl ArbitraryUnsignedInt {
     }
 
     #[cfg(test)]
+    pub fn new_from_u32(bits: u32, value: u32) -> Self {
+        assert!(usize::BITS >= u32::BITS);
+
+        Self {
+            bits,
+            data: vec![value as usize],
+        }
+    }
+
+    #[cfg(test)]
     pub fn add_u64(&mut self, other: u64) {
         let other: Self = (&other).cast_into();
         self.add(&other);
+    }
+
+    pub fn increment(&mut self) {
+        for i in 0..(self.max_size()) {
+            if i < self.data.len() {
+                let (v, carry) = self.data[i].carrying_add(0, true);
+                self.data[i] = v;
+                if !carry {
+                    break;
+                }
+            } else {
+                self.data.push(1);
+            }
+        }
     }
 
     pub fn as_usize(&self) -> usize {
@@ -328,16 +352,49 @@ impl UMCArithmetic for ArbitraryUnsignedInt {
         self.mask_top();
     }
 
-    fn modulo(&mut self, rhs: &Self) {
-        todo!()
-    }
-
     fn mul(&mut self, rhs: &Self) {
-        todo!()
+        let mut dest = ArbitraryUnsignedInt::new(self.bits);
+
+        // Very basic implementation: Add X number of times
+        let value = (&*self).max(rhs);
+        let iterations = (&*self).min(rhs);
+
+        let mut counter = ArbitraryUnsignedInt::new(iterations.bits);
+
+        while counter < *iterations {
+            dest.add(value);
+            counter.increment();
+        }
+
+        *self = dest;
+        self.mask_top();
     }
 
     fn div(&mut self, rhs: &Self) {
-        todo!()
+        // Very basic implementation: just counter how many times we fit in
+        if *rhs == ArbitraryUnsignedInt::ZERO {
+            panic!("Divide by zero!");
+        }
+        let mut count: u32 = 0;
+        while *self >= *rhs {
+            self.sub(&rhs);
+            count += 1;
+        }
+        // Hack but at least we have everything implemented
+        self.data = vec![count as usize];
+    }
+
+    fn modulo(&mut self, rhs: &Self) {
+        if *self < *rhs {
+            return;
+        }
+        if *rhs == ArbitraryUnsignedInt::ZERO {
+            panic!("Modulo by zero!");
+        }
+        // Very basic implementation: just keep subtracting rhs until we are in bound
+        while *self >= *rhs {
+            self.sub(rhs);
+        }
     }
 }
 
@@ -496,6 +553,7 @@ impl CastFrom<i64> for ArbitraryUnsignedInt {
 #[cfg(test)]
 mod tests {
     use crate::vm::memory::SerializableArb;
+    use crate::vm::types::UMCArithmetic;
     use crate::vm::types::uint::ArbitraryUnsignedInt;
 
     fn check_serialize(expected: ArbitraryUnsignedInt) {
@@ -525,5 +583,60 @@ mod tests {
         let mut v = ArbitraryUnsignedInt::new(48);
         v.add_u64(u32::MAX as u64 + 1915);
         check_serialize(v);
+    }
+
+    #[test]
+    fn add_arbitrary() {
+        let mut a = ArbitraryUnsignedInt::new(8);
+        a.add_u64(200);
+        let mut b = ArbitraryUnsignedInt::new(8);
+        b.add_u64(100);
+
+        a.add(&b);
+        assert_eq!("0x2C", format!("{}", a));
+    }
+
+    #[test]
+    fn mul_wrapping_arb_int() {
+        let mut a = ArbitraryUnsignedInt::new(8);
+        a.add_u64(150);
+        let mut b = ArbitraryUnsignedInt::new(8);
+        b.add_u64(10);
+        a.mul(&b);
+
+        let expected = 150u8.wrapping_mul(10);
+        assert_eq!(format!("{:#X}", expected), format!("{}", a));
+    }
+
+    #[test]
+    fn div_by_one() {
+        let a = ArbitraryUnsignedInt::new_from_u32(8, 42);
+        let b = ArbitraryUnsignedInt::new_from_u32(1, 1);
+
+        let mut result = a.clone();
+        result.div(&b);
+        assert_eq!(a, result);
+    }
+
+    #[test]
+    fn div_by_two() {
+        let mut a = ArbitraryUnsignedInt::new_from_u32(8, 42);
+        let b = ArbitraryUnsignedInt::new_from_u32(2, 2);
+
+        a.div(&b);
+
+        let expected = ArbitraryUnsignedInt::new_from_u32(8, 21);
+        assert_eq!(expected, a);
+    }
+
+    #[test]
+    fn mod_2() {
+        let mut a = ArbitraryUnsignedInt::new_from_u32(8, 255);
+        let b = ArbitraryUnsignedInt::new_from_u32(2, 2);
+
+        a.modulo(&b);
+
+        let expected = ArbitraryUnsignedInt::new_from_u32(8, 1);
+        assert_eq!(expected, a);
     }
 }

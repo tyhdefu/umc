@@ -220,22 +220,6 @@ pub fn parse_quoted_literal(s: &str, loc: RangeInclusive<usize>) -> Result<Vec<u
     Ok(vec)
 }
 
-/// Parse an escaped ascii character
-pub fn parse_escaped_ascii(s: &str) -> u8 {
-    assert_eq!(2, s.len(), "Escaped ascii should be 2 characters: {:?}", s);
-    match s.strip_prefix('\\') {
-        Some(v) => match v.as_bytes()[0] {
-            b'n' => b'\n',
-            b'r' => b'\r',
-            b't' => b'\t',
-            b'0' => b'\0',
-            b'\\' => b'\\',
-            x => panic!("Unhandled ascii escape: {:?}", x),
-        },
-        None => panic!("Escaped ascii did not start with a backslash: {:?}", s),
-    }
-}
-
 pub fn parse_escaped_hex(s: &[u8]) -> Result<u8, ()> {
     let s = str::from_utf8(s).map_err(|_| ())?;
     match s.strip_prefix("\\x") {
