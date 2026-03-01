@@ -2,6 +2,7 @@ mod memory;
 mod state;
 mod types;
 
+mod compiler;
 mod environment;
 mod helper;
 mod widths;

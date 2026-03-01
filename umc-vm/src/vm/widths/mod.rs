@@ -1,6 +1,7 @@
 //! Abstractions over specialised widths in UMC
 
 pub mod int;
+pub mod single;
 pub mod uint;
 
 use std::cmp::Ordering;
@@ -74,8 +75,8 @@ pub trait WidthBinaryOp<STATE, OP> {
     fn operate_binary_vector_in_domain(
         &self,
         params: &VectorVectorParams<Self::RT>,
-        op: &OP,
         state: &mut STATE,
+        op: &OP,
     );
 }
 

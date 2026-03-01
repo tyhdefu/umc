@@ -609,6 +609,23 @@ mod tests {
     }
 
     #[test]
+    fn mul_0() {
+        let zero = ArbitraryUnsignedInt::new_from_u32(16, 0);
+
+        let mut zero_result = zero.clone();
+        let mut one_result = ArbitraryUnsignedInt::new_from_u32(16, 1);
+        let mut large_result = ArbitraryUnsignedInt::new_from_u32(16, 0xF123);
+
+        zero_result.mul(&zero);
+        one_result.mul(&zero);
+        large_result.mul(&zero);
+
+        assert_eq!(zero_result, zero);
+        assert_eq!(one_result, zero);
+        assert_eq!(large_result, zero);
+    }
+
+    #[test]
     fn div_by_one() {
         let a = ArbitraryUnsignedInt::new_from_u32(8, 42);
         let b = ArbitraryUnsignedInt::new_from_u32(1, 1);

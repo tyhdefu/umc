@@ -267,8 +267,8 @@ where
     fn operate_binary_vector_in_domain(
         &self,
         params: &VectorVectorParams<Self::RT>,
-        op: &OP,
         state: &mut STATE,
+        op: &OP,
     ) {
         let length = params.length() as usize;
         match self {

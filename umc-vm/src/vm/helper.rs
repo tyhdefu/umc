@@ -136,7 +136,7 @@ pub fn execute_arithmetic(
             }
             ConsistentOp::VectorVector(params) => {
                 let domain = UIntWidth::from_width(params.dst().width);
-                domain.operate_binary_vector_in_domain(params, &op, state);
+                domain.operate_binary_vector_in_domain(params, state, &op);
             }
         },
         AnyConsistentNumOp::SignedInt(param_kind) => match param_kind {
@@ -144,8 +144,14 @@ pub fn execute_arithmetic(
                 let domain = IntWidth::from_width(dst.width);
                 domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
             }
-            ConsistentOp::VectorBroadcast(_) => todo!(),
-            ConsistentOp::VectorVector(_) => todo!(),
+            ConsistentOp::VectorBroadcast(params) => {
+                let domain = IntWidth::from_width(params.width());
+                domain.operate_binary_broadcast_in_domain(params, state, &op);
+            }
+            ConsistentOp::VectorVector(params) => {
+                let domain = IntWidth::from_width(params.width());
+                domain.operate_binary_vector_in_domain(params, state, &op);
+            }
         },
         AnyConsistentNumOp::Float(param_kind) => match param_kind {
             ConsistentOp::Single(dst, p1, p2) => match dst.width {
@@ -166,16 +172,28 @@ pub fn execute_bitwise(params: &AnyConsistentNumOp, op: BinaryBitwiseOp, state: 
                 let domain = UIntWidth::from_width(dst.width);
                 domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
             }
-            ConsistentOp::VectorBroadcast(_) => todo!(),
-            ConsistentOp::VectorVector(_) => todo!(),
+            ConsistentOp::VectorBroadcast(params) => {
+                let domain = UIntWidth::from_width(params.width());
+                domain.operate_binary_broadcast_in_domain(params, state, &op);
+            }
+            ConsistentOp::VectorVector(params) => {
+                let domain = UIntWidth::from_width(params.width());
+                domain.operate_binary_vector_in_domain(params, state, &op);
+            }
         },
         AnyConsistentNumOp::SignedInt(num_op) => match num_op {
             ConsistentOp::Single(dst, p1, p2) => {
                 let domain = IntWidth::from_width(dst.width);
                 domain.operate_binary_in_domain(*dst, p1, p2, state, &op);
             }
-            ConsistentOp::VectorBroadcast(_) => todo!(),
-            ConsistentOp::VectorVector(_) => todo!(),
+            ConsistentOp::VectorBroadcast(params) => {
+                let domain = IntWidth::from_width(params.width());
+                domain.operate_binary_broadcast_in_domain(params, state, &op);
+            }
+            ConsistentOp::VectorVector(params) => {
+                let domain = IntWidth::from_width(params.width());
+                domain.operate_binary_vector_in_domain(params, state, &op);
+            }
         },
         AnyConsistentNumOp::Float(_) => panic!("TODO: Make new num op for bitwise"),
     }

@@ -27,12 +27,16 @@ pub struct InvalidFileHandle(FileHandle);
 
 /// Platform specific interactions that implement the environment
 pub trait Environment {
+    /// Attempt to open the file with the given filename
     fn open<'a, 'b>(&'a mut self, filename: &'b str) -> Result<FileHandle, OpenFileError<'b>>;
 
+    /// Close a file handle
     fn close(&mut self, handle: FileHandle) -> Result<(), InvalidFileHandle>;
 
+    /// Read bytes from a file handle into a buffer
     fn read(&mut self, handle: FileHandle, buf: &mut [u8]) -> Result<usize, InvalidFileHandle>;
 
+    /// Write bytes from a buffer into a file handle
     fn write(&mut self, handle: FileHandle, buf: &[u8]) -> Result<usize, InvalidFileHandle>;
 }
 
