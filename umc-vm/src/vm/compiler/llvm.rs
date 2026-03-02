@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use inkwell::AddressSpace;
 use inkwell::context::Context;
 use inkwell::execution_engine::{ExecutionEngine, JitFunction};
-use inkwell::module::{Linkage, Module};
+use inkwell::module::Module;
 use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{FunctionValue, PointerValue};
 use umc_model::{
@@ -11,6 +11,7 @@ use umc_model::{
     reg_model::RegOrConstant,
 };
 
+use crate::vm::compiler::llvm::builtins::BuiltInFunctions;
 use crate::vm::state::RegState;
 use crate::vm::{
     compiler::{CompileError, CompiledBlock, CompiledRequest, Compiler},
@@ -97,11 +98,6 @@ impl LLVMInstruction {
 #[derive(PartialEq, Debug)]
 struct UnsupportedInstruction;
 
-struct BuiltInFunctions<'ctx> {
-    get_u32: FunctionValue<'ctx>,
-    save_u32: FunctionValue<'ctx>,
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn putchard(x: f64) -> f64 {
     println!("{}", x as u8 as char);
@@ -123,44 +119,18 @@ impl<'ctx> LLVMCompiler<'ctx> {
     pub fn create(context: &'ctx Context) -> Self {
         let module = context.create_module("umc-jit");
 
-        let ptr_type =
-            BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default()));
-        let get_u32_type = context.i32_type().fn_type(
-            &[BasicMetadataTypeEnum::IntType(context.i32_type()), ptr_type],
-            false,
-        );
-        // Declare the get_u32 function
-        let get_u32 = module.add_function("get_u32", get_u32_type, Some(Linkage::External));
-
-        let save_u32_type = context.void_type().fn_type(
-            &[
-                BasicMetadataTypeEnum::IntType(context.i32_type()),
-                BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
-                BasicMetadataTypeEnum::IntType(context.i32_type()),
-            ],
-            false,
-        );
-        let save_u32 = module.add_function("save_u32", save_u32_type, Some(Linkage::External));
-
-        println!("{}", module.print_to_string());
+        let builtin_funcs = BuiltInFunctions::register(context, &module);
 
         let execution_engine = module
             .create_jit_execution_engine(inkwell::OptimizationLevel::None)
             .unwrap();
-
-        println!(
-            "save_u32 (EE): {:?}",
-            execution_engine.get_function_address("save_u32")
-        );
-
-        println!("save_u32 (Module): {:?}", module.get_function("save_u32"));
 
         Self {
             context,
             module,
             execution_engine,
             compiled_blocks: HashMap::new(),
-            builtin_funcs: BuiltInFunctions { get_u32, save_u32 },
+            builtin_funcs,
         }
     }
 
@@ -269,11 +239,6 @@ impl<'ctx> LLVMCompiler<'ctx> {
             let index = all_regs.iter().position(|x| x == a).unwrap();
             (index, umc_llvm_registers[index])
         };
-        println!(
-            "EE func {:?}",
-            self.execution_engine.get_function_address("get_u32")
-        );
-        println!("func {:?}", self.module.get_function("get_u32"));
 
         let passed_state_ptr = function.get_nth_param(0).unwrap();
 
@@ -288,10 +253,10 @@ impl<'ctx> LLVMCompiler<'ctx> {
                         .build_call(
                             self.builtin_funcs.get_u32,
                             &[
-                                passed_state_ptr.into(),
                                 self.context.i32_type().const_int(i as u64, false).into(),
+                                passed_state_ptr.into(),
                             ],
-                            &format!("{}_v", reg_name),
+                            &reg_name,
                         )
                         .unwrap();
                     let v = r.try_as_basic_value().basic().unwrap().into_int_value();
@@ -438,7 +403,7 @@ impl PassedState {
                 let v: i64 = helper::read_int(&RegOrConstant::Reg(*r), s);
                 v as u64
             }
-            _ => panic!("Invalid register: get_u32 with {:?}", reg_n),
+            _ => panic!("Invalid register: get_u64 with {:?}", reg_n),
         }
     }
 
@@ -458,17 +423,66 @@ impl PassedState {
     }
 }
 
-mod read_state {
+mod builtins {
+    use std::ffi::{CStr, c_void};
+
+    use inkwell::llvm_sys::support::LLVMAddSymbol;
+
     use super::*;
 
     use crate::vm::compiler::llvm::PassedState;
+
+    pub struct BuiltInFunctions<'ctx> {
+        pub get_u32: FunctionValue<'ctx>,
+        pub get_u64: FunctionValue<'ctx>,
+        pub save_u32: FunctionValue<'ctx>,
+    }
+
+    impl<'ctx> BuiltInFunctions<'ctx> {
+        /// Register the builtin functions in the LLVM module so they can be solved.
+        pub fn register(context: &'ctx Context, module: &Module<'ctx>) -> Self {
+            const BUILTINS: [(&CStr, *mut c_void); 3] = [
+                (c"get_u32", get_u32 as *mut c_void),
+                (c"get_u64", get_u64 as *mut c_void),
+                (c"save_u32", save_u32 as *mut c_void),
+            ];
+            let i32_type = context.i32_type();
+            let i32_param = BasicMetadataTypeEnum::IntType(i32_type);
+
+            let get_u32_type = i32_type.fn_type(&[i32_param.clone(), i32_param.clone()], false);
+            let get_u32 = module.add_function("get_u32", get_u32_type, None);
+
+            let get_u64_type = context
+                .i64_type()
+                .fn_type(&[i32_param.clone(), i32_param.clone()], false);
+            let get_u64 = module.add_function("get_64", get_u64_type, None);
+
+            let save_u32_type = context.void_type().fn_type(
+                &[i32_param.clone(), i32_param.clone(), i32_param.clone()],
+                false,
+            );
+            let save_u32 = module.add_function("save_u32", save_u32_type, None);
+
+            unsafe {
+                for (c_str, address) in BUILTINS {
+                    LLVMAddSymbol(c_str.as_ptr(), address);
+                }
+            }
+
+            Self {
+                get_u32,
+                get_u64,
+                save_u32,
+            }
+        }
+    }
 
     #[used]
     static USED_GET: unsafe extern "C" fn(u32, &PassedState) -> u32 = get_u32;
 
     #[unsafe(export_name = "get_u32")]
     pub unsafe extern "C" fn get_u32(reg: u32, state: &PassedState) -> u32 {
-        42
+        state.get_u32(reg)
     }
 
     #[unsafe(no_mangle)]
@@ -496,15 +510,10 @@ pub unsafe extern "C" fn dummy_fun() -> u32 {
 
 #[cfg(test)]
 mod test {
-    use std::ffi::{CStr, c_void};
-
     use inkwell::context::Context;
     use inkwell::execution_engine::JitFunction;
-    use inkwell::llvm_sys::support::{LLVMAddSymbol, LLVMSearchForAddressOfSymbol};
     use umc_model::instructions::Instruction;
-    use umc_model::reg_model::Reg;
-
-    use crate::vm::compiler::llvm::read_state::save_u32;
+    use umc_model::reg_model::{Reg, UnsignedRegT};
 
     use super::*;
 
@@ -570,11 +579,6 @@ mod test {
 
     #[test]
     fn compile_and_run_basic_add() {
-        let c_str = CStr::from_bytes_with_nul(b"save_u32\0").unwrap();
-        unsafe {
-            LLVMAddSymbol(c_str.as_ptr(), save_u32 as *mut c_void);
-        }
-
         let instr = Instruction::Add(AddParams::UnsignedInt(ConsistentOp::Single(
             Reg {
                 index: 1,
@@ -611,5 +615,49 @@ mod test {
         });
 
         assert_eq!(Some(16), got);
+    }
+
+    #[test]
+    fn compile_and_run_add_with_input() {
+        let out_reg: Reg<UnsignedRegT> = Reg {
+            index: 1,
+            width: 32,
+        };
+        let in_reg: Reg<UnsignedRegT> = Reg {
+            index: 0,
+            width: 32,
+        };
+
+        let instr = Instruction::Add(AddParams::UnsignedInt(ConsistentOp::Single(
+            out_reg,
+            RegOrConstant::Reg(in_reg),
+            RegOrConstant::Const(5),
+        )));
+
+        let context = Context::create();
+        let mut compiler = LLVMCompiler::create(&context);
+
+        let broken_instr = LLVMCompiler::convert_instruction(&instr).unwrap();
+        let compiled_fn = compiler
+            .compile_instruction_chain("basic_add", &[broken_instr])
+            .unwrap();
+
+        let mut reg_state = RegState::new();
+        reg_state.store_prim(in_reg, 15u32);
+        {
+            let passed_state = PassedState {
+                state: &mut reg_state,
+                regs: vec![
+                    AnyReg::Single(AnySingleReg::Unsigned(in_reg)),
+                    AnyReg::Single(AnySingleReg::Unsigned(out_reg)),
+                ],
+            };
+            println!("Executing function");
+            compiled_fn.execute(&passed_state).unwrap();
+        }
+
+        let got: Option<u32> = reg_state.read_prim(out_reg);
+
+        assert_eq!(Some(20), got);
     }
 }
