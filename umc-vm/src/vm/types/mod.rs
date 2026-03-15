@@ -177,7 +177,10 @@ mod test {
         x.add(&u64::MAX.cast_into());
         x.add(&(3u32.cast_into()));
 
-        assert_eq!(x.data(), &[2, 1])
+        let got = u128::from_le_bytes(x.to_le_bytes().try_into().unwrap());
+        let expected: u128 = u64::MAX as u128 + 3u128;
+
+        assert_eq!(expected, got, "{}", x);
     }
 
     #[test]
@@ -185,8 +188,7 @@ mod test {
         let mut x = ArbitraryUnsignedInt::new(3);
         x.add(&5u32.cast_into());
         x.add(&5u32.cast_into());
-
-        assert_eq!(x.data(), &[2])
+        assert_eq!(&[2], x.to_le_bytes().as_slice(), "{}", x);
     }
 
     #[test]

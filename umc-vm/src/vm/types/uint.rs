@@ -82,7 +82,7 @@ impl ArbitraryUnsignedInt {
     }
 
     pub fn write_bytes(&self, buf: &mut [u8]) -> Result<(), ()> {
-        let req_bytes = (self.bits / u8::BITS) as usize;
+        let req_bytes = self.bits.div_ceil(u8::BITS) as usize;
         if buf.len() < req_bytes {
             return Err(());
         }
@@ -96,6 +96,12 @@ impl ArbitraryUnsignedInt {
             buf[i] = x;
         }
         Ok(())
+    }
+
+    pub fn to_le_bytes(&self) -> Vec<u8> {
+        let mut vec = vec![0; self.bits.div_ceil(u8::BITS) as usize];
+        self.write_bytes(&mut vec).unwrap();
+        vec
     }
 
     pub fn resized_clone(&self, new_bits: u32) -> Self {
@@ -117,10 +123,6 @@ impl ArbitraryUnsignedInt {
         self.set_bits(bits);
         self.data.truncate(self.max_size());
         self.mask_top();
-    }
-
-    pub fn data(&self) -> &[usize] {
-        &self.data[..]
     }
 
     fn used_bits(&self) -> u32 {
@@ -290,7 +292,6 @@ impl UMCBitwise for u64 {
 
 impl UMCArithmetic for ArbitraryUnsignedInt {
     fn add(&mut self, rhs: &Self) {
-        self.data.reserve(rhs.data.len() - self.data.len());
         let mut carry = false;
         for (i, v) in rhs.data.iter().enumerate().take(self.max_size()) {
             if i < self.data.len() {
@@ -531,7 +532,7 @@ impl CastFrom<u64> for ArbitraryUnsignedInt {
             #[cfg(target_pointer_width = "64")]
             data: vec![*value as usize],
             #[cfg(target_pointer_width = "32")]
-            data: vec![((*value >> 32) as u32) as usize, (*value as u32) as usize],
+            data: vec![(*value as u32) as usize, ((*value >> 32) as u32) as usize],
         }
     }
 }
@@ -553,8 +554,16 @@ impl CastFrom<i64> for ArbitraryUnsignedInt {
 #[cfg(test)]
 mod tests {
     use crate::vm::memory::SerializableArb;
-    use crate::vm::types::UMCArithmetic;
     use crate::vm::types::uint::ArbitraryUnsignedInt;
+    use crate::vm::types::{CastInto, UMCArithmetic};
+
+    #[test]
+    fn cast_from_u64_one() {
+        let one: u64 = 1;
+        let mut v: ArbitraryUnsignedInt = one.cast_into();
+        v.resize_to(1);
+        assert_eq!(1u8.to_le_bytes(), v.to_le_bytes().as_slice());
+    }
 
     fn check_serialize(expected: ArbitraryUnsignedInt) {
         let mut buf = vec![0; 256];
