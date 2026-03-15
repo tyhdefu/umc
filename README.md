@@ -42,3 +42,10 @@ You can build test binaries which can then be run with a web assembly virtual ma
 - `cargo test --target wasm32-wasip1 -p umc-vm`
 
 One suitable virtual machine is `wasmtime`, which can be installed with `cargo install wasmtime --locked`
+
+Tip: to make `cargo test` and `cargo run` work directly if you put the following in your `$CARGO_HOME/config.toml`:
+```toml
+[target.wasm32-wasip1]
+# Run wasm32-wasip1 targets with the wasmtime VM, with access to the current directory
+runner = "wasmtime --dir ."
+```
