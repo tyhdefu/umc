@@ -1,6 +1,7 @@
 //! Compiler for Universal Machine Code to a specific machine code
 //! This is used in Just-in-Time compilation
 
+#[cfg(feature = "llvm-jit")]
 mod llvm;
 
 use std::ops::RangeInclusive;

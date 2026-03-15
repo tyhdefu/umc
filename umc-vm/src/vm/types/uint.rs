@@ -482,8 +482,8 @@ impl CastFrom<ArbitraryUnsignedInt> for u64 {
 
         #[cfg(target_pointer_width = "32")]
         {
-            let lower = self.data.get(0).copied().unwrap_or(0) as u64;
-            let upper = self.data.get(1).copied().unwrap_or(0) as u64;
+            let lower = value.data.get(0).copied().unwrap_or(0) as u64;
+            let upper = value.data.get(1).copied().unwrap_or(0) as u64;
             return lower + (upper << usize::BITS);
         }
     }
@@ -531,7 +531,7 @@ impl CastFrom<u64> for ArbitraryUnsignedInt {
             #[cfg(target_pointer_width = "64")]
             data: vec![*value as usize],
             #[cfg(target_pointer_width = "32")]
-            data: vec![*value >> 32 as usize, *value as usize],
+            data: vec![((*value >> 32) as u32) as usize, (*value as u32) as usize],
         }
     }
 }
