@@ -1,6 +1,7 @@
 use byteorder::{LE, ReadBytesExt};
 use int_enum::IntEnum;
 use std::collections::HashMap;
+use std::fmt::{Display, UpperHex};
 use std::io;
 
 use crate::binary::leb128::LEBEncodable;
@@ -15,7 +16,7 @@ use crate::reg_model::{InstrRegT, Reg, RegOrConstant};
 use crate::unparse::instr_to_raw;
 use crate::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
-pub const VERSION: BinaryFormatVersion = BinaryFormatVersion { major: 0, minor: 2 };
+pub const VERSION: BinaryFormatVersion = BinaryFormatVersion { major: 0, minor: 3 };
 
 pub fn encode<W: io::Write>(program: &Program, mut dst: W) -> Result<(), EncodeError> {
     let instrs: Vec<(OpCode, Vec<Operand>)> = program
@@ -72,166 +73,276 @@ fn encode_instruction<W: io::Write>(
     for o in operands {
         match o {
             Operand::Reg(reg_operand) => {
-                let rs_index = rt_header
+                let rs_index: usize = rt_header
                     .reverse_lookup(RTHeaderEntry::Register(reg_operand.set))
                     .expect("Missing register set entry in constructed RT table");
-                let rs_byte: u8 = rs_index
-                    .try_into()
-                    .expect("Register set index does not fit in a byte");
-                dst.write(&[rs_byte])?;
-
-                let r_index_byte: u8 = reg_operand
-                    .index
-                    .try_into()
-                    .expect("Register index does not fit in a byte!");
-                dst.write(&[r_index_byte])?;
+                rs_index.encode_leb128(dst)?;
+                reg_operand.index.encode_leb128(dst)?;
             }
             Operand::UnsignedConstant(c) => {
                 let rs_index: usize = rt_header
-                    .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(
-                        NumRegType::UnsignedInt(u64::BITS),
-                    )))
+                    .reverse_lookup_constant(RegType::Num(NumRegType::UnsignedInt(u64::BITS)))
                     .expect("No matching rt entry for unsigned constant");
-                let rs_index_byte: u8 = rs_index
-                    .try_into()
-                    .expect("Constant Register doesn't fit into byte");
-                dst.write(&[rs_index_byte])?;
-
-                dst.write(&c.to_le_bytes())?;
+                rs_index.encode_leb128(dst)?;
+                c.encode_leb128(dst)?;
             }
             Operand::SignedConstant(c) => {
                 let rs_index = rt_header
-                    .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(
-                        NumRegType::UnsignedInt(64),
-                    )))
+                    .reverse_lookup_constant(RegType::Num(NumRegType::UnsignedInt(64)))
                     .expect("No matching rt entry for 64-bit signed constant");
-                let rs_index_byte: u8 = rs_index
-                    .try_into()
-                    .expect("Constant register doesn't fit into a byte");
-                dst.write(&[rs_index_byte])?;
-                dst.write(&c.to_le_bytes())?;
+                rs_index.encode_leb128(dst)?;
+                c.encode_leb128(dst)?;
             }
             Operand::FloatConstant(c) => {
-                let rs_index = rt_header
+                let rs_index: usize = rt_header
                     .reverse_lookup(RTHeaderEntry::Constant(RegType::Num(NumRegType::Float(64))))
                     .expect("No matching rt entry for 64-bit float");
-                let rs_index_byte: u8 = rs_index
-                    .try_into()
-                    .expect("Constant Register doesn't fit into byte");
-                dst.write(&[rs_index_byte])?;
+                rs_index.encode_leb128(dst)?;
                 dst.write(&c.to_le_bytes())?;
             }
             Operand::LabelConstant(c) => {
-                let rs_index = rt_header
+                let rs_index: usize = rt_header
                     .reverse_lookup(RTHeaderEntry::Constant(RegType::InstructionAddress))
                     .expect("No register set for instruction address in table");
-                let rs_index_byte: u8 = rs_index
-                    .try_into()
-                    .expect("Instruction Address constant doesn't fit in byte");
-                dst.write(&[rs_index_byte])?;
-
-                dst.write(&(c as u64).to_le_bytes())?;
+                rs_index.encode_leb128(dst)?;
+                c.encode_leb128(dst)?;
             }
             Operand::MemLabelConstant(c) => {
-                let rs_index = rt_header
+                let rs_index: usize = rt_header
                     .reverse_lookup(RTHeaderEntry::Constant(RegType::MemoryAddress))
                     .expect("No register set for memory address constant in table");
-                let rs_index_byte: u8 = rs_index
-                    .try_into()
-                    .expect("Memory Address constant index doesn't fit into byte");
-                dst.write(&[rs_index_byte])?;
-                dst.write(&(c as u64).to_le_bytes())?;
+                rs_index.encode_leb128(dst)?;
+                c.encode_leb128(dst)?;
             }
         }
     }
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct V0Dissassembler {
+    type_header: RTHeader,
+    instructions: Vec<Option<Instruction>>,
+    track_raw: bool,
+    raw_instructions: Vec<RawInstruction>,
+}
+
+impl V0Dissassembler {
+    pub fn new(type_header: RTHeader) -> Self {
+        Self {
+            type_header,
+            instructions: vec![],
+            track_raw: false,
+            raw_instructions: vec![],
+        }
+    }
+
+    pub fn new_tracking(type_header: RTHeader) -> Self {
+        Self {
+            type_header,
+            instructions: vec![],
+            track_raw: true,
+            raw_instructions: vec![],
+        }
+    }
+
+    fn decode_fixed_instruction<const N: usize, R: io::Read, F>(
+        &mut self,
+        src: &mut R,
+        opcode_raw: u8,
+        parse: F,
+    ) -> Result<Instruction, DecodeError>
+    where
+        F: Fn(&[Operand; N]) -> Result<Instruction, DecodeError>,
+    {
+        let mut operands = vec![];
+        let mut raw_operands = vec![];
+        for _ in 0..N {
+            let raw_operand = self.decode_operand(src)?;
+            operands.push(raw_operand.0.clone());
+            if self.track_raw {
+                raw_operands.push(raw_operand);
+            }
+        }
+
+        self.raw_instructions.push(RawInstruction {
+            opcode: opcode_raw,
+            operands: raw_operands,
+        });
+        let operand_array: &[Operand; N] = operands.as_slice().try_into().unwrap();
+        match parse(operand_array) {
+            Ok(instr) => {
+                self.instructions.push(Some(instr.clone()));
+                return Ok(instr);
+            }
+            Err(err) => {
+                self.instructions.push(None);
+                return Err(err);
+            }
+        }
+    }
+
+    fn decode_operand<R: io::Read>(
+        &mut self,
+        src: &mut R,
+    ) -> Result<(Operand, usize, OpValue), DecodeError> {
+        let type_index: usize = usize::decode_leb128(src)?;
+
+        let rs = self
+            .type_header
+            .lookup(type_index)
+            .ok_or_else(|| DecodeError::Malformed(format!("Register set entry does not exist")))?;
+
+        let op_value: OpValue;
+
+        let op = match rs {
+            RTHeaderEntry::Register(rs) => {
+                let index = usize::decode_leb128(src)?;
+                op_value = OpValue::LEBUnsigned(index as u64);
+                Operand::Reg(RegOperand {
+                    set: rs.clone(),
+                    index: index as RegIndex,
+                })
+            }
+            RTHeaderEntry::Constant(reg_type) => match reg_type {
+                RegType::Num(NumRegType::UnsignedInt(_)) => {
+                    let v = u64::decode_leb128(src)?;
+                    op_value = OpValue::LEBUnsigned(v);
+                    Operand::UnsignedConstant(v)
+                }
+                RegType::Num(NumRegType::SignedInt(_)) => {
+                    let v = i64::decode_leb128(src)?;
+                    op_value = OpValue::LEBSigned(v);
+                    Operand::SignedConstant(v)
+                }
+                RegType::Num(NumRegType::Float(_)) => {
+                    let v: u64 = src.read_u64::<LE>()?;
+                    op_value = OpValue::F64(v);
+                    let v: f64 = f64::from_le_bytes(v.to_le_bytes());
+                    Operand::FloatConstant(v)
+                }
+                RegType::InstructionAddress => {
+                    let v = usize::decode_leb128(src)?;
+                    op_value = OpValue::LEBUnsigned(v as u64);
+                    Operand::LabelConstant(v)
+                }
+                RegType::MemoryAddress => {
+                    let v = usize::decode_leb128(src)?;
+                    op_value = OpValue::LEBUnsigned(v as u64);
+                    Operand::MemLabelConstant(v)
+                }
+            },
+        };
+
+        return Ok((op, type_index, op_value));
+    }
+
+    fn decode_3_num_op<R: io::Read, F>(
+        &mut self,
+        src: &mut R,
+        opcode_raw: u8,
+        to_instr: F,
+    ) -> Result<Instruction, DecodeError>
+    where
+        F: Fn(AnyConsistentNumOp) -> Instruction,
+    {
+        self.decode_fixed_instruction::<3, _, _>(src, opcode_raw, |ops| {
+            let ops_ref: Vec<&Operand> = ops.iter().collect();
+            Ok(to_instr(
+                AnyConsistentNumOp::try_from(ops_ref.as_slice()).map_err(|i| {
+                    DecodeError::Malformed(format!("Invalid Instruction: {:?} for {:?}", i, ops))
+                })?,
+            ))
+        })
+    }
+}
+
+impl Display for V0Dissassembler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.track_raw {
+            for instr in &self.instructions {
+                match instr {
+                    Some(instr) => writeln!(f, "{}", instr)?,
+                    None => writeln!(f, "! Invalid !")?,
+                }
+            }
+            return Ok(());
+        }
+        for (raw, instr) in self.raw_instructions.iter().zip(&self.instructions) {
+            write!(f, "{:02X} | ", raw.opcode)?;
+            for op in &raw.operands {
+                write!(f, "{:02X} : {:X} ({}), ", op.1, op.2, op.0)?;
+            }
+            writeln!(f, "")?;
+            match instr {
+                Some(instr) => writeln!(f, "{}", instr)?,
+                None => writeln!(f, "! Invalid !")?,
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct RawInstruction {
+    pub opcode: u8,
+    pub operands: Vec<(Operand, usize, OpValue)>,
+}
+
+#[derive(Debug)]
+enum OpValue {
+    LEBUnsigned(u64),
+    LEBSigned(i64),
+    F64(u64),
+}
+
+impl UpperHex for OpValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut buf: Vec<u8> = Vec::with_capacity(8);
+        match self {
+            OpValue::LEBUnsigned(v) => {
+                v.encode_leb128(&mut buf).unwrap();
+            }
+            OpValue::LEBSigned(v) => {
+                v.encode_leb128(&mut buf).unwrap();
+            }
+            OpValue::F64(v) => {
+                buf.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        write!(f, "{:02X}", buf.first().unwrap())?;
+        for b in &buf[1..] {
+            write!(f, " {:02X}", b)?;
+        }
+        Ok(())
+    }
+}
+
 pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
     let rt_header = RTHeader::read(&mut src)?;
 
+    let mut disassembler = V0Dissassembler::new_tracking(rt_header);
     let mut instrs = vec![];
-    while let Some(instr) = decode_instruction(&mut src, &rt_header)? {
+    while let Some(instr) = decode_instruction(&mut src, &mut disassembler)? {
         instrs.push(instr);
     }
+
+    println!("{}", disassembler);
+
     Ok(Program::from_instrs(instrs))
 }
 
 pub fn decode_instruction<R: io::Read>(
     src: &mut R,
-    rt_header: &RTHeader,
+    disassembler: &mut V0Dissassembler,
 ) -> Result<Option<Instruction>, DecodeError> {
-    let opcode_byte = match src.read_u8() {
+    let opcode_raw = match src.read_u8() {
         Ok(b) => b,
         Err(e) => match e.kind() {
             io::ErrorKind::UnexpectedEof => return Ok(None),
             _ => return Err(DecodeError::ReadError(e)),
         },
     };
-
-    fn operands<R: io::Read, const N: usize>(
-        src: &mut R,
-        rt_header: &RTHeader,
-    ) -> Result<[Operand; N], DecodeError> {
-        let mut ops = vec![];
-        for _ in 0..N {
-            let rs_byte = src.read_u8()?;
-
-            let rs = rt_header.lookup(rs_byte as usize).ok_or_else(|| {
-                DecodeError::Malformed(format!("Register set entry does not exist"))
-            })?;
-
-            let op = match rs {
-                RTHeaderEntry::Register(rs) => {
-                    let index_byte = src.read_u8()?;
-                    Operand::Reg(RegOperand {
-                        set: rs.clone(),
-                        index: index_byte as RegIndex,
-                    })
-                }
-                RTHeaderEntry::Constant(reg_type) => {
-                    let constant = src.read_u64::<LE>()?;
-                    match reg_type {
-                        RegType::Num(NumRegType::UnsignedInt(_)) => {
-                            Operand::UnsignedConstant(constant)
-                        }
-                        RegType::Num(NumRegType::SignedInt(_)) => {
-                            Operand::SignedConstant(constant as i64)
-                        }
-                        RegType::Num(NumRegType::Float(_)) => {
-                            Operand::FloatConstant(f64::from_bits(constant))
-                        }
-                        RegType::InstructionAddress => Operand::LabelConstant(constant as usize),
-                        RegType::MemoryAddress => Operand::MemLabelConstant(constant as usize),
-                    }
-                }
-            };
-            ops.push(op);
-        }
-        Ok(ops.try_into().unwrap())
-    }
-
-    fn read_add_op<R: io::Read>(
-        src: &mut R,
-        rt_header: &RTHeader,
-    ) -> Result<AddParams, DecodeError> {
-        let ops = operands::<R, 3>(src, rt_header)?;
-        let ops_ref: Vec<&Operand> = ops.iter().collect();
-        AddParams::try_from(ops_ref.as_slice()).map_err(|i| {
-            DecodeError::Malformed(format!("Invalid Instruction: {:?} for {:?}", i, ops))
-        })
-    }
-
-    fn read_3_num_op<R: io::Read>(
-        src: &mut R,
-        rt_header: &RTHeader,
-    ) -> Result<AnyConsistentNumOp, DecodeError> {
-        let ops = operands::<R, 3>(src, rt_header)?;
-        let ops_ref: Vec<&Operand> = ops.iter().collect();
-        AnyConsistentNumOp::try_from(ops_ref.as_slice()).map_err(|i| {
-            DecodeError::Malformed(format!("Invalid Instruction: {:?} for {:?}", i, ops))
-        })
-    }
 
     fn iaddr_op(operand: &Operand) -> Result<RegOrConstant<InstrRegT>, DecodeError> {
         RegOrConstant::from_instr_addr(operand).map_err(|_| {
@@ -250,63 +361,65 @@ pub fn decode_instruction<R: io::Read>(
         })
     }
 
-    let opcode = OpCode::from_value(opcode_byte)?;
-    Ok(Some(match opcode {
-        OpCode::NOP => Instruction::Nop,
+    let opcode = OpCode::from_value(opcode_raw)?;
+    let instr = match opcode {
+        OpCode::NOP => {
+            disassembler.decode_fixed_instruction(src, opcode_raw, |[]| Ok(Instruction::Nop))?
+        }
         OpCode::MOV => {
-            let ops = operands::<R, 2>(src, rt_header)?;
-            let ops_ref: Vec<&Operand> = ops.iter().collect();
-            Instruction::Mov(MovParams::try_from(ops_ref.as_slice())?)
+            disassembler.decode_fixed_instruction::<2, _, _>(src, opcode_raw, |[d, p]| {
+                Ok(Instruction::Mov(MovParams::try_from([d, p].as_slice())?))
+            })?
         }
-        OpCode::ADD => Instruction::Add(read_add_op(src, rt_header)?),
-        OpCode::SUB => Instruction::Sub(read_3_num_op(src, rt_header)?),
-        OpCode::MUL => Instruction::Mul(read_3_num_op(src, rt_header)?),
-        OpCode::DIV => Instruction::Div(read_3_num_op(src, rt_header)?),
-        OpCode::MOD => Instruction::Mod(read_3_num_op(src, rt_header)?),
-        OpCode::JMP => {
-            let ops = operands::<R, 1>(src, rt_header)?;
-            Instruction::Jmp(iaddr_op(&ops[0])?)
+        OpCode::ADD => {
+            disassembler.decode_fixed_instruction::<3, _, _>(src, opcode_raw, |ops| {
+                let ops_ref: Vec<&Operand> = ops.iter().collect();
+                Ok(Instruction::Add(AddParams::try_from(ops_ref.as_slice())?))
+            })?
         }
-        OpCode::JAL => {
-            let [d, r] = operands::<R, 2>(src, rt_header)?;
+        OpCode::SUB => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Sub(p))?,
+        OpCode::MUL => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Mul(p))?,
+        OpCode::DIV => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Div(p))?,
+        OpCode::MOD => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Mod(p))?,
+        OpCode::JMP => disassembler.decode_fixed_instruction(src, opcode_raw, |[op]| {
+            Ok(Instruction::Jmp(iaddr_op(op)?))
+        })?,
+        OpCode::JAL => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, r]| {
             let target = iaddr_op(&d)?;
             let reg = iaddr_reg(&r)?;
-            Instruction::Jal(target, reg)
-        }
-        OpCode::BZ => {
-            let ops = operands::<R, 2>(src, rt_header)?;
-            let cmp_zero: CompareToZero = cmp_zero_op(&ops[1])?;
-            Instruction::Bz(iaddr_op(&ops[0])?, cmp_zero)
-        }
-        OpCode::BNZ => {
-            let ops = operands::<R, 2>(src, rt_header)?;
-            let cmp_zero: CompareToZero = cmp_zero_op(&ops[1])?;
-            Instruction::Bnz(iaddr_op(&ops[0])?, cmp_zero)
-        }
+            Ok(Instruction::Jal(target, reg))
+        })?,
+        OpCode::BZ => disassembler.decode_fixed_instruction(src, opcode_raw, |[dest, cond]| {
+            let cmp_zero: CompareToZero = cmp_zero_op(&cond)?;
+            Ok(Instruction::Bz(iaddr_op(&dest)?, cmp_zero))
+        })?,
+        OpCode::BNZ => disassembler.decode_fixed_instruction(src, opcode_raw, |[dest, cond]| {
+            let cmp_zero: CompareToZero = cmp_zero_op(&cond)?;
+            Ok(Instruction::Bnz(iaddr_op(&dest)?, cmp_zero))
+        })?,
         OpCode::EQ | OpCode::GT | OpCode::GTE => {
-            let ops = operands::<R, 3>(src, rt_header)?;
-            let ops_ref: Vec<&Operand> = ops.iter().collect();
-            let params = CompareParams::try_from(ops_ref.as_slice()).map_err(|i| {
-                DecodeError::Malformed(format!("Invalid Instruction: {:?} | {:?}", i, ops))
-            })?;
-            let cond = match opcode {
-                OpCode::EQ => BinaryCondition::Equal,
-                OpCode::GT => BinaryCondition::GreaterThan,
-                OpCode::GTE => BinaryCondition::GreaterThanOrEqualTo,
-                _ => unreachable!("All branches should be covered"),
-            };
-            Instruction::Compare { cond, params }
+            disassembler.decode_fixed_instruction(src, opcode_raw, |[d, a, b]| {
+                let ops_ref: [&Operand; 3] = [&d, &a, &b];
+                let params = CompareParams::try_from(ops_ref.as_slice()).map_err(|i| {
+                    DecodeError::Malformed(format!("Invalid Instruction: {:?} | {:?}", i, ops_ref))
+                })?;
+                let cond = match opcode {
+                    OpCode::EQ => BinaryCondition::Equal,
+                    OpCode::GT => BinaryCondition::GreaterThan,
+                    OpCode::GTE => BinaryCondition::GreaterThanOrEqualTo,
+                    _ => unreachable!("All branches should be covered"),
+                };
+                Ok(Instruction::Compare { cond, params })
+            })?
         }
-        OpCode::AND => Instruction::And(read_3_num_op(src, rt_header)?),
-        OpCode::OR => Instruction::Or(read_3_num_op(src, rt_header)?),
-        OpCode::XOR => Instruction::Xor(read_3_num_op(src, rt_header)?),
-        OpCode::NOT => {
-            let [dst, op] = operands::<R, 2>(src, rt_header)?;
-            let params = NotParams::try_from([&dst, &op].as_slice())?;
-            Instruction::Not(params)
-        }
-        OpCode::ALLOC => {
-            let [op1, op2] = operands(src, rt_header)?;
+        OpCode::AND => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::And(p))?,
+        OpCode::OR => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Or(p))?,
+        OpCode::XOR => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Xor(p))?,
+        OpCode::NOT => disassembler.decode_fixed_instruction(src, opcode_raw, |[dst, op]| {
+            let params = NotParams::try_from([dst, op].as_slice())?;
+            Ok(Instruction::Not(params))
+        })?,
+        OpCode::ALLOC => disassembler.decode_fixed_instruction(src, opcode_raw, |[op1, op2]| {
             let mem_reg = Reg::from_mem_reg(&op1).map_err(|_| {
                 DecodeError::Malformed(format!(
                     "Invalid Alloc Instruction: Expected mem dst register"
@@ -317,17 +430,15 @@ pub fn decode_instruction<R: io::Read>(
                     "Invalid Alloc Instruction: Expected unsigned size register"
                 ))
             })?;
-            Instruction::Alloc(mem_reg, size)
-        }
-        OpCode::FREE => {
-            let [op1] = operands(src, rt_header)?;
+            Ok(Instruction::Alloc(mem_reg, size))
+        })?,
+        OpCode::FREE => disassembler.decode_fixed_instruction(src, opcode_raw, |[op1]| {
             let mem_reg = Reg::from_mem_reg(&op1).map_err(|_| {
                 DecodeError::Malformed(format!("Invalid Free Instruction: Expected mem reg"))
             })?;
-            Instruction::Free(mem_reg)
-        }
-        OpCode::LOAD => {
-            let [op1, op2] = operands(src, rt_header)?;
+            Ok(Instruction::Free(mem_reg))
+        })?,
+        OpCode::LOAD => disassembler.decode_fixed_instruction(src, opcode_raw, |[op1, op2]| {
             let value_reg = match op1 {
                 Operand::Reg(reg_operand) => parse_any_single_reg(&reg_operand).map_err(|_| {
                     DecodeError::Malformed(format!("Invalid Load Instruction: Expected Mem reg"))
@@ -341,10 +452,9 @@ pub fn decode_instruction<R: io::Read>(
             let mem_reg = RegOrConstant::from_mem_addr(&op2).map_err(|_| {
                 DecodeError::Malformed(format!("Expected destination register for load"))
             })?;
-            Instruction::Load(value_reg, mem_reg)
-        }
-        OpCode::STORE => {
-            let [op1, op2] = operands(src, rt_header)?;
+            Ok(Instruction::Load(value_reg, mem_reg))
+        })?,
+        OpCode::STORE => disassembler.decode_fixed_instruction(src, opcode_raw, |[op1, op2]| {
             let mem_reg = RegOrConstant::from_mem_addr(&op1).map_err(|_| {
                 DecodeError::Malformed(format!("Expected destination register for load"))
             })?;
@@ -358,27 +468,24 @@ pub fn decode_instruction<R: io::Read>(
                     )));
                 }
             };
-            Instruction::Store(mem_reg, value_reg)
-        }
-        OpCode::CAST => {
-            let [d, p] = operands::<R, 2>(src, rt_header)?;
-            let cast = SimpleCast::try_from([&d, &p].as_slice())
+            Ok(Instruction::Store(mem_reg, value_reg))
+        })?,
+        OpCode::CAST => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let cast = SimpleCast::try_from([d, p].as_slice())
                 .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
-            Instruction::Cast(cast)
-        }
+            Ok(Instruction::Cast(cast))
+        })?,
         OpCode::ECALL => todo!("Parsing environment calls in the binary format is not supported!"),
-        OpCode::DBG => {
-            let [op] = operands::<R, 1>(src, rt_header)?;
-            match op {
-                Operand::Reg(reg_operand) => Instruction::Dbg(parse_any_reg(&reg_operand)),
-                _ => {
-                    return Err(DecodeError::Malformed(format!(
-                        "Debug Instruction requires a register operand"
-                    )));
-                }
+        OpCode::DBG => disassembler.decode_fixed_instruction(src, opcode_raw, |[op]| match op {
+            Operand::Reg(reg_operand) => Ok(Instruction::Dbg(parse_any_reg(&reg_operand))),
+            _ => {
+                return Err(DecodeError::Malformed(format!(
+                    "Debug Instruction requires a register operand"
+                )));
             }
-        }
-    }))
+        })?,
+    };
+    Ok(Some(instr))
 }
 
 fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
@@ -443,6 +550,10 @@ impl RTHeader {
 
     pub fn reverse_lookup(&self, entry: RTHeaderEntry) -> Option<usize> {
         self.entries.iter().position(|x| *x == entry)
+    }
+
+    pub fn reverse_lookup_constant(&self, reg_type: RegType) -> Option<usize> {
+        self.reverse_lookup(RTHeaderEntry::Constant(reg_type))
     }
 
     const VEC_FLAG: u8 = 1 << 7;
@@ -682,9 +793,11 @@ mod test {
         )
         .expect("Encoding failed");
 
+        let mut disassembler = V0Dissassembler::new_tracking(rt_header);
         let mut cursor = Cursor::new(buffer);
 
-        let decoded_instr = decode_instruction(&mut cursor, &rt_header).expect("Decoding failed");
+        let decoded_instr =
+            decode_instruction(&mut cursor, &mut disassembler).expect("Decoding failed");
 
         assert_eq!(Some(instr), decoded_instr);
     }
@@ -723,8 +836,10 @@ mod test {
         )
         .expect("Encoding failed");
 
+        let mut disassembler = V0Dissassembler::new_tracking(rt_header);
         let mut cursor = Cursor::new(buffer);
-        let decoded_instr = decode_instruction(&mut cursor, &rt_header).expect("Decoding failed");
+        let decoded_instr =
+            decode_instruction(&mut cursor, &mut disassembler).expect("Decoding failed");
 
         assert_eq!(Some(instr), decoded_instr);
     }

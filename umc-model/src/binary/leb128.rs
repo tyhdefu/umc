@@ -31,3 +31,25 @@ impl LEBEncodable for u32 {
             .map_err(|_| ErrorKind::InvalidData.into())
     }
 }
+
+impl LEBEncodable for usize {
+    fn encode_leb128<W: io::Write>(self, writer: &mut W) -> io::Result<usize> {
+        (self as u64).encode_leb128(writer)
+    }
+
+    fn decode_leb128<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        u64::decode_leb128(reader)?
+            .try_into()
+            .map_err(|_| ErrorKind::InvalidData.into())
+    }
+}
+
+impl LEBEncodable for i64 {
+    fn encode_leb128<W: io::Write>(self, writer: &mut W) -> io::Result<usize> {
+        leb128::write::signed(writer, self)
+    }
+
+    fn decode_leb128<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        leb128::read::signed(reader).map_err(|_| ErrorKind::InvalidData.into())
+    }
+}
