@@ -1,6 +1,9 @@
 //! Compiler for Universal Machine Code to a specific machine code
 //! This is used in Just-in-Time compilation
 
+// Not currently used
+#![allow(unused)]
+
 #[cfg(feature = "llvm-jit")]
 mod llvm;
 
@@ -8,7 +11,7 @@ use std::ops::RangeInclusive;
 
 use umc_model::instructions::Instruction;
 
-struct CompileError {}
+pub struct CompileError {}
 
 pub trait Compiler {
     /// Attempt to compiler a block of UMC Instructions.

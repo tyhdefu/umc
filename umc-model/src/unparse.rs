@@ -1,7 +1,7 @@
 use crate::instructions::{
-    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, CompareParams, CompareToZero,
-    ConsistentComparison, ConsistentOp, Instruction, MovParams, NotParams, OffsetOp, ResizeCast,
-    SimpleCast,
+    AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, Instruction, MovParams,
+    NotParams, OffsetOp, ResizeCast, SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -40,7 +40,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
             vec![mem_reg.into(), Operand::Reg(reg.into())]
         }
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
-        Instruction::ECall(ecall) => todo!("converting ecall to raw"),
+        Instruction::ECall(ecall) => ecall_to_raw(ecall),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
 }
@@ -167,6 +167,17 @@ fn simple_cast_to_raw(params: &SimpleCast) -> Vec<Operand> {
     }
 }
 
+fn ecall_to_raw(params: &ECallParams) -> Vec<Operand> {
+    let mut operands: Vec<Operand> = Vec::with_capacity(params.args.len() + 2);
+    operands.push(Operand::Reg((&params.dst).into()));
+    operands.push((&params.code).into());
+
+    for arg in &params.args {
+        operands.push(arg.into());
+    }
+    operands
+}
+
 impl From<&Reg<UnsignedRegT>> for RegOperand {
     fn from(reg: &Reg<UnsignedRegT>) -> Self {
         RegOperand {
@@ -253,6 +264,18 @@ impl From<&RegOrConstant<MemRegT>> for Operand {
         match value {
             RegOrConstant::Reg(reg) => Operand::Reg(reg.into()),
             RegOrConstant::Const(c) => Operand::MemLabelConstant(*c as usize),
+        }
+    }
+}
+
+impl From<&AnySingleRegOrConstant> for Operand {
+    fn from(value: &AnySingleRegOrConstant) -> Self {
+        match value {
+            AnySingleRegOrConstant::Unsigned(x) => x.into(),
+            AnySingleRegOrConstant::Signed(x) => x.into(),
+            AnySingleRegOrConstant::Float(x) => x.into(),
+            AnySingleRegOrConstant::Instr(x) => x.into(),
+            AnySingleRegOrConstant::Mem(x) => x.into(),
         }
     }
 }

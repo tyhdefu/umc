@@ -3,8 +3,8 @@
 
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, IntegerCast, MovParams, NotParams, OffsetOp,
-    ResizeCast, SimpleCast, VectorBroadcastParams, VectorVectorParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, IntegerCast, MovParams,
+    NotParams, OffsetOp, ResizeCast, SimpleCast, VectorBroadcastParams, VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -507,6 +507,40 @@ impl TryFrom<&[&Operand]> for SimpleCast {
                 _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
             },
             _ => Err(InstructionValidateError::InvalidRegType { op_index: 0 })?,
+        })
+    }
+}
+
+impl TryFrom<&[&Operand]> for ECallParams {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        if value.len() < 2 {
+            return Err(InstructionValidateError::InvalidOpCount {
+                expected: 2,
+                got: value.len(),
+            });
+        }
+        let result_reg = match value[0] {
+            Operand::Reg(reg_operand) => parse_any_reg(reg_operand),
+            _ => return Err(InstructionValidateError::ExpectedDstReg),
+        };
+
+        // Ideally would have a invalid type
+        let ecall_code = RegOrConstant::from_unsigned(value[1])
+            .map_err(|_| InstructionValidateError::InvalidRegType { op_index: 1 })?;
+
+        // TODO: Should check arguments based on the ecall code
+        let mut args = vec![];
+        for i in 2..(value.len()) {
+            let arg = parse_any_reg_or_constant(&value[i])
+                .map_err(|_| InstructionValidateError::InvalidRegType { op_index: i })?;
+            args.push(arg);
+        }
+        Ok(ECallParams {
+            dst: result_reg,
+            code: ecall_code,
+            args,
         })
     }
 }

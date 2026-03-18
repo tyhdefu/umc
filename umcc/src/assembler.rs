@@ -7,9 +7,7 @@ use umc_model::instructions::{
     ConsistentComparison, ECallParams, Instruction, MovParams, NotParams, SimpleCast,
 };
 use umc_model::operand::{Operand, RegOperand};
-use umc_model::parse::{
-    InstructionValidateError, parse_any_reg, parse_any_reg_or_constant, parse_any_single_reg,
-};
+use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
 use umc_model::reg_model::{InstrRegT, Reg, RegOrConstant};
 use umc_model::{Program, operand as bc};
 use umc_model::{RegType, RegisterSet};
@@ -240,33 +238,12 @@ pub fn ast_to_bytecode(
         instr: &ast::Instruction,
         labels: &Labels,
     ) -> Result<ECallParams, AssembleInstructionError> {
-        if instr.operands.len() < 2 {
-            return Err(AssembleInstructionError::InvalidOperandCount(
-                2,
-                instr.operands.len(),
-            ));
+        let mut operands = vec![];
+        for o in &instr.operands {
+            operands.push(parse_reg_or_constant(&o, None, labels)?);
         }
-        let dst_reg = parse_dst_reg(&instr.operands[0])?;
-        let dst_reg = parse_any_reg(&dst_reg);
-
-        let ecall_code = parse_reg_or_constant(&instr.operands[1], None, labels)?;
-        let ecall_code = RegOrConstant::from_unsigned(&ecall_code)
-            .map_err(|_| AssembleInstructionError::invalid_op_type(&instr.operands[1]))?;
-
-        // TODO: Should check arguments based on the ecall code
-        let mut args = vec![];
-        for i in 2..(instr.operands.len()) {
-            let arg = parse_reg_or_constant(&instr.operands[i], None, labels)?;
-            let arg = parse_any_reg_or_constant(&arg)
-                .map_err(|_| AssembleInstructionError::invalid_op_type(&instr.operands[i]))?;
-
-            args.push(arg);
-        }
-        Ok(ECallParams {
-            dst: dst_reg,
-            code: ecall_code,
-            args,
-        })
+        let ops_ref: Vec<&Operand> = operands.iter().collect();
+        Ok(ECallParams::try_from(ops_ref.as_slice()).map_err(|e| add_ctx(e, &instr))?)
     }
 
     match instr.opcode.as_str() {

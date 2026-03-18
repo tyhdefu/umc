@@ -1,4 +1,4 @@
-use byteorder::{LE, ReadBytesExt};
+use byteorder::{LE, ReadBytesExt, WriteBytesExt};
 use int_enum::IntEnum;
 use std::collections::HashMap;
 use std::fmt::{Display, UpperHex};
@@ -7,8 +7,8 @@ use std::io;
 use crate::binary::leb128::LEBEncodable;
 use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::instructions::{
-    AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, Instruction,
-    MovParams, NotParams, SimpleCast,
+    AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ECallParams,
+    Instruction, MovParams, NotParams, SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::parse::{parse_any_reg, parse_any_single_reg};
@@ -67,8 +67,12 @@ fn encode_instruction<W: io::Write>(
     opcode: OpCode,
     operands: Vec<Operand>,
 ) -> Result<(), EncodeError> {
-    // TODO: Flags and stuff - check reg size first?
     dst.write(&[opcode as u8])?;
+
+    if opcode == OpCode::ECALL {
+        // Write length for instructions with a variable operand count
+        dst.write_u8(operands.len() as u8)?;
+    }
 
     for o in operands {
         match o {
@@ -171,6 +175,44 @@ impl V0Dissassembler {
         });
         let operand_array: &[Operand; N] = operands.as_slice().try_into().unwrap();
         match parse(operand_array) {
+            Ok(instr) => {
+                self.instructions.push(Some(instr.clone()));
+                return Ok(instr);
+            }
+            Err(err) => {
+                self.instructions.push(None);
+                return Err(err);
+            }
+        }
+    }
+
+    fn decode_variable_instruction<R: io::Read, F>(
+        &mut self,
+        src: &mut R,
+        opcode_raw: u8,
+        parse: F,
+    ) -> Result<Instruction, DecodeError>
+    where
+        F: Fn(&[&Operand]) -> Result<Instruction, DecodeError>,
+    {
+        let op_count = src.read_u8()?;
+
+        let mut operands = vec![];
+        let mut raw_operands = vec![];
+        for _ in 0..op_count {
+            let raw_operand = self.decode_operand(src)?;
+            operands.push(raw_operand.0.clone());
+            if self.track_raw {
+                raw_operands.push(raw_operand);
+            }
+        }
+
+        self.raw_instructions.push(RawInstruction {
+            opcode: opcode_raw,
+            operands: raw_operands,
+        });
+        let op_refs: Vec<&Operand> = operands.iter().collect();
+        match parse(&op_refs) {
             Ok(instr) => {
                 self.instructions.push(Some(instr.clone()));
                 return Ok(instr);
@@ -290,7 +332,7 @@ pub struct RawInstruction {
 }
 
 #[derive(Debug)]
-enum OpValue {
+pub enum OpValue {
     LEBUnsigned(u64),
     LEBSigned(i64),
     F64(u64),
@@ -475,7 +517,9 @@ pub fn decode_instruction<R: io::Read>(
                 .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
             Ok(Instruction::Cast(cast))
         })?,
-        OpCode::ECALL => todo!("Parsing environment calls in the binary format is not supported!"),
+        OpCode::ECALL => disassembler.decode_variable_instruction(src, opcode_raw, |ops| {
+            Ok(Instruction::ECall(ECallParams::try_from(ops)?))
+        })?,
         OpCode::DBG => disassembler.decode_fixed_instruction(src, opcode_raw, |[op]| match op {
             Operand::Reg(reg_operand) => Ok(Instruction::Dbg(parse_any_reg(&reg_operand))),
             _ => {
@@ -698,7 +742,7 @@ impl RegTypeId {
 }
 
 #[repr(u8)]
-#[derive(IntEnum, Debug)]
+#[derive(IntEnum, Debug, PartialEq, Clone, Copy)]
 enum OpCode {
     NOP = 0b000000,
     MOV = 0b000001,
