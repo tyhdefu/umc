@@ -1,0 +1,14 @@
+&WELCOME: "Please type your name:\n"
+&HELLO_STR: "hello "
+&NEWLINE: "\n"
+
+ecall u1:0, 0x4, #1, &WELCOME, #23
+; Allocate a 128-byte buffer for the incoming name
+alloc m:0, #128
+; Read their name from stdin
+ecall u32:0, 0x3, #0, m:0, #128
+
+; Print hello then their name
+ecall u1:0, 0x4, #1, &HELLO_STR, #6
+ecall u1:0, 0x4, #1, m:0, u32:0
+ecall u1:0, 0x4, #1, &NEWLINE, #1
