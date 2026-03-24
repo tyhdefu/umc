@@ -205,7 +205,10 @@ fn unsigned_vector() {
         add u32x6:0, u32x6:0, u32x6:0
     ";
     let vm = compile_and_run(PROG);
-    assert_eq!(vec![20; 6], vm.inspect_uint_vec(0, u32::BITS, 6).unwrap());
+    assert_eq!(
+        vec![20u32; 6],
+        vm.inspect_uint_vec(0, u32::BITS, 6).unwrap()
+    );
 }
 
 #[test]
@@ -220,7 +223,7 @@ fn basic_load_store_u32() {
         dbg u32:0
     ";
     let vm = compile_and_run(PROG);
-    assert_eq!(121, vm.inspect_uint(0, u32::BITS));
+    assert_eq!(121u32, vm.inspect_uint(0, u32::BITS));
 }
 
 #[test]
@@ -253,7 +256,7 @@ fn nat_numbers_array() {
     ";
 
     let vm = compile_and_run(PROG);
-    assert_eq!(5, vm.inspect_uint(2, u32::BITS));
+    assert_eq!(5u32, vm.inspect_uint(2, u32::BITS));
 }
 
 #[test]

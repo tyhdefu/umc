@@ -139,6 +139,23 @@ impl_serialize_prim!(i64);
 impl_serialize_prim!(f32);
 impl_serialize_prim!(f64);
 
+impl Serializable for bool {
+    fn read_from(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() < 1 {
+            return Err(());
+        }
+        Ok((bytes[0] & 0b1) == 1)
+    }
+
+    fn write_to(&self, bytes: &mut [u8]) -> Result<(), ()> {
+        if bytes.len() < 1 {
+            return Err(());
+        }
+        bytes[0] = *self as u8;
+        Ok(())
+    }
+}
+
 impl SerializableArb for ArbitraryUnsignedInt {
     fn read_from(bytes: &[u8], bitwidth: usize) -> Result<Self, ()> {
         ArbitraryUnsignedInt::from_bytes(bitwidth as u32, bytes)

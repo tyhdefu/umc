@@ -16,6 +16,7 @@ use umc_model::reg_model::{Reg, RegOrConstant, UnsignedRegT};
 /// Abstraction over the specialised widths provided by the given state implementation
 #[derive(Debug)]
 pub enum UIntWidth {
+    U1,
     U32,
     U64,
     Arbitrary(RegWidth),
@@ -25,6 +26,7 @@ impl UIntWidth {
     /// Convert the given width exactly to a supported integer domain
     pub fn from_width(width: RegWidth) -> Self {
         match width {
+            1 => Self::U1,
             u32::BITS => Self::U32,
             u64::BITS => Self::U64,
             w => Self::Arbitrary(w),
@@ -35,6 +37,7 @@ impl UIntWidth {
     /// Useful for comparing two values or if you don't need wrapping behaviour
     pub fn from_width_fitting(width: RegWidth) -> Self {
         match width {
+            w if w <= 1 => Self::U1,
             w if w <= u32::BITS => Self::U32,
             w if w <= u64::BITS => Self::U64,
             w => Self::Arbitrary(w),
@@ -44,11 +47,13 @@ impl UIntWidth {
     /// Store a u64 into the given register, casting to fit as necessary
     pub fn store_u64<S>(reg: Reg<UnsignedRegT>, state: &mut S, val: u64)
     where
-        S: StorePrim<u32, UnsignedRegT>
+        S: StorePrim<bool, UnsignedRegT>
+            + StorePrim<u32, UnsignedRegT>
             + StorePrim<u64, UnsignedRegT>
             + StoreFor<ArbitraryUnsignedInt, UnsignedRegT>,
     {
         match Self::from_width(reg.width) {
+            Self::U1 => state.store_prim(reg, (val & 0b1) == 1),
             Self::U32 => state.store_prim(reg, val as u32),
             Self::U64 => state.store_prim(reg, val as u64),
             Self::Arbitrary(w) => {
@@ -62,7 +67,8 @@ impl UIntWidth {
 
 impl<STATE> WidthOptions<STATE> for UIntWidth
 where
-    STATE: StorePrim<u32, UnsignedRegT>
+    STATE: StorePrim<bool, UnsignedRegT>
+        + StorePrim<u32, UnsignedRegT>
         + StorePrim<u64, UnsignedRegT>
         + StoreFor<ArbitraryUnsignedInt, UnsignedRegT>,
 {
@@ -80,6 +86,11 @@ where
         );
 
         match domain {
+            Self::U1 => {
+                let v1: bool = read_uint(p1, state);
+                let v2: bool = read_uint(p2, state);
+                v1.partial_cmp(&v2)
+            }
             Self::U32 => {
                 let v1: u32 = read_uint(p1, state);
                 let v2: u32 = read_uint(p2, state);
@@ -106,6 +117,10 @@ where
             RegOrConstant::Const(c) => return *c == 0,
         };
         match Self::from_width(reg.width) {
+            Self::U1 => {
+                let v: bool = state.read_prim(*reg).unwrap_or(false);
+                !v
+            }
             Self::U32 => {
                 let v: u32 = state.read_prim(*reg).unwrap_or(0);
                 v == 0
@@ -129,6 +144,10 @@ where
         address: &M::Address,
     ) -> Result<(), MemoryAccessError<M::Address>> {
         match Self::from_width(reg.width) {
+            Self::U1 => {
+                let v: bool = state.read_prim(reg).unwrap_or(false);
+                memory.store_prim(v, address)
+            }
             Self::U32 => {
                 let v: u32 = state.read_prim(reg).unwrap_or(0);
                 memory.store_prim(v, address)
@@ -148,10 +167,11 @@ where
 
 impl<STATE, OP> WidthUnaryOp<STATE, OP> for UIntWidth
 where
-    STATE: StorePrim<u32, UnsignedRegT>
+    STATE: StorePrim<bool, UnsignedRegT>
+        + StorePrim<u32, UnsignedRegT>
         + StorePrim<u64, UnsignedRegT>
         + StoreFor<ArbitraryUnsignedInt, UnsignedRegT>,
-    OP: UnaryOp<u32> + UnaryOp<u64> + UnaryOp<ArbitraryUnsignedInt>,
+    OP: UnaryOp<bool> + UnaryOp<u32> + UnaryOp<u64> + UnaryOp<ArbitraryUnsignedInt>,
 {
     type RT = UnsignedRegT;
 
@@ -163,6 +183,11 @@ where
         op: &OP,
     ) {
         match self {
+            Self::U1 => {
+                let mut v: bool = read_uint(&p, state);
+                op.operate(&mut v);
+                state.store_prim(dst, v);
+            }
             Self::U32 => {
                 let mut v: u32 = read_uint(&p, state);
                 op.operate(&mut v);
@@ -186,10 +211,11 @@ where
 
 impl<STATE, OP> WidthBinaryOp<STATE, OP> for UIntWidth
 where
-    STATE: StorePrim<u32, UnsignedRegT>
+    STATE: StorePrim<bool, UnsignedRegT>
+        + StorePrim<u32, UnsignedRegT>
         + StorePrim<u64, UnsignedRegT>
         + StoreFor<ArbitraryUnsignedInt, UnsignedRegT>,
-    OP: BinaryOp<u32> + BinaryOp<u64> + BinaryOp<ArbitraryUnsignedInt>,
+    OP: BinaryOp<bool> + BinaryOp<u32> + BinaryOp<u64> + BinaryOp<ArbitraryUnsignedInt>,
 {
     type RT = UnsignedRegT;
 
@@ -203,6 +229,12 @@ where
         operation: &OP,
     ) {
         match self {
+            Self::U1 => {
+                let mut v1: bool = read_uint(p1, state);
+                let v2: bool = read_uint(p1, state);
+                operation.operate(&mut v1, &v2);
+                state.store_prim(dst, v1);
+            }
             Self::U32 => {
                 let mut v1: u32 = read_uint(p1, state);
                 let v2: u32 = read_uint(p2, state);
@@ -234,6 +266,15 @@ where
         let length = params.length() as usize;
 
         match self {
+            Self::U1 => {
+                let mut vector: VecValue<bool> = state
+                    .read_multi_prim(params.vec_param(), length)
+                    .cloned()
+                    .unwrap_or(VecValue::from_repeated_default(length));
+                let v: bool = read_uint(params.value_param(), state);
+                compute_broadcast(&mut vector, &v, op, params.is_reversed());
+                state.store_multi_copy_prim(*params.dst(), vector.as_slice());
+            }
             Self::U32 => {
                 let mut vector: VecValue<u32> = state
                     .read_multi_prim(params.vec_param(), length)
@@ -277,6 +318,15 @@ where
     ) {
         let length = params.length() as usize;
         match self {
+            Self::U1 => {
+                let mut vector: VecValue<bool> = state
+                    .read_multi_prim(params.p1(), length)
+                    .cloned()
+                    .unwrap_or(VecValue::from_repeated_default(length));
+                let param: Option<&VecValue<bool>> = state.read_multi_prim(params.p2(), length);
+                compute_vector(&mut vector, param, &false, op);
+                state.store_multi_copy_prim(*params.dst(), vector.as_slice());
+            }
             Self::U32 => {
                 let mut vector: VecValue<u32> = state
                     .read_multi_prim(params.p1(), length)

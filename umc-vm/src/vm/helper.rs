@@ -585,12 +585,17 @@ pub fn execute_debug(reg: &AnyReg, state: &RegState) {
 pub fn read_uint<T, S>(op: &RegOrConstant<UnsignedRegT>, state: &S) -> T
 where
     T: CastSingleUnsigned,
-    S: StorePrim<u32, UnsignedRegT>
+    S: StorePrim<bool, UnsignedRegT>
+        + StorePrim<u32, UnsignedRegT>
         + StorePrim<u64, UnsignedRegT>
         + StoreFor<ArbitraryUnsignedInt, UnsignedRegT>,
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {
+            1 => {
+                let v: bool = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
             u32::BITS => {
                 let v: u32 = state.read_prim(*num_reg).unwrap_or_default();
                 v.cast_into()

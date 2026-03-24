@@ -1,3 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["umc-model", "umcc", "umc-vm"]
+
+[profile.release]
+lto = "fat"

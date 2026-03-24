@@ -210,6 +210,48 @@ impl CastFrom<ArbitraryUnsignedInt> for ArbitraryUnsignedInt {
     }
 }
 
+impl UMCArithmetic for bool {
+    fn add(&mut self, rhs: &Self) {
+        self.bitxor_assign(rhs);
+    }
+
+    fn sub(&mut self, rhs: &Self) {
+        self.bitxor_assign(rhs);
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        self.bitand_assign(rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        // TOOD: Divide by zero?
+        assert_eq!(*rhs, true, "Divide by boolean false");
+    }
+
+    fn modulo(&mut self, rhs: &Self) {
+        assert_eq!(*rhs, true, "Modulo by boolean false");
+        *self = false
+    }
+}
+
+impl UMCBitwise for bool {
+    fn and(&mut self, rhs: &Self) {
+        self.bitand_assign(rhs);
+    }
+
+    fn or(&mut self, rhs: &Self) {
+        self.bitor_assign(rhs);
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        self.bitxor_assign(rhs);
+    }
+
+    fn not(&mut self) {
+        *self = !*self
+    }
+}
+
 impl UMCArithmetic for u32 {
     fn add(&mut self, rhs: &Self) {
         *self = self.wrapping_add(*rhs)
@@ -444,7 +486,33 @@ impl UMCBitwise for ArbitraryUnsignedInt {
     }
 }
 
+// u1 (boolean) casts
+
+impl CastFrom<u32> for bool {
+    fn cast_from(value: &u32) -> Self {
+        (value & 0b1) == 1
+    }
+}
+
+impl CastFrom<u64> for bool {
+    fn cast_from(value: &u64) -> Self {
+        (value & 0b1) == 1
+    }
+}
+
+impl CastFrom<ArbitraryUnsignedInt> for bool {
+    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
+        (value.as_usize() & 0b1) == 1
+    }
+}
+
 // u32 casts
+impl CastFrom<bool> for u32 {
+    fn cast_from(value: &bool) -> Self {
+        *value as u32
+    }
+}
+
 impl CastFrom<u64> for u32 {
     fn cast_from(value: &u64) -> Self {
         *value as Self
@@ -473,6 +541,18 @@ impl CastFrom<i64> for u32 {
 }
 
 // u64 casts
+impl CastFrom<bool> for u64 {
+    fn cast_from(value: &bool) -> Self {
+        *value as u64
+    }
+}
+
+impl CastFrom<u32> for u64 {
+    fn cast_from(value: &u32) -> Self {
+        *value as u64
+    }
+}
+
 impl CastFrom<ArbitraryUnsignedInt> for u64 {
     fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
         #[cfg(not(any(target_pointer_width = "32", target_pointer_width = "64")))]
@@ -490,12 +570,6 @@ impl CastFrom<ArbitraryUnsignedInt> for u64 {
     }
 }
 
-impl CastFrom<u32> for u64 {
-    fn cast_from(value: &u32) -> Self {
-        *value as u64
-    }
-}
-
 impl CastFrom<i32> for u64 {
     fn cast_from(value: &i32) -> Self {
         *value as Self
@@ -509,6 +583,15 @@ impl CastFrom<i64> for u64 {
 }
 
 // Arbitrary unsigned casts
+
+impl CastFrom<bool> for ArbitraryUnsignedInt {
+    fn cast_from(value: &bool) -> Self {
+        ArbitraryUnsignedInt {
+            bits: 32,
+            data: vec![*value as usize],
+        }
+    }
+}
 
 impl CastFrom<u32> for ArbitraryUnsignedInt {
     fn cast_from(value: &u32) -> Self {

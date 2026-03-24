@@ -40,7 +40,7 @@
 .SIEVE_LOOP_END:
 	mul u32:3, u32:2, #4 ; Memory address step
 	add u32:2, :2, #1
-	gt u1:0, u32:2, #500 ; Half the value
+	gt u1:0, u32:2, u32:0 ; Check if reached N
 	bz .SIEVE_LOOP, u1:0
 
 	mov m:1, m:0

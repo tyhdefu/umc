@@ -42,7 +42,8 @@ where
 }
 
 pub struct RegState<M: MemoryAddress> {
-    u32s: HashMapStore<RegIndex, u32>,
+    u1s: FastStore<bool>,
+    u32s: FastStore<u32>,
     u64s: HashMapStore<RegIndex, u64>,
     uas: HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt>,
     i32s: HashMapStore<RegIndex, i32>,
@@ -57,7 +58,8 @@ pub struct RegState<M: MemoryAddress> {
 impl<M: MemoryAddress> RegState<M> {
     pub fn new() -> Self {
         Self {
-            u32s: HashMapStore::new(),
+            u1s: FastStore::new(),
+            u32s: FastStore::new(),
             u64s: HashMapStore::new(),
             uas: HashMapStore::new(),
             i32s: HashMapStore::new(),
@@ -143,6 +145,44 @@ where
     }
 }
 
+/// Store that primarily uses a vector, but fallbacks to hashmap for high indicies
+struct FastStore<V>
+where
+    V: Default + Copy,
+{
+    single_fast: Vec<V>,
+    fallback: HashMapStore<RegIndex, V>,
+}
+
+impl<V> FastStore<V>
+where
+    V: Default + Copy,
+{
+    const FAST_COUNT: usize = 128;
+
+    pub fn new() -> Self {
+        Self {
+            single_fast: vec![V::default(); Self::FAST_COUNT],
+            fallback: HashMapStore::new(),
+        }
+    }
+
+    fn read_prim(&self, index: RegIndex) -> Option<V> {
+        if (index as usize) < Self::FAST_COUNT {
+            return Some(self.single_fast[index as usize]);
+        }
+        return self.fallback.read(index).copied();
+    }
+
+    fn store_prim(&mut self, index: RegIndex, val: V) {
+        if (index as usize) < Self::FAST_COUNT {
+            self.single_fast[index as usize] = val;
+            return;
+        }
+        self.fallback.store(index, val);
+    }
+}
+
 /// Store based on HashMaps
 struct HashMapStore<K: Hash + Eq, V> {
     single: HashMap<K, V, FxBuildHasher>,
@@ -205,15 +245,47 @@ where
     }
 }
 
-impl<M: MemoryAddress> PrimNumStoreFor<UnsignedRegT, u32> for RegState<M> {
-    const BITS: u32 = u32::BITS;
-
-    fn get_store(&self) -> &HashMapStore<RegIndex, u32> {
-        &self.u32s
+impl<M: MemoryAddress> StorePrim<bool, UnsignedRegT> for RegState<M> {
+    fn read_prim(&self, k: Reg<UnsignedRegT>) -> Option<bool> {
+        debug_assert_eq!(k.width, 1);
+        self.u1s.read_prim(k.index)
     }
 
-    fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, u32> {
-        &mut self.u32s
+    fn store_prim(&mut self, k: Reg<UnsignedRegT>, val: bool) {
+        debug_assert_eq!(k.width, 1);
+        self.u1s.store_prim(k.index, val);
+    }
+
+    fn read_multi_prim(&self, k: Reg<UnsignedRegT>, count: usize) -> Option<&VecValue<bool>> {
+        debug_assert_eq!(k.width, 1);
+        self.u1s.fallback.read_multi(k.index, count)
+    }
+
+    fn store_multi_copy_prim(&mut self, k: Reg<UnsignedRegT>, vals: &[bool]) {
+        debug_assert_eq!(k.width, 1);
+        self.u1s.fallback.store_multi_copy(k.index, vals);
+    }
+}
+
+impl<M: MemoryAddress> StorePrim<u32, UnsignedRegT> for RegState<M> {
+    fn read_prim(&self, k: Reg<UnsignedRegT>) -> Option<u32> {
+        debug_assert_eq!(k.width, u32::BITS);
+        self.u32s.read_prim(k.index)
+    }
+
+    fn store_prim(&mut self, k: Reg<UnsignedRegT>, val: u32) {
+        debug_assert_eq!(k.width, u32::BITS);
+        self.u32s.store_prim(k.index, val);
+    }
+
+    fn read_multi_prim(&self, k: Reg<UnsignedRegT>, count: usize) -> Option<&VecValue<u32>> {
+        debug_assert_eq!(k.width, u32::BITS);
+        self.u32s.fallback.read_multi(k.index, count)
+    }
+
+    fn store_multi_copy_prim(&mut self, k: Reg<UnsignedRegT>, vals: &[u32]) {
+        debug_assert_eq!(k.width, u32::BITS);
+        self.u32s.fallback.store_multi_copy(k.index, vals);
     }
 }
 
