@@ -19,9 +19,10 @@ use crate::vm::types::uint::ArbitraryUnsignedInt;
 use crate::vm::types::{
     BinaryArithmeticOp, BinaryBitwiseOp, CastSingleFloat, CastSingleSigned, CastSingleUnsigned,
 };
+use crate::vm::widths::uint::UIntWidth;
 use umc_model::instructions::Instruction;
 use umc_model::reg_model::{Reg, RegOrConstant, UnsignedRegT};
-use umc_model::{Program, RegIndex, RegWidth};
+use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -83,6 +84,10 @@ impl VirtualMachine {
         while self.pc < program_len {
             self.execute_step();
         }
+    }
+
+    pub fn inspect_bool(&self, index: RegIndex) -> bool {
+        self.inspect_uint(index, 1)
     }
 
     pub fn inspect_uint<T>(&self, index: RegIndex, width: RegWidth) -> T
@@ -233,6 +238,23 @@ impl VirtualMachine {
                 .unwrap_or_else(|err| {
                     panic!("Failed to store {} into {}: {:?}", from_reg, mem_reg, err)
                 });
+            }
+            Instruction::SizeOf(reg, reg_type) => {
+                let rt = match reg_type {
+                    umc_model::RegisterSet::Single(rt) => rt,
+                    umc_model::RegisterSet::Vector(rt, _) => rt,
+                };
+                let mut size_bytes: u32 = match rt {
+                    RegType::Num(NumRegType::UnsignedInt(w)) => w.div_ceil(u8::BITS),
+                    RegType::Num(NumRegType::SignedInt(w)) => w.div_ceil(u8::BITS),
+                    RegType::Num(NumRegType::Float(w)) => w.div_ceil(u8::BITS),
+                    RegType::InstructionAddress => InstructionAddress::SIZE_BYTES,
+                    RegType::MemoryAddress => SafeAddress::SIZE_BYTES,
+                };
+                if let RegisterSet::Vector(_, length) = reg_type {
+                    size_bytes = size_bytes * length;
+                }
+                UIntWidth::store_u64(*reg, &mut self.state, size_bytes as u64);
             }
             Instruction::Cast(simple_cast) => {
                 helper::execute_simple_cast(simple_cast, &mut self.state);

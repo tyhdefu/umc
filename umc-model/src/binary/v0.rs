@@ -67,13 +67,26 @@ fn encode_instruction<W: io::Write>(
     dst: &mut W,
     rt_header: &RTHeader,
     opcode: OpCode,
-    operands: Vec<Operand>,
+    mut operands: Vec<Operand>,
 ) -> Result<(), EncodeError> {
     dst.write(&[opcode as u8])?;
 
     if opcode == OpCode::ECALL {
         // Write length for instructions with a variable operand count
         dst.write_u8(operands.len() as u8)?;
+    }
+
+    if opcode == OpCode::SIZEOF {
+        // Encode only the type of the first (fake) operand
+        let op0 = operands.remove(0);
+        let rs = match op0 {
+            Operand::Reg(reg_op) => reg_op.set,
+            _ => panic!("First parameter should be a fake reg op indiciating the type"),
+        };
+        let rs_index: usize = rt_header
+            .reverse_lookup(RTHeaderEntry::Register(rs))
+            .expect("Missing register set entry in constructed RT table");
+        rs_index.encode_leb128(dst)?;
     }
 
     for o in operands {
@@ -299,6 +312,48 @@ impl V0Dissassembler {
             ))
         })
     }
+
+    fn decode_size_of<R: io::Read>(
+        &mut self,
+        src: &mut R,
+        opcode_raw: u8,
+    ) -> Result<Instruction, DecodeError> {
+        let type_index: usize = usize::decode_leb128(src)?;
+
+        let rs = self
+            .type_header
+            .lookup(type_index)
+            .ok_or_else(|| DecodeError::Malformed(format!("Register set entry does not exist")))?;
+
+        let register_set = match rs {
+            RTHeaderEntry::Register(rs) => rs.clone(),
+            RTHeaderEntry::Constant(_) => {
+                return Err(DecodeError::Malformed(format!(
+                    "Sizeof cannot have a constant type as the type"
+                )));
+            }
+        };
+
+        let op1 = self.decode_operand(src)?;
+
+        let fake_op0 = Operand::Reg(RegOperand {
+            set: register_set.clone(),
+            index: 0,
+        });
+
+        self.raw_instructions.push(RawInstruction {
+            opcode: opcode_raw,
+            operands: vec![(fake_op0, type_index, OpValue::None), op1.clone()],
+        });
+
+        let reg = Reg::from_unsigned(&op1.0).map_err(|_| {
+            DecodeError::Malformed(format!("Size of destination reg must be unsigned"))
+        })?;
+
+        let instr = Instruction::SizeOf(reg, register_set);
+        self.instructions.push(Some(instr.clone()));
+        Ok(instr)
+    }
 }
 
 impl Display for V0Dissassembler {
@@ -333,8 +388,10 @@ pub struct RawInstruction {
     pub operands: Vec<(Operand, usize, OpValue)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OpValue {
+    /// When only type is included, no register index or constant value
+    None,
     LEBUnsigned(u64),
     LEBSigned(i64),
     F64(u64),
@@ -344,6 +401,7 @@ impl UpperHex for OpValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut buf: Vec<u8> = Vec::with_capacity(8);
         match self {
+            OpValue::None => return Ok(()),
             OpValue::LEBUnsigned(v) => {
                 v.encode_leb128(&mut buf).unwrap();
             }
@@ -521,6 +579,7 @@ pub fn decode_instruction<R: io::Read>(
             };
             Ok(Instruction::Store(mem_reg, value_reg))
         })?,
+        OpCode::SIZEOF => disassembler.decode_size_of(src, opcode_raw)?,
         OpCode::CAST => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
             let cast = SimpleCast::try_from([d, p].as_slice())
                 .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
@@ -576,6 +635,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Free(_) => OpCode::FREE,
         Instruction::Load(_, _) => OpCode::LOAD,
         Instruction::Store(_, _) => OpCode::STORE,
+        Instruction::SizeOf(_, _) => OpCode::SIZEOF,
         Instruction::Cast(_) => OpCode::CAST,
         Instruction::ECall(_) => OpCode::ECALL,
         Instruction::Dbg(_) => OpCode::DBG,
@@ -821,6 +881,7 @@ enum OpCode {
     FREE = 0b100001,
     LOAD = 0b100010,
     STORE = 0b100011,
+    SIZEOF = 0b100100,
 
     // Cast
     CAST = 0b110001,

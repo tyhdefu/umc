@@ -65,7 +65,10 @@ pub Instruction: ast::Instruction = <start:@L> <c:MNEMONIC> <os:Operands> <end:@
 
 Operands: Vec<ast::OperandWithLoc> = {
 	<mut os:Operands> COMMA <start:@L> <o:Operand> <end:@R> => {os.push((o, os.len(), start..=end-1)); os},
-	<start:@L> <o:Operand> <end:@R> => vec![(o, 0, start..=end-1)],
+	<start:@L> <o:Operand?> <end:@R> => match o {
+		Some(o) => vec![(o, 0, start..=end-1)],
+		None => vec![],
+	},
 };
 
 pub Operand: ast::Operand = {

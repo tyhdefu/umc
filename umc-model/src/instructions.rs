@@ -3,6 +3,7 @@ use std::fmt::Display;
 
 use crate::RegIndex;
 use crate::RegWidth;
+use crate::RegisterSet;
 use crate::reg_model::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -58,6 +59,9 @@ pub enum Instruction {
     /// Store a register into a memory address
     // TODO: Can we store constants? Not unless they are sized
     Store(RegOrConstant<MemRegT>, AnySingleReg),
+
+    // Get the number of bytes required for a load or store for the given register type
+    SizeOf(Reg<UnsignedRegT>, RegisterSet),
 
     // Simple cast based on the registers
     Cast(SimpleCast),
@@ -340,6 +344,9 @@ impl Display for Instruction {
             }
             Instruction::Store(mem_reg, reg) => {
                 write!(f, "store {}, {}", mem_reg, reg)
+            }
+            Instruction::SizeOf(reg, register_set) => {
+                write!(f, "sizeof <{}>, {}", register_set, reg)
             }
             Instruction::Cast(cast) => write!(f, "cast {}", cast),
             Instruction::ECall(ecall) => write!(f, "ecall {}", ecall),

@@ -39,6 +39,13 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Store(mem_reg, reg) => {
             vec![mem_reg.into(), Operand::Reg(reg.into())]
         }
+        Instruction::SizeOf(reg, rs) => vec![
+            Operand::Reg(RegOperand {
+                set: rs.clone(),
+                index: 0,
+            }),
+            Operand::Reg(reg.into()),
+        ],
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
         Instruction::ECall(ecall) => ecall_to_raw(ecall),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],

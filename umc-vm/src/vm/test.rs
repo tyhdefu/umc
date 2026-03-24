@@ -391,3 +391,74 @@ fn test_compare_uint_constant() {
     let u1_0: u32 = vm.inspect_uint(0, 1);
     assert_eq!(true as u32, u1_0);
 }
+
+#[test]
+fn test_store_iaddress() {
+    const PROG: &str = "
+        ; Find out how much room an instruction address takes up
+        nsize u32:0
+        dbg u32:0
+        ; Allocate that amount of memory
+        alloc m:0, u32:0
+
+        ; Store a label
+        mov n:1, .DUMMY_LABEL_1
+        mov n:2, .DUMMY_LABEL_2
+
+        .DUMMY_LABEL_1:
+            nop
+        .DUMMY_LABEL_2:
+            nop
+
+        ; Store then load it back from memory
+        store m:0, n:2
+        load n:3, m:0
+        dbg n:3
+
+        ; Should be true
+        eq u1:0, n:3, .DUMMY_LABEL_2
+        ; Should be false
+        eq u1:1, n:3, .DUMMY_LABEL_1
+
+        dbg u1:0
+        dbg u1:1
+    ";
+
+    let vm = compile_and_run(PROG);
+    let u1_0: bool = vm.inspect_bool(0);
+    let u1_1: bool = vm.inspect_bool(1);
+
+    assert_eq!(u1_0, true, ".DUMMY_LABEL_2 == .DUMMY_LABEL_2 (u1:0)");
+    assert_eq!(u1_1, false, ".DUMMY_LABEL_2 != .DUMMY_LABEL_1 (u1:1)");
+}
+
+#[test]
+fn test_store_mem_addr() {
+    const PROG: &str = "
+        msize u32:0
+        alloc m:0, u32:0
+        alloc m:1, #4
+        ; Store the memory address m:1 at m:0
+        store m:0, m:1
+
+        ; m:0 and m:1 should be different
+        eq u1:0, m:0, m:1
+        ; But the value at m:0 should be m:1
+        load m:2, m:0
+        eq u1:1, m:1, m:2
+
+        dbg m:0
+        dbg m:1
+        dbg m:2
+
+        dbg u1:0
+        dbg u1:1
+    ";
+
+    let vm = compile_and_run(PROG);
+    let u1_0 = vm.inspect_bool(0);
+    let u1_1 = vm.inspect_bool(1);
+
+    assert_eq!(u1_0, false, "m:0 != m:1");
+    assert_eq!(u1_1, true, "m:1 == m:2");
+}

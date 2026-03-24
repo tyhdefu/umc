@@ -59,6 +59,9 @@ impl SafeAddress {
         offset: 0,
     };
 
+    /// 8 bytes required to store a safe address, regardless of platform
+    pub const SIZE_BYTES: u32 = 8;
+
     pub fn from_id(id: usize) -> Self {
         Self {
             block_id: id,
@@ -196,6 +199,31 @@ impl MemoryManager for SafeMemoryManager {
             .ok_or_else(|| MemoryAccessError::OutOfBounds(address.clone()))?;
         v.write_to(slice)
             .map_err(|_| MemoryAccessError::OutOfBounds(address.clone()))
+    }
+}
+
+impl Serializable for SafeAddress {
+    // TODO: Current Serialization only supports 32-bit offset
+
+    fn read_from(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() < Self::SIZE_BYTES as usize {
+            return Err(());
+        }
+        let block_id = u32::read_from(&bytes[0..4])?;
+        let offset = u32::read_from(&bytes[4..8])?;
+        Ok(Self {
+            block_id: block_id as usize,
+            offset: offset as usize,
+        })
+    }
+
+    fn write_to(&self, bytes: &mut [u8]) -> Result<(), ()> {
+        if bytes.len() < Self::SIZE_BYTES as usize {
+            return Err(());
+        }
+        (self.block_id as u32).write_to(&mut bytes[0..4])?;
+        (self.offset as u32).write_to(&mut bytes[4..8])?;
+        Ok(())
     }
 }
 

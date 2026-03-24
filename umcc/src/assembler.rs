@@ -23,7 +23,7 @@ pub enum AssembleError {
 #[derive(Debug)]
 pub enum AssembleInstructionError {
     UnknownOpCode(Loc),
-    // Expected, got
+    /// Expected, got
     InvalidOperandCount(usize, usize),
     InvalidOperand(InvalidOperandError, usize, Loc),
 }
@@ -247,6 +247,15 @@ pub fn ast_to_bytecode(
     }
 
     match instr.opcode.as_str() {
+        "nop" => {
+            if !instr.operands.is_empty() {
+                return Err(AssembleInstructionError::InvalidOperandCount(
+                    0,
+                    instr.operands.len(),
+                ));
+            }
+            Ok(Instruction::Nop)
+        }
         "mov" => {
             let inferred = infer_ops::<2>(&instr, labels)?;
             let refs: Vec<&Operand> = inferred.iter().collect();
@@ -380,6 +389,26 @@ pub fn ast_to_bytecode(
             let value_param = parse_any_single_reg(&value_op)
                 .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
             Ok(Instruction::Store(mem_reg, value_param))
+        }
+        "msize" => {
+            let [p1] = ops::<1>(&instr)?;
+            let dst_reg = parse_dst_reg(p1)?;
+            let dst_reg = Reg::from_unsigned(&Operand::Reg(dst_reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+            Ok(Instruction::SizeOf(
+                dst_reg,
+                RegisterSet::Single(RegType::MemoryAddress),
+            ))
+        }
+        "nsize" => {
+            let [p1] = ops::<1>(&instr)?;
+            let dst_reg = parse_dst_reg(p1)?;
+            let dst_reg = Reg::from_unsigned(&Operand::Reg(dst_reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+            Ok(Instruction::SizeOf(
+                dst_reg,
+                RegisterSet::Single(RegType::InstructionAddress),
+            ))
         }
         "cast" => {
             let inferred = infer_ops::<2>(&instr, labels)?;

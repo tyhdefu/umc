@@ -315,8 +315,16 @@ pub fn execute_load(
             64 => load_prim::<_, f64>(*reg, &address, state, memory),
             _ => panic!("Only 32-bit and 64-bit floats supported"),
         },
-        AnySingleReg::Instr(_) => todo!(),
-        AnySingleReg::Mem(_) => todo!(),
+        AnySingleReg::Instr(reg) => {
+            let iaddr_value = memory.load_prim(&address)?;
+            state.store(*reg, iaddr_value);
+            Ok(())
+        }
+        AnySingleReg::Mem(reg) => {
+            let mem_addr_value = memory.load_prim(&address)?;
+            state.store(*reg, mem_addr_value);
+            Ok(())
+        }
     }
 }
 
@@ -354,8 +362,16 @@ pub fn execute_store(
             64 => store_prim::<_, f64>(*reg, &address, state, memory),
             _ => panic!("Only 32-bit and 64-bit floats supported"),
         },
-        AnySingleReg::Instr(_) => todo!(),
-        AnySingleReg::Mem(_) => todo!(),
+        AnySingleReg::Instr(reg) => {
+            let iaddr = state
+                .read(*reg)
+                .unwrap_or(&InstructionAddress::PROGRAM_START);
+            memory.store_prim(*iaddr, &address)
+        }
+        AnySingleReg::Mem(reg) => {
+            let mem_addr_value = state.read(*reg).unwrap_or(&SafeAddress::NULL).clone();
+            memory.store_prim(mem_addr_value, &address)
+        }
     }
 }
 
