@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use crate::vm::memory::MemoryAddress;
+use crate::vm::memory::safe::SafeAddress;
 use crate::vm::types::address::InstructionAddress;
 use crate::vm::types::int::ArbitraryInt;
 use crate::vm::types::uint::ArbitraryUnsignedInt;
@@ -42,8 +43,8 @@ where
 }
 
 pub struct RegState<M: MemoryAddress> {
-    u1s: FastStore<bool>,
-    u32s: FastStore<u32>,
+    u1s: FastPrimStore<bool>,
+    u32s: FastPrimStore<u32>,
     u64s: HashMapStore<RegIndex, u64>,
     uas: HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt>,
     i32s: HashMapStore<RegIndex, i32>,
@@ -52,14 +53,14 @@ pub struct RegState<M: MemoryAddress> {
     f32s: HashMapStore<RegIndex, f32>,
     f64s: HashMapStore<RegIndex, f64>,
     addresses: HashMapStore<Reg<InstrRegT>, InstructionAddress>,
-    mem_addresses: HashMapStore<Reg<MemRegT>, M>,
+    mem_addresses: FastOptStore<M>,
 }
 
 impl<M: MemoryAddress> RegState<M> {
     pub fn new() -> Self {
         Self {
-            u1s: FastStore::new(),
-            u32s: FastStore::new(),
+            u1s: FastPrimStore::new_default(),
+            u32s: FastPrimStore::new_default(),
             u64s: HashMapStore::new(),
             uas: HashMapStore::new(),
             i32s: HashMapStore::new(),
@@ -68,7 +69,7 @@ impl<M: MemoryAddress> RegState<M> {
             f32s: HashMapStore::new(),
             f64s: HashMapStore::new(),
             addresses: HashMapStore::new(),
-            mem_addresses: HashMapStore::new(),
+            mem_addresses: FastOptStore::new_none(),
         }
     }
 }
@@ -146,39 +147,94 @@ where
 }
 
 /// Store that primarily uses a vector, but fallbacks to hashmap for high indicies
-struct FastStore<V>
-where
-    V: Default + Copy,
-{
-    single_fast: Vec<V>,
+struct FastPrimStore<WV, V = WV> {
+    single_fast: Vec<WV>,
     fallback: HashMapStore<RegIndex, V>,
 }
 
-impl<V> FastStore<V>
+const FAST_STORE_COUNT: usize = 128;
+
+impl<V> FastPrimStore<V>
 where
     V: Default + Copy,
 {
-    const FAST_COUNT: usize = 128;
-
-    pub fn new() -> Self {
+    pub fn new_default() -> Self {
         Self {
-            single_fast: vec![V::default(); Self::FAST_COUNT],
+            single_fast: vec![V::default(); FAST_STORE_COUNT],
             fallback: HashMapStore::new(),
         }
     }
 
     fn read_prim(&self, index: RegIndex) -> Option<V> {
-        if (index as usize) < Self::FAST_COUNT {
-            return Some(self.single_fast[index as usize]);
+        if (index as usize) < FAST_STORE_COUNT {
+            return Some(self.single_fast[index as usize].clone());
         }
-        return self.fallback.read(index).copied();
+        self.read_fallback(index)
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn read_fallback(&self, index: RegIndex) -> Option<V> {
+        return self.fallback.read(index).cloned();
     }
 
     fn store_prim(&mut self, index: RegIndex, val: V) {
-        if (index as usize) < Self::FAST_COUNT {
+        if (index as usize) < FAST_STORE_COUNT {
             self.single_fast[index as usize] = val;
             return;
         }
+        self.store_fallback(index, val);
+    }
+
+    #[inline(never)]
+    #[cold]
+    fn store_fallback(&mut self, index: RegIndex, val: V) {
+        self.fallback.store(index, val);
+    }
+}
+
+pub struct FastOptStore<V> {
+    single_fast: Vec<Option<V>>,
+    fallback: HashMapStore<RegIndex, V>,
+}
+
+impl<V> FastOptStore<V>
+where
+    V: Clone,
+{
+    fn new_none() -> Self {
+        Self {
+            single_fast: vec![None; FAST_STORE_COUNT],
+            fallback: HashMapStore::new(),
+        }
+    }
+
+    fn read_fast(&self, index: RegIndex) -> Option<&V> {
+        if (index as usize) < FAST_STORE_COUNT {
+            return self.single_fast[index as usize].as_ref();
+        }
+        return self.read_fallback(index);
+    }
+
+    // Make read fast inlined
+    #[inline(never)]
+    #[cold]
+    fn read_fallback(&self, index: RegIndex) -> Option<&V> {
+        return self.fallback.read(index);
+    }
+
+    fn store_fast(&mut self, index: RegIndex, val: V) {
+        if (index as usize) < FAST_STORE_COUNT {
+            self.single_fast[index as usize] = Some(val);
+            return;
+        }
+        self.store_fallback(index, val);
+    }
+
+    // Make store fast inlined
+    #[inline(never)]
+    #[cold]
+    fn store_fallback(&mut self, index: RegIndex, val: V) {
         self.fallback.store(index, val);
     }
 }
@@ -242,6 +298,29 @@ where
                 v.insert(VecValue::from_vec(vals.to_vec()));
             }
         };
+    }
+}
+
+impl StoreFor<SafeAddress, MemRegT> for RegState<SafeAddress> {
+    fn read(&self, k: Reg<MemRegT>) -> Option<&SafeAddress> {
+        self.mem_addresses.read_fast(k.index)
+    }
+
+    fn store(&mut self, k: Reg<MemRegT>, val: SafeAddress) {
+        self.mem_addresses.store_fast(k.index, val)
+    }
+
+    fn read_multi(&self, k: Reg<MemRegT>, count: usize) -> Option<&VecValue<SafeAddress>> {
+        self.mem_addresses.fallback.read_multi(k.index, count)
+    }
+
+    fn store_multi_copy(&mut self, k: Reg<MemRegT>, vals: &[SafeAddress]) {
+        panic!("Uncallable method");
+        //self.mem_addresses.fallback.store_multi_copy(k.index, vals);
+    }
+
+    fn store_multi_clone(&mut self, k: Reg<MemRegT>, vals: &[SafeAddress]) {
+        self.mem_addresses.fallback.store_multi_clone(k.index, vals);
     }
 }
 
@@ -376,15 +455,5 @@ impl<M: MemoryAddress> DStoreFor<InstrRegT, InstructionAddress> for RegState<M> 
 
     fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<InstrRegT>, InstructionAddress> {
         &mut self.addresses
-    }
-}
-
-impl<M: MemoryAddress> DStoreFor<MemRegT, M> for RegState<M> {
-    fn get_store(&self) -> &HashMapStore<Reg<MemRegT>, M> {
-        &self.mem_addresses
-    }
-
-    fn get_store_mut(&mut self) -> &mut HashMapStore<Reg<MemRegT>, M> {
-        &mut self.mem_addresses
     }
 }
