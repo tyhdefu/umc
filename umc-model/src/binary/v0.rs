@@ -51,8 +51,10 @@ pub fn encode<W: io::Write>(program: &Program, mut dst: W) -> Result<(), EncodeE
     let rt_header = RTHeader {
         entries: counts.into_iter().map(|x| x.0).collect(),
     };
-
     rt_header.write(&mut dst)?;
+
+    let pre_init_mem_header = PreInitMemTable::new(program.pre_init_mem.clone());
+    pre_init_mem_header.write(&mut dst)?;
 
     for (opcode, operands) in instrs {
         encode_instruction(&mut dst, &rt_header, opcode, operands)?;
@@ -363,6 +365,8 @@ impl UpperHex for OpValue {
 pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
     let rt_header = RTHeader::read(&mut src)?;
 
+    let pre_init_mem_header = PreInitMemTable::read(&mut src)?;
+
     let mut disassembler = V0Dissassembler::new_tracking(rt_header);
     let mut instrs = vec![];
     while let Some(instr) = decode_instruction(&mut src, &mut disassembler)? {
@@ -371,7 +375,12 @@ pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
 
     println!("{}", disassembler);
 
-    Ok(Program::from_instrs(instrs))
+    Ok(Program {
+        instructions: instrs,
+        pre_init_mem: pre_init_mem_header.data,
+        mem_labels: HashMap::new(),
+        instr_labels: HashMap::new(),
+    })
 }
 
 pub fn decode_instruction<R: io::Read>(
@@ -673,6 +682,42 @@ impl RTHeader {
             }
         }
         Ok(Self { entries })
+    }
+}
+
+pub struct PreInitMemTable {
+    data: Vec<Vec<u8>>,
+}
+
+impl PreInitMemTable {
+    pub fn new(data: Vec<Vec<u8>>) -> Self {
+        Self { data }
+    }
+
+    pub fn write<W: io::Write>(&self, dst: &mut W) -> Result<(), EncodeError> {
+        self.data.len().encode_leb128(dst)?;
+
+        for d in &self.data {
+            d.len().encode_leb128(dst)?;
+            dst.write_all(&d)?;
+        }
+        Ok(())
+    }
+
+    pub fn read<R: io::Read>(src: &mut R) -> Result<Self, DecodeError> {
+        let entries = usize::decode_leb128(src)?;
+
+        let mut data = Vec::with_capacity(entries);
+        for _ in 0..entries {
+            let entry_len = usize::decode_leb128(src)?;
+            let mut entry_data = Vec::with_capacity(entry_len);
+            for _ in 0..entry_len {
+                let byte = src.read_u8()?;
+                entry_data.push(byte);
+            }
+            data.push(entry_data);
+        }
+        Ok(Self { data })
     }
 }
 

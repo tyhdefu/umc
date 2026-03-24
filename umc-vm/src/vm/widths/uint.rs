@@ -88,7 +88,6 @@ where
             Self::U64 => {
                 let v1: u64 = read_uint(p1, state);
                 let v2: u64 = read_uint(p2, state);
-                println!("{} ~ {}", v1, v2);
                 v1.partial_cmp(&v2)
             }
             Self::Arbitrary(_) => {

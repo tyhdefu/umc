@@ -41,10 +41,11 @@ Control Byte:
 Width: Unsigned LEB128
 Length: Unsigned LEB128 (Only if indicated in the control byte)
 ```
-Duplicate entries are permitted for register entries (constant flag not set).
+Duplicate entries are currently not permitted, as they may be significant in future versions.
+~~Duplicate entries are permitted for register entries (constant flag not set).
 A instruction references **a different register** if it has a different type index, even if the register index is the same.
 This allows using encoding more registers of the same type in the same number of bytes.
-For example, it allows 256 unique register operands to be encoded instead of 128 in two bytes.
+For example, it allows 256 unique register operands to be encoded instead of 128 in two bytes.~~
 
 The register types are encoded as follows:
 | Register Type    | Encoding |
@@ -54,6 +55,19 @@ The register types are encoded as follows:
 | Float            | 0b010    |
 | Memory Address   | 0b011    |
 | Instruction Address | 0b100 |
+
+### Pre-initialised memory Table
+UMC supports pre-initialised memory regions which can be referenced by a memory label, which is encoded as a memory constant.
+The pre-initialised memory table immediately follows the RT Header, and begins with the number of entries:
+```
+Entry Count: Unsigned LEB128
+```
+
+Then for each entry is stored contiguously:
+```
+Data Length: Unsigned LEB128
+Data: Variable number of bytes
+```
 
 ### Instruction Encoding
 Immediately after the type header table, are all instructions, one after the other.
@@ -126,6 +140,7 @@ Memory Label Constants are encoded as:
 ```
 Constant Value: Unsigned LEB128
 ```
+These refer to an index in the pre-initialised memory table.
 
 Instruction Label Constants are encoded as:
 ```
