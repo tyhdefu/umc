@@ -13,6 +13,7 @@ path = "src/lib.rs"
 
 [dependencies]
 umc-model = {path = "../umc-model"}
+clap = { version = "4.5.55", features = ["derive"]}
 lalrpop-util = { version = "0.22.2", features = ["lexer"] }
 annotate-snippets = { version = "0.12.2" }
 

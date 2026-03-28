@@ -362,20 +362,20 @@ impl Display for V0Dissassembler {
             for instr in &self.instructions {
                 match instr {
                     Some(instr) => writeln!(f, "{}", instr)?,
-                    None => writeln!(f, "! Invalid !")?,
+                    None => writeln!(f, "; ! Invalid Instruction !")?,
                 }
             }
             return Ok(());
         }
         for (raw, instr) in self.raw_instructions.iter().zip(&self.instructions) {
-            write!(f, "{:02X} | ", raw.opcode)?;
+            write!(f, "; {:02X} | ", raw.opcode)?;
             for op in &raw.operands {
                 write!(f, "{:02X} : {:X} ({}), ", op.1, op.2, op.0)?;
             }
             writeln!(f, "")?;
             match instr {
                 Some(instr) => writeln!(f, "{}", instr)?,
-                None => writeln!(f, "! Invalid !")?,
+                None => writeln!(f, "; ! Invalid Instruction !")?,
             }
         }
         Ok(())
@@ -425,13 +425,19 @@ pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
 
     let pre_init_mem_header = PreInitMemTable::read(&mut src)?;
 
-    let mut disassembler = V0Dissassembler::new_tracking(rt_header);
+    let mut disassembler = V0Dissassembler::new(rt_header);
+    decode_with(src, pre_init_mem_header, &mut disassembler)
+}
+
+fn decode_with<R: io::Read>(
+    mut src: R,
+    pre_init_mem_header: PreInitMemTable,
+    disassembler: &mut V0Dissassembler,
+) -> Result<Program, DecodeError> {
     let mut instrs = vec![];
-    while let Some(instr) = decode_instruction(&mut src, &mut disassembler)? {
+    while let Some(instr) = decode_instruction(&mut src, disassembler)? {
         instrs.push(instr);
     }
-
-    println!("{}", disassembler);
 
     Ok(Program {
         instructions: instrs,
@@ -439,6 +445,26 @@ pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
         mem_labels: HashMap::new(),
         instr_labels: HashMap::new(),
     })
+}
+
+/// Disassemble the file, assuming the common header has already been read
+pub fn disassemble<R: io::Read>(
+    mut src: R,
+) -> (Result<Program, DecodeError>, Option<V0Dissassembler>) {
+    let rt_header = match RTHeader::read(&mut src) {
+        Ok(x) => x,
+        Err(e) => return (Err(e), None),
+    };
+
+    let pre_init_mem_header = match PreInitMemTable::read(&mut src) {
+        Ok(x) => x,
+        Err(e) => return (Err(e), None),
+    };
+
+    let mut disassembler = V0Dissassembler::new_tracking(rt_header);
+    let prog = decode_with(src, pre_init_mem_header, &mut disassembler);
+
+    (prog, Some(disassembler))
 }
 
 pub fn decode_instruction<R: io::Read>(

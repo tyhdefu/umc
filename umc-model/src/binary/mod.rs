@@ -1,11 +1,11 @@
 //! Translated between binary encodings to the checked instruction form and vice versa
 //!
 
-use std::io;
+use std::{fmt::Display, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{Program, parse::InstructionValidateError};
+use crate::{Program, binary::v0::V0Dissassembler, parse::InstructionValidateError};
 
 mod leb128;
 #[cfg(test)]
@@ -67,7 +67,41 @@ pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
     v0::decode(src)
 }
 
-#[derive(Debug)]
+pub fn disassemble<R: io::Read>(mut src: R) -> DisassembleResult {
+    let header = match BinaryHeader::read(&mut src) {
+        Ok(x) => x,
+        Err(e) => return DisassembleResult::Failed(e),
+    };
+
+    if header.version.can_be_decoded_by(&v0::VERSION) {
+        let (prog, dis) = v0::disassemble(src);
+        let dis_info = match dis {
+            Some(dis) => DisassemblyInfo {
+                header,
+                inner: InnerDisassembly::V0(dis),
+            },
+            None => DisassemblyInfo {
+                header,
+                inner: InnerDisassembly::None,
+            },
+        };
+        return match prog {
+            Ok(p) => DisassembleResult::Full(p, dis_info),
+            Err(e) => DisassembleResult::Partial(dis_info, e),
+        };
+    }
+
+    let err = DecodeError::UnsupportedVersion(header.version.clone());
+    DisassembleResult::Partial(
+        DisassemblyInfo {
+            header,
+            inner: InnerDisassembly::None,
+        },
+        err,
+    )
+}
+
+#[derive(Debug, Clone)]
 pub struct BinaryFormatVersion {
     major: u8,
     minor: u8,
@@ -78,12 +112,21 @@ impl BinaryFormatVersion {
         if decoder_version.major != self.major {
             return true;
         }
+        if decoder_version.major == 0 && decoder_version.minor != self.minor {
+            return false;
+        }
         decoder_version.minor >= self.minor
     }
 }
+impl Display for BinaryFormatVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.major, self.minor)
+    }
+}
 
+#[derive(Clone)]
 struct BinaryHeader {
-    version: BinaryFormatVersion,
+    pub version: BinaryFormatVersion,
     // Syscall table version?
 }
 
@@ -117,3 +160,25 @@ impl BinaryHeader {
 }
 
 pub trait BinaryEncodable {}
+
+pub enum DisassembleResult {
+    Failed(DecodeError),
+    Partial(DisassemblyInfo, DecodeError),
+    Full(Program, DisassemblyInfo),
+}
+
+pub struct DisassemblyInfo {
+    header: BinaryHeader,
+    pub inner: InnerDisassembly,
+}
+
+impl DisassemblyInfo {
+    pub fn get_version(&self) -> &BinaryFormatVersion {
+        &self.header.version
+    }
+}
+
+pub enum InnerDisassembly {
+    None,
+    V0(V0Dissassembler),
+}
