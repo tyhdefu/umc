@@ -101,6 +101,7 @@ Op Code: 1 byte
 | FREE    | 0b100001 |
 | LOAD    | 0b100010 |
 | STORE   | 0b100011 |
+| SIZE    | 0b100100 |
 | CAST    | 0b110001 |
 | ECALL   | 0b110100 |
 | DBG     | 0b111111 |
@@ -155,3 +156,8 @@ Operand Count: Unsigned LEB128
 ```
 
 And then the encoding is the same as the fixed instruction encoding.
+
+#### Sizeof Instruction Encoding
+`msize` and `isize` are encoded like a fixed instruction with two operands:
+- Register Operand, but with no index
+- Unsigned Register Operand

@@ -61,3 +61,5 @@ Blocks of memory can be allocated with the `alloc` instruction.
 | `free`    | Address Reg |           | De-allocates a block of memory |
 | `load`    | Reg         | Address Reg | Loads the given register from the address |
 | `store`   | Address Reg | Any       | Stores a value into the address |
+| `msize`   | Unsigned Reg|           | Sets op1 to the size of a memory address in bytes |
+| `isize`   | Unsigned Reg|           | Sets op1 to the size of a instruction address in bytes |
