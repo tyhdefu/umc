@@ -224,7 +224,7 @@ impl VirtualMachine {
                     &self.memory_constants,
                 )
                 .unwrap_or_else(|err| {
-                    panic!("Failed to load {} from {}: {:?}", dst_reg, mem_reg, err)
+                    panic!("Failed to load {} from {:?}: {:?}", dst_reg, mem_reg, err)
                 });
             }
             Instruction::Store(mem_reg, from_reg) => {
@@ -236,7 +236,7 @@ impl VirtualMachine {
                     &self.memory_constants,
                 )
                 .unwrap_or_else(|err| {
-                    panic!("Failed to store {} into {}: {:?}", from_reg, mem_reg, err)
+                    panic!("Failed to store {} into {:?}: {:?}", from_reg, mem_reg, err)
                 });
             }
             Instruction::SizeOf(reg, reg_type) => {

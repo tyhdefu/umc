@@ -49,7 +49,7 @@ impl<'a> DisplayAssemblyParams<'a> {
                 mem_labels,
             } => match mem_labels.get(&(*constant as usize)) {
                 Some(l) => write!(f, "&{}", l),
-                None => write!(f, "{:#X}", constant),
+                None => write!(f, "&({:#X})", constant),
             },
         }
     }
@@ -145,7 +145,7 @@ impl DisplayAssembly for Instruction {
                 write_instr(f, opcode, params, opts)
             }
             Instruction::Jmp(reg_or_constant) => write_instr(f, "jmp", reg_or_constant, opts),
-            Instruction::Jal(d, r) => write!(f, "jal {}, {}", d, r),
+            Instruction::Jal(d, r) => write_instr(f, "jal", &ParamPair(d, r), opts),
             Instruction::Bz(reg_or_constant, compare_to_zero) => {
                 write_instr(f, "bz", &ParamPair(reg_or_constant, compare_to_zero), opts)
             }
@@ -446,14 +446,14 @@ impl DisplayAssembly for AnySingleRegOrConstant {
     fn fmt_assembly(
         &self,
         f: &mut std::fmt::Formatter<'_>,
-        _opts: &DisplayAssemblyParams,
+        opts: &DisplayAssemblyParams,
     ) -> std::fmt::Result {
         match self {
             AnySingleRegOrConstant::Unsigned(x) => write!(f, "{}", x),
             AnySingleRegOrConstant::Signed(x) => write!(f, "{}", x),
             AnySingleRegOrConstant::Float(x) => write!(f, "{}", x),
-            AnySingleRegOrConstant::Instr(x) => write!(f, "{}", x),
-            AnySingleRegOrConstant::Mem(x) => write!(f, "{}", x),
+            AnySingleRegOrConstant::Instr(x) => x.fmt_assembly(f, opts),
+            AnySingleRegOrConstant::Mem(x) => x.fmt_assembly(f, opts),
         }
     }
 }

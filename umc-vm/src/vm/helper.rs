@@ -584,7 +584,7 @@ pub fn execute_debug(reg: &AnyReg, state: &RegState) {
         AnyReg::Single(AnySingleReg::Instr(reg)) => {
             let reg_ref = RegOrConstant::Reg(reg.clone());
             let x: InstructionAddress = read_iaddr(&reg_ref, state);
-            println!("{} = {:?}", reg_ref, x);
+            println!("{} = {:?}", reg, x);
         }
         AnyReg::Single(AnySingleReg::Mem(m)) => println!("{} = {:?}", m, state.read(*m)),
         AnyReg::Vector(AnySingleReg::Unsigned(reg), l) => {

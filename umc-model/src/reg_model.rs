@@ -253,7 +253,6 @@ impl DisplayAssembly for RegOrConstant<InstrRegT> {
         }
     }
 }
-impl_display_delgate_raw!(RegOrConstant<InstrRegT>);
 
 impl DisplayAssembly for RegOrConstant<MemRegT> {
     fn fmt_assembly(
@@ -267,7 +266,6 @@ impl DisplayAssembly for RegOrConstant<MemRegT> {
         }
     }
 }
-impl_display_delgate_raw!(RegOrConstant<MemRegT>);
 
 impl Reg<UnsignedRegT> {
     pub fn from_unsigned(op: &Operand) -> Result<Self, ()> {

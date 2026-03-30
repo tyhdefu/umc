@@ -11,7 +11,6 @@ use lalrpop_util::lalrpop_mod;
 use umc_model::Program;
 use umc_model::binary::{DisassembleResult, DisassemblyInfo, InnerDisassembly, encode};
 use umc_model::format::DisplayAssemblyParams;
-use umc_model::unparse::instr_to_raw;
 
 lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 
@@ -114,7 +113,7 @@ fn print_disassembly(info: DisassemblyInfo, prog: Option<Program>) {
                     .iter()
                     .map(|b| format!("{:#X}", b))
                     .collect();
-                println!("&{}: {}", m_label, data.join(","));
+                println!("&{}: [{}]", m_label, data.join(","));
             }
 
             println!("{}", v0_dissassembler.to_instruction_assembly(&opts));
