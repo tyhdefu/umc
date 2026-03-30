@@ -6,6 +6,7 @@ use std::io;
 
 use crate::binary::leb128::LEBEncodable;
 use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
+use crate::format::{DisplayAssembly, DisplayAssemblyParams};
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ECallParams,
     Instruction, MovParams, NotParams, SimpleCast,
@@ -139,14 +140,14 @@ fn encode_instruction<W: io::Write>(
 }
 
 #[derive(Debug)]
-pub struct V0Dissassembler {
+pub struct V0Disassembler {
     type_header: RTHeader,
     instructions: Vec<Option<Instruction>>,
     track_raw: bool,
     raw_instructions: Vec<RawInstruction>,
 }
 
-impl V0Dissassembler {
+impl V0Disassembler {
     pub fn new(type_header: RTHeader) -> Self {
         Self {
             type_header,
@@ -163,6 +164,18 @@ impl V0Dissassembler {
             track_raw: true,
             raw_instructions: vec![],
         }
+    }
+
+    pub fn to_instruction_assembly(&self, opts: &DisplayAssemblyParams) -> String {
+        format!("{}", V0DisassemblerAssembly(self, opts))
+    }
+
+    pub fn instructions(&self) -> Vec<Instruction> {
+        self.instructions
+            .iter()
+            .cloned()
+            .filter_map(|x| x)
+            .collect()
     }
 
     fn decode_fixed_instruction<const N: usize, R: io::Read, F>(
@@ -356,29 +369,47 @@ impl V0Dissassembler {
     }
 }
 
-impl Display for V0Dissassembler {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if !self.track_raw {
-            for instr in &self.instructions {
-                match instr {
-                    Some(instr) => writeln!(f, "{}", instr)?,
-                    None => writeln!(f, "; ! Invalid Instruction !")?,
+impl DisplayAssembly for V0Disassembler {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        opts: &crate::format::DisplayAssemblyParams,
+    ) -> std::fmt::Result {
+        for (i, instr) in self.instructions.iter().enumerate() {
+            if let Some(label) = opts.get_instr_label(i) {
+                writeln!(f, ".{}:", label)?;
+            }
+            if let Some(raw) = self.raw_instructions.get(i) {
+                write!(f, "\t; {:02X} | ", raw.opcode)?;
+                for op in &raw.operands {
+                    write!(f, "{:02X} : {:X} ({}), ", op.1, op.2, op.0)?;
                 }
+                writeln!(f, "")?;
             }
-            return Ok(());
-        }
-        for (raw, instr) in self.raw_instructions.iter().zip(&self.instructions) {
-            write!(f, "; {:02X} | ", raw.opcode)?;
-            for op in &raw.operands {
-                write!(f, "{:02X} : {:X} ({}), ", op.1, op.2, op.0)?;
-            }
-            writeln!(f, "")?;
             match instr {
-                Some(instr) => writeln!(f, "{}", instr)?,
-                None => writeln!(f, "; ! Invalid Instruction !")?,
+                Some(instr) => {
+                    write!(f, "\t")?;
+                    instr.fmt_assembly(f, opts)?;
+                    writeln!(f, "")?;
+                }
+                None => writeln!(f, "\t; ! Invalid Instruction !")?,
             }
         }
         Ok(())
+    }
+}
+
+impl Display for V0Disassembler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_assembly(f, &crate::format::DisplayAssemblyParams::Raw)
+    }
+}
+
+struct V0DisassemblerAssembly<'a>(&'a V0Disassembler, &'a DisplayAssemblyParams<'a>);
+
+impl<'a> Display for V0DisassemblerAssembly<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt_assembly(f, self.1)
     }
 }
 
@@ -425,14 +456,14 @@ pub fn decode<R: io::Read>(mut src: R) -> Result<Program, DecodeError> {
 
     let pre_init_mem_header = PreInitMemTable::read(&mut src)?;
 
-    let mut disassembler = V0Dissassembler::new(rt_header);
+    let mut disassembler = V0Disassembler::new(rt_header);
     decode_with(src, pre_init_mem_header, &mut disassembler)
 }
 
 fn decode_with<R: io::Read>(
     mut src: R,
     pre_init_mem_header: PreInitMemTable,
-    disassembler: &mut V0Dissassembler,
+    disassembler: &mut V0Disassembler,
 ) -> Result<Program, DecodeError> {
     let mut instrs = vec![];
     while let Some(instr) = decode_instruction(&mut src, disassembler)? {
@@ -450,7 +481,7 @@ fn decode_with<R: io::Read>(
 /// Disassemble the file, assuming the common header has already been read
 pub fn disassemble<R: io::Read>(
     mut src: R,
-) -> (Result<Program, DecodeError>, Option<V0Dissassembler>) {
+) -> (Result<Program, DecodeError>, Option<V0Disassembler>) {
     let rt_header = match RTHeader::read(&mut src) {
         Ok(x) => x,
         Err(e) => return (Err(e), None),
@@ -461,7 +492,7 @@ pub fn disassemble<R: io::Read>(
         Err(e) => return (Err(e), None),
     };
 
-    let mut disassembler = V0Dissassembler::new_tracking(rt_header);
+    let mut disassembler = V0Disassembler::new_tracking(rt_header);
     let prog = decode_with(src, pre_init_mem_header, &mut disassembler);
 
     (prog, Some(disassembler))
@@ -469,7 +500,7 @@ pub fn disassemble<R: io::Read>(
 
 pub fn decode_instruction<R: io::Read>(
     src: &mut R,
-    disassembler: &mut V0Dissassembler,
+    disassembler: &mut V0Disassembler,
 ) -> Result<Option<Instruction>, DecodeError> {
     let opcode_raw = match src.read_u8() {
         Ok(b) => b,
@@ -969,7 +1000,7 @@ mod test {
         )
         .expect("Encoding failed");
 
-        let mut disassembler = V0Dissassembler::new_tracking(rt_header);
+        let mut disassembler = V0Disassembler::new_tracking(rt_header);
         let mut cursor = Cursor::new(buffer);
 
         let decoded_instr =
@@ -1012,7 +1043,7 @@ mod test {
         )
         .expect("Encoding failed");
 
-        let mut disassembler = V0Dissassembler::new_tracking(rt_header);
+        let mut disassembler = V0Disassembler::new_tracking(rt_header);
         let mut cursor = Cursor::new(buffer);
         let decoded_instr =
             decode_instruction(&mut cursor, &mut disassembler).expect("Decoding failed");

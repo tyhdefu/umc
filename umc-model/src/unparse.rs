@@ -9,6 +9,26 @@ use crate::reg_model::{
 };
 use crate::{NumRegType, RegType, RegWidth, RegisterSet};
 
+pub fn find_label_constants(instr: &Instruction) -> Vec<usize> {
+    instr_to_raw(instr)
+        .iter()
+        .filter_map(|o| match o {
+            Operand::LabelConstant(v) => Some(*v),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn find_mem_label_constants(instr: &Instruction) -> Vec<usize> {
+    instr_to_raw(instr)
+        .iter()
+        .filter_map(|o| match o {
+            Operand::MemLabelConstant(v) => Some(*v),
+            _ => None,
+        })
+        .collect()
+}
+
 pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
     match instr {
         Instruction::Nop => vec![],

@@ -5,6 +5,9 @@ use std::hash::Hash;
 use crate::NumRegType;
 use crate::RegType;
 use crate::RegisterSet;
+use crate::format::DisplayAssembly;
+use crate::format::DisplayAssemblyParams;
+use crate::impl_display_delgate_raw;
 use crate::operand::Operand;
 use crate::{RegIndex, RegWidth};
 
@@ -174,59 +177,97 @@ impl<RT: RegTypeT<WIDTH = RegWidth>> RegOrConstant<RT> {
     }
 }
 
+impl<RT: RegTypeT> DisplayAssembly for Reg<RT>
+where
+    RT::WIDTH: Display,
+{
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        _opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
+        write!(f, "{}{}:{}", RT::LETTER, self.width, self.index)
+    }
+}
+
 impl<RT: RegTypeT> Display for Reg<RT>
 where
     RT::WIDTH: Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}:{}", RT::LETTER, self.width, self.index)
+        self.fmt_assembly(f, &DisplayAssemblyParams::Raw)
     }
 }
 
-impl Display for RegOrConstant<UnsignedRegT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl DisplayAssembly for RegOrConstant<UnsignedRegT> {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        _opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "{}", r),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
 }
+impl_display_delgate_raw!(RegOrConstant<UnsignedRegT>);
 
-impl Display for RegOrConstant<SignedRegT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl DisplayAssembly for RegOrConstant<SignedRegT> {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        _opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "{}", r),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
 }
+impl_display_delgate_raw!(RegOrConstant<SignedRegT>);
 
-impl Display for RegOrConstant<FloatRegT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl DisplayAssembly for RegOrConstant<FloatRegT> {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        _opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "{}", r),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
 }
+impl_display_delgate_raw!(RegOrConstant<FloatRegT>);
 
-impl Display for RegOrConstant<InstrRegT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl DisplayAssembly for RegOrConstant<InstrRegT> {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(reg) => write!(f, "{}", reg),
-            RegOrConstant::Const(c) => write!(f, "0x{}", c),
+            RegOrConstant::Const(c) => opts.fmt_instr_label(f, c),
         }
     }
 }
+impl_display_delgate_raw!(RegOrConstant<InstrRegT>);
 
-impl Display for RegOrConstant<MemRegT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl DisplayAssembly for RegOrConstant<MemRegT> {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(reg) => write!(f, "{}", reg),
-            RegOrConstant::Const(c) => write!(f, "&{:#X}", c),
+            RegOrConstant::Const(c) => opts.fmt_mem_label(f, c),
         }
     }
 }
+impl_display_delgate_raw!(RegOrConstant<MemRegT>);
 
 impl Reg<UnsignedRegT> {
     pub fn from_unsigned(op: &Operand) -> Result<Self, ()> {

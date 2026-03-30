@@ -1,5 +1,6 @@
 pub mod ast;
 
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -9,6 +10,8 @@ use clap::Parser;
 use lalrpop_util::lalrpop_mod;
 use umc_model::Program;
 use umc_model::binary::{DisassembleResult, DisassemblyInfo, InnerDisassembly, encode};
+use umc_model::format::DisplayAssemblyParams;
+use umc_model::unparse::instr_to_raw;
 
 lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 
@@ -92,7 +95,29 @@ fn print_disassembly(info: DisassemblyInfo, prog: Option<Program>) {
             }
         }
         InnerDisassembly::V0(v0_dissassembler) => {
-            println!("{}", v0_dissassembler);
+            let prog = prog.unwrap_or_else(|| Program {
+                instructions: v0_dissassembler.instructions(),
+                pre_init_mem: vec![],
+                mem_labels: HashMap::new(),
+                instr_labels: HashMap::new(),
+            });
+            let instr_labels = prog.create_instr_labels();
+            let mem_labels = prog.create_mem_labels();
+
+            let opts = DisplayAssemblyParams::WithSymbols {
+                instr_labels: &instr_labels,
+                mem_labels: &mem_labels,
+            };
+
+            for (m_const, m_label) in &mem_labels {
+                let data: Vec<String> = prog.pre_init_mem[*m_const]
+                    .iter()
+                    .map(|b| format!("{:#X}", b))
+                    .collect();
+                println!("&{}: {}", m_label, data.join(","));
+            }
+
+            println!("{}", v0_dissassembler.to_instruction_assembly(&opts));
         }
     }
 }

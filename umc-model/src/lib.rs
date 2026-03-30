@@ -1,6 +1,7 @@
 //! Shared between AST and Bytecode
 
 pub mod binary;
+pub mod format;
 pub mod instructions;
 pub mod operand;
 pub mod parse;
@@ -10,6 +11,8 @@ pub mod unparse;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
+
+use crate::format::{DisplayAssembly, DisplayAssemblyParams};
 
 #[derive(Clone)]
 pub struct Program {
@@ -33,12 +36,68 @@ impl Program {
             instr_labels: HashMap::new(),
         }
     }
+
+    pub fn create_instr_labels(&self) -> HashMap<usize, String> {
+        let mut instr_labels: HashMap<usize, String> = self
+            .instr_labels
+            .iter()
+            .map(|(l, v)| (*v, l.clone()))
+            .collect();
+
+        for instr in &self.instructions {
+            for label_constant in unparse::find_label_constants(&instr) {
+                instr_labels
+                    .entry(label_constant)
+                    .or_insert(format!("L_{}", label_constant));
+            }
+        }
+        instr_labels
+    }
+
+    pub fn create_mem_labels(&self) -> HashMap<usize, String> {
+        let mut mem_labels: HashMap<usize, String> = self
+            .mem_labels
+            .iter()
+            .map(|(l, v)| (*v, l.clone()))
+            .collect();
+        for instr in &self.instructions {
+            for mem_constant in unparse::find_mem_label_constants(&instr) {
+                mem_labels
+                    .entry(mem_constant)
+                    .or_insert(format!("M_{}", mem_constant));
+            }
+        }
+        mem_labels
+    }
 }
 
 impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for i in &self.instructions {
-            write!(f, "{}\n", i)?;
+        let instr_labels = self.create_instr_labels();
+        let mem_labels = self.create_mem_labels();
+
+        let opts = if instr_labels.is_empty() && mem_labels.is_empty() {
+            DisplayAssemblyParams::Raw
+        } else {
+            DisplayAssemblyParams::WithSymbols {
+                instr_labels: &instr_labels,
+                mem_labels: &mem_labels,
+            }
+        };
+
+        for (m_const, m_label) in &mem_labels {
+            let data: Vec<String> = self.pre_init_mem[*m_const]
+                .iter()
+                .map(|b| format!("{:#X}", b))
+                .collect();
+            writeln!(f, "&{}: {}", m_label, data.join(","))?;
+        }
+
+        for (i, instr) in self.instructions.iter().enumerate() {
+            if let Some(l) = instr_labels.get(&i) {
+                writeln!(f, ".{}:", l)?;
+            }
+            instr.fmt_assembly(f, &opts)?;
         }
         Ok(())
     }

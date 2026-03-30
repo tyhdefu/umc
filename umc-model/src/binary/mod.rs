@@ -5,7 +5,8 @@ use std::{fmt::Display, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{Program, binary::v0::V0Dissassembler, parse::InstructionValidateError};
+use crate::binary::v0::V0Disassembler;
+use crate::{Program, parse::InstructionValidateError};
 
 mod leb128;
 #[cfg(test)]
@@ -180,5 +181,5 @@ impl DisassemblyInfo {
 
 pub enum InnerDisassembly {
     None,
-    V0(V0Dissassembler),
+    V0(V0Disassembler),
 }

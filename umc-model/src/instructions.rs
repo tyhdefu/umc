@@ -4,6 +4,8 @@ use std::fmt::Display;
 use crate::RegIndex;
 use crate::RegWidth;
 use crate::RegisterSet;
+use crate::format::DisplayAssembly;
+use crate::format::DisplayAssemblyParams;
 use crate::reg_model::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,6 +75,12 @@ pub enum Instruction {
     Dbg(AnyReg),
 }
 
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_assembly(f, &DisplayAssemblyParams::Raw)
+    }
+}
+
 /// Any type of register including vector registers
 #[derive(Debug, PartialEq, Clone)]
 pub enum AnyReg {
@@ -135,7 +143,7 @@ pub struct VectorBroadcastParams<RT: RegTypeT> {
     length: RegWidth,
 
     reversed: bool,
-    p_index: RegIndex,
+    vec_index: RegIndex,
     value: RegOrConstant<RT>,
 }
 
@@ -150,7 +158,7 @@ impl<RT: RegTypeT> VectorBroadcastParams<RT> {
         Self {
             dst_full_index: dst,
             length: length,
-            p_index: vec_param,
+            vec_index: vec_param,
             value: single,
             reversed,
         }
@@ -162,7 +170,7 @@ impl<RT: RegTypeT> VectorBroadcastParams<RT> {
 
     pub fn vec_param(&self) -> Reg<RT> {
         let mut vec_param = self.dst_full_index.clone();
-        vec_param.index = self.p_index;
+        vec_param.index = self.vec_index;
         vec_param
     }
 
@@ -301,206 +309,6 @@ pub struct ECallParams {
     pub args: Vec<AnySingleRegOrConstant>,
 }
 
-impl Display for Instruction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Instruction::Nop => write!(f, "nop"),
-            Instruction::Mov(params) => write!(f, "mov {}", params),
-            Instruction::Add(params) => write!(f, "add {}", params),
-            Instruction::Sub(params) => write!(f, "sub {}", params),
-            Instruction::Mul(params) => write!(f, "mul {}", params),
-            Instruction::Div(params) => write!(f, "div {}", params),
-            Instruction::Mod(params) => write!(f, "mod {}", params),
-            Instruction::And(params) => write!(f, "and {}", params),
-            Instruction::Or(params) => write!(f, "or {}", params),
-            Instruction::Xor(params) => write!(f, "xor {}", params),
-            Instruction::Not(params) => write!(f, "not {}", params),
-            Instruction::Compare { cond, params } => {
-                let opcode = match cond {
-                    BinaryCondition::Equal => "eq",
-                    BinaryCondition::GreaterThan => "gt",
-                    BinaryCondition::GreaterThanOrEqualTo => "ge",
-                    BinaryCondition::LessThan => "lt",
-                    BinaryCondition::LessThanOrEqualTo => "le",
-                };
-                write!(f, "{opcode} {params}")
-            }
-            Instruction::Jmp(reg_or_constant) => write!(f, "jmp {}", reg_or_constant),
-            Instruction::Jal(d, r) => write!(f, "jal {}, {}", d, r),
-            Instruction::Bz(reg_or_constant, compare_to_zero) => {
-                write!(f, "bz {}, {}", reg_or_constant, compare_to_zero)
-            }
-            Instruction::Bnz(reg_or_constant, compare_to_zero) => {
-                write!(f, "bnz {}, {}", reg_or_constant, compare_to_zero)
-            }
-            Instruction::Alloc(mem_reg, size) => {
-                write!(f, "alloc {}, {}", mem_reg, size)
-            }
-            Instruction::Free(mem_reg) => {
-                write!(f, "free {}", mem_reg)
-            }
-            Instruction::Load(reg, mem_reg) => {
-                write!(f, "load {}, {}", reg, mem_reg)
-            }
-            Instruction::Store(mem_reg, reg) => {
-                write!(f, "store {}, {}", mem_reg, reg)
-            }
-            Instruction::SizeOf(reg, register_set) => {
-                write!(f, "sizeof <{}>, {}", register_set, reg)
-            }
-            Instruction::Cast(cast) => write!(f, "cast {}", cast),
-            Instruction::ECall(ecall) => write!(f, "ecall {}", ecall),
-            Instruction::Dbg(reg_operand) => write!(f, "dbg {}", reg_operand),
-        }
-    }
-}
-
-impl Display for NumReg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.width, self.index)
-    }
-}
-
-impl Display for NumVecReg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}x{}:{}", self.width, self.length, self.index)
-    }
-}
-
-impl Display for CompareToZero {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompareToZero::Unsigned(x) => write!(f, "{}", x),
-            CompareToZero::Signed(x) => write!(f, "{}", x),
-        }
-    }
-}
-
-impl Display for MovParams {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MovParams::UnsignedInt(reg, p) => write!(f, "{}, {}", reg, p),
-            MovParams::SignedInt(reg, p) => write!(f, "{}, {}", reg, p),
-            MovParams::Float(reg, p) => write!(f, "{}, {}", reg, p),
-            MovParams::MemAddress(to, from) => write!(f, "{}, {}", to, from),
-            MovParams::InstrAddress(to, p) => write!(f, "{}, {}", to, p),
-        }
-    }
-}
-
-impl Display for NotParams {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NotParams::UnsignedInt(reg, reg_or_constant) => {
-                write!(f, "{}, {}", reg, reg_or_constant)
-            }
-            NotParams::SignedInt(reg, reg_or_constant) => {
-                write!(f, "{}, {}", reg, reg_or_constant)
-            }
-        }
-    }
-}
-
-impl Display for CompareParams {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}", self.dst, self.args)
-    }
-}
-
-impl Display for ConsistentComparison {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            Self::UnsignedCompare(p1, p2) => write!(f, "{p1}, {p2}"),
-            Self::SignedCompare(p1, p2) => write!(f, "{p1}, {p2}"),
-            Self::FloatCompare(p1, p2) => write!(f, "{p1}, {p2}"),
-            Self::MemAddressCompare(i1, i2) => write!(f, "{i1}, {i2}"),
-            Self::InstrAddressCompare(p1, p2) => write!(f, "{p1}, {p2}"),
-        }
-    }
-}
-
-impl Display for AddParams {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AddParams::UnsignedInt(consistent_op) => write!(f, "{}", consistent_op),
-            AddParams::SignedInt(consistent_op) => write!(f, "{}", consistent_op),
-            AddParams::Float(consistent_op) => write!(f, "{}", consistent_op),
-            AddParams::MemAddress(dst, mem_reg, offset_reg) => {
-                write!(f, "{}, {}, {}", dst, mem_reg, offset_reg)
-            }
-            AddParams::InstrAddress(dst, instr_reg, offset_reg) => {
-                write!(f, "{}, {}, {}", dst, instr_reg, offset_reg)
-            }
-        }
-    }
-}
-
-impl Display for OffsetOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OffsetOp::Unsigned(x) => write!(f, "{}", x),
-            OffsetOp::Signed(x) => write!(f, "{}", x),
-        }
-    }
-}
-
-impl<RT: RegTypeT> Display for ConsistentOp<RT>
-where
-    RegOrConstant<RT>: Display,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConsistentOp::Single(dst, p1, p2) => write!(f, "{dst}, {p1}, {p2}"),
-            ConsistentOp::VectorBroadcast(params) => write!(f, "{}", params),
-            ConsistentOp::VectorVector(params) => write!(f, "{}", params),
-        }
-    }
-}
-
-impl Display for AnyConsistentNumOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AnyConsistentNumOp::UnsignedInt(num_op) => write!(f, "{}", num_op),
-            AnyConsistentNumOp::SignedInt(num_op) => write!(f, "{}", num_op),
-            AnyConsistentNumOp::Float(num_op) => write!(f, "{}", num_op),
-        }
-    }
-}
-
-impl<RT: RegTypeT> Display for VectorBroadcastParams<RT>
-where
-    RegOrConstant<RT>: Display,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dst = self.dst_full_index.index;
-        let p1 = self.p_index;
-        let p2 = self.value_param();
-        write!(
-            f,
-            "{0}{1}x{2}:{dst}, {0}{1}x{2}:{p1}, {p2}",
-            RT::LETTER,
-            self.dst_full_index.width,
-            self.length
-        )
-    }
-}
-
-impl<RT: RegTypeT> Display for VectorVectorParams<RT> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dst = self.dst_full_index.index;
-        let p1 = self.p1_index;
-        let p2 = self.p2_index;
-
-        write!(
-            f,
-            "{0}{1}x{2}:{dst}, {0}{1}x{2}:{p1}, {0}{1}x{2}:{p2}",
-            RT::LETTER,
-            self.dst_full_index.width,
-            self.length
-        )
-    }
-}
-
 /// A simple cast that can be inferred solely based on the operands
 #[derive(Debug, PartialEq, Clone)]
 pub enum SimpleCast {
@@ -561,77 +369,4 @@ pub enum ResizeCast {
     Signed(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
     /// Precision increase / decrease
     Float(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
-}
-
-impl Display for SimpleCast {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SimpleCast::Resize(ResizeCast::Unsigned(d, p)) => write!(f, "{}, {}", d, p),
-            SimpleCast::Resize(ResizeCast::Signed(d, p)) => write!(f, "{}, {}", d, p),
-            SimpleCast::Resize(ResizeCast::Float(d, p)) => write!(f, "{}, {}", d, p),
-            SimpleCast::IgnoreSigned(p) => write!(f, "{}, {}", p.dst(), p.from()),
-            SimpleCast::AddSign(p) => write!(f, "{}, {}", p.dst(), p.from()),
-        }
-    }
-}
-
-impl Display for AnyReg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AnyReg::Single(x) => write!(f, "{}", x),
-            AnyReg::Vector(reg, length) => {
-                fn write_vec_reg<RT: RegTypeT>(
-                    f: &mut std::fmt::Formatter<'_>,
-                    reg: &Reg<RT>,
-                    length: RegWidth,
-                ) -> std::fmt::Result
-                where
-                    RT::WIDTH: Display,
-                {
-                    write!(f, "{}{}x{}:{}", RT::LETTER, reg.width, length, reg.index)
-                }
-                match reg {
-                    AnySingleReg::Unsigned(reg) => write_vec_reg(f, reg, *length),
-                    AnySingleReg::Signed(reg) => write_vec_reg(f, reg, *length),
-                    AnySingleReg::Float(reg) => write_vec_reg(f, reg, *length),
-                    AnySingleReg::Instr(reg) => write_vec_reg(f, reg, *length),
-                    AnySingleReg::Mem(reg) => write_vec_reg(f, reg, *length),
-                }
-            }
-        }
-    }
-}
-
-impl Display for AnySingleReg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AnySingleReg::Unsigned(reg) => write!(f, "{}", reg),
-            AnySingleReg::Signed(reg) => write!(f, "{}", reg),
-            AnySingleReg::Float(reg) => write!(f, "{}", reg),
-            AnySingleReg::Instr(reg) => write!(f, "{}", reg),
-            AnySingleReg::Mem(reg) => write!(f, "{}", reg),
-        }
-    }
-}
-
-impl Display for AnySingleRegOrConstant {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AnySingleRegOrConstant::Unsigned(x) => write!(f, "{}", x),
-            AnySingleRegOrConstant::Signed(x) => write!(f, "{}", x),
-            AnySingleRegOrConstant::Float(x) => write!(f, "{}", x),
-            AnySingleRegOrConstant::Instr(x) => write!(f, "{}", x),
-            AnySingleRegOrConstant::Mem(x) => write!(f, "{}", x),
-        }
-    }
-}
-
-impl Display for ECallParams {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}", self.dst, self.code)?;
-        for arg in &self.args {
-            write!(f, ", {}", arg)?;
-        }
-        Ok(())
-    }
 }
