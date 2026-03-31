@@ -87,24 +87,24 @@ where
 
         match domain {
             Self::U1 => {
-                let v1: bool = read_uint(p1, state);
-                let v2: bool = read_uint(p2, state);
+                let v1: bool = read_uint(p1, state).unwrap_or_default();
+                let v2: bool = read_uint(p2, state).unwrap_or_default();
                 v1.partial_cmp(&v2)
             }
             Self::U32 => {
-                let v1: u32 = read_uint(p1, state);
-                let v2: u32 = read_uint(p2, state);
+                let v1: u32 = read_uint(p1, state).unwrap_or_default();
+                let v2: u32 = read_uint(p2, state).unwrap_or_default();
                 v1.partial_cmp(&v2)
             }
             Self::U64 => {
-                let v1: u64 = read_uint(p1, state);
-                let v2: u64 = read_uint(p2, state);
+                let v1: u64 = read_uint(p1, state).unwrap_or_default();
+                let v2: u64 = read_uint(p2, state).unwrap_or_default();
                 v1.partial_cmp(&v2)
             }
             Self::Arbitrary(_) => {
                 // TODO: Only need references
-                let v1: ArbitraryUnsignedInt = read_uint(p1, state);
-                let v2: ArbitraryUnsignedInt = read_uint(p1, state);
+                let v1: ArbitraryUnsignedInt = read_uint(p1, state).unwrap_or_default();
+                let v2: ArbitraryUnsignedInt = read_uint(p1, state).unwrap_or_default();
 
                 v1.partial_cmp(&v2)
             }
@@ -184,23 +184,24 @@ where
     ) {
         match self {
             Self::U1 => {
-                let mut v: bool = read_uint(&p, state);
+                let mut v: bool = read_uint(&p, state).unwrap_or_default();
                 op.operate(&mut v);
                 state.store_prim(dst, v);
             }
             Self::U32 => {
-                let mut v: u32 = read_uint(&p, state);
+                let mut v: u32 = read_uint(&p, state).unwrap_or_default();
                 op.operate(&mut v);
                 state.store_prim(dst, v);
             }
             Self::U64 => {
-                let mut v: u64 = read_uint(&p, state);
+                let mut v: u64 = read_uint(&p, state).unwrap_or_default();
                 op.operate(&mut v);
                 state.store_prim(dst, v);
             }
             Self::Arbitrary(w) => {
                 // TODO: Can reduce cost of clone here
-                let mut v: ArbitraryUnsignedInt = read_uint(&p, state);
+                let mut v: ArbitraryUnsignedInt =
+                    read_uint(&p, state).unwrap_or_else(|| ArbitraryUnsignedInt::new(*w));
                 v.resize_to(*w);
                 op.operate(&mut v);
                 state.store(dst, v);
@@ -230,26 +231,27 @@ where
     ) {
         match self {
             Self::U1 => {
-                let mut v1: bool = read_uint(p1, state);
-                let v2: bool = read_uint(p1, state);
+                let mut v1: bool = read_uint(p1, state).unwrap_or_default();
+                let v2: bool = read_uint(p1, state).unwrap_or_default();
                 operation.operate(&mut v1, &v2);
                 state.store_prim(dst, v1);
             }
             Self::U32 => {
-                let mut v1: u32 = read_uint(p1, state);
-                let v2: u32 = read_uint(p2, state);
+                let mut v1: u32 = read_uint(p1, state).unwrap_or_default();
+                let v2: u32 = read_uint(p2, state).unwrap_or_default();
                 operation.operate(&mut v1, &v2);
                 state.store_prim(dst, v1);
             }
             Self::U64 => {
-                let mut v1: u64 = read_uint(p1, state);
-                let v2: u64 = read_uint(p2, state);
+                let mut v1: u64 = read_uint(p1, state).unwrap_or_default();
+                let v2: u64 = read_uint(p2, state).unwrap_or_default();
                 operation.operate(&mut v1, &v2);
                 state.store_prim(dst, v1);
             }
             Self::Arbitrary(w) => {
-                let mut v1: ArbitraryUnsignedInt = read_uint(p1, state);
-                let v2: ArbitraryUnsignedInt = read_uint(p2, state);
+                let mut v1: ArbitraryUnsignedInt =
+                    read_uint(p1, state).unwrap_or_else(|| ArbitraryUnsignedInt::new(*w));
+                let v2: ArbitraryUnsignedInt = read_uint(p2, state).unwrap_or_default();
                 v1.resize_to(*w);
                 operation.operate(&mut v1, &v2);
                 state.store(dst, v1);
@@ -271,7 +273,7 @@ where
                     .read_multi_prim(params.vec_param(), length)
                     .cloned()
                     .unwrap_or(VecValue::from_repeated_default(length));
-                let v: bool = read_uint(params.value_param(), state);
+                let v: bool = read_uint(params.value_param(), state).unwrap_or_default();
                 compute_broadcast(&mut vector, &v, op, params.is_reversed());
                 state.store_multi_copy_prim(*params.dst(), vector.as_slice());
             }
@@ -280,7 +282,7 @@ where
                     .read_multi_prim(params.vec_param(), length)
                     .cloned()
                     .unwrap_or(VecValue::from_repeated_default(length));
-                let v: u32 = read_uint(params.value_param(), state);
+                let v: u32 = read_uint(params.value_param(), state).unwrap_or_default();
                 compute_broadcast(&mut vector, &v, op, params.is_reversed());
                 state.store_multi_copy_prim(*params.dst(), vector.as_slice());
             }
@@ -289,7 +291,7 @@ where
                     .read_multi_prim(params.vec_param(), length)
                     .cloned()
                     .unwrap_or(VecValue::from_repeated_default(length));
-                let v: u64 = read_uint(params.value_param(), state);
+                let v: u64 = read_uint(params.value_param(), state).unwrap_or_default();
                 compute_broadcast(&mut vector, &v, op, params.is_reversed());
                 state.store_multi_copy_prim(*params.dst(), vector.as_slice());
             }
@@ -298,7 +300,8 @@ where
                     .read_multi(params.vec_param(), length)
                     .cloned()
                     .unwrap_or(VecValue::from_repeated_default(length));
-                let v: ArbitraryUnsignedInt = read_uint(params.value_param(), state);
+                let v: ArbitraryUnsignedInt =
+                    read_uint(params.value_param(), state).unwrap_or_default();
 
                 for x in vector.as_slice_mut() {
                     x.resize_to(*w);

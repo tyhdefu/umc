@@ -20,16 +20,16 @@ The easiest way to test UMC on a different architecture is to use [cross](https:
 
 Cross works just like cargo, using an image to provide libraries so you don't have to install them on your host machine.
 
-One of the best targets for testing is a 32-bit ARM machine `armv7-unknown-linux-gnueabihf`, as this has different endianness and pointer size to x86_64.
+One of the best targets for testing is a 32-bit ARM machine `armv7-unknown-linux-gnueabihf`, as this has pointer size and architecture to x86_64.
 
 Compile for ARM 32-bit (e.g. a Raspberry Pi Zero)
-`cargo build --target armv7-unknown-linux-gnueabihf`
+`cross build --target armv7-unknown-linux-gnueabihf`
 
 Run unit tests on ARM 32-bit (emulation via QEMU):
-`cargo test --target armv7-unknown-linux-gnueabihf`
+`cross test --target armv7-unknown-linux-gnueabihf`
 
 Run a ARM 32-bit binary (emulation via QEMU)
-`cargo run --target armv7-unknown-linux-gnueabihf -- progs/fib.umc`
+`cross run -p umc-vm --target armv7-unknown-linux-gnueabihf -- progs/fib.umc`
 
 # Building and testing for Web Assembly
 Running and testing for Web Assembly is simple.

@@ -174,7 +174,8 @@ impl VirtualMachine {
                 }
             }
             Instruction::Alloc(mem_reg, size_reg) => {
-                let arb_bytes: ArbitraryUnsignedInt = helper::read_uint(size_reg, &self.state);
+                let arb_bytes: ArbitraryUnsignedInt =
+                    helper::read_uint(size_reg, &self.state).unwrap_or_default();
                 let bytes = arb_bytes.as_usize();
                 let address: SafeAddress = self.memory.allocate(bytes).expect("alloc failed");
                 self.state.store(*mem_reg, address);
@@ -258,7 +259,7 @@ impl VirtualMachine {
         T: Default,
     {
         let reg = RegOrConstant::from_reg(Reg { index, width });
-        helper::read_uint::<T, _>(&reg, &self.state)
+        helper::read_uint::<T, _>(&reg, &self.state).unwrap_or_default()
     }
 
     #[allow(unused)]

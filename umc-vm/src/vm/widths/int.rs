@@ -134,7 +134,7 @@ where
                 memory.store_prim(v, address)
             }
             Self::Arbitrary(_) => {
-                let v: &ArbitraryInt = state.read(reg).unwrap_or(ArbitraryInt::ZERO_REF);
+                let _v: &ArbitraryInt = state.read(reg).unwrap_or(ArbitraryInt::ZERO_REF);
                 // memory.store(v, address)
                 todo!("Implement arbitrary int serialisation");
             }

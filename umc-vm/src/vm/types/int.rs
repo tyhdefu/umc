@@ -19,6 +19,7 @@ impl ArbitraryInt {
     pub const ZERO: ArbitraryInt = ArbitraryInt { inner: None };
     pub const ZERO_REF: &'static ArbitraryInt = &Self::ZERO;
 
+    #[allow(unused)]
     pub fn zero(width: RegWidth) -> Self {
         match NonZeroUsize::try_from(width as usize) {
             Ok(nonzero) => Self {

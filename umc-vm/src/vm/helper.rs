@@ -413,15 +413,15 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
         },
         SimpleCast::AddSign(c) => match c.width() {
             32 => {
-                let v: u32 = read_uint(c.from(), state);
+                let v: u32 = read_uint(c.from(), state).unwrap_or_default();
                 state.store_prim(*c.dst(), v as i32);
             }
             64 => {
-                let v: u64 = read_uint(c.from(), state);
+                let v: u64 = read_uint(c.from(), state).unwrap_or_default();
                 state.store_prim(*c.dst(), v as i64);
             }
             _ => {
-                let _v: ArbitraryUnsignedInt = read_uint(c.from(), state);
+                let _v: ArbitraryUnsignedInt = read_uint(c.from(), state).unwrap_or_default();
                 todo!("Arbitrary signed integers unsupported");
             }
         },
@@ -460,7 +460,7 @@ pub fn execute_ecall<E: Environment>(
     memory_constants: &Vec<SafeAddress>,
     environment: &mut E,
 ) -> Result<(), ECallError> {
-    let ecall_code: u32 = read_uint(&ecall.code, state);
+    let ecall_code: u32 = read_uint(&ecall.code, state).unwrap_or_default();
     let ecall_code: ECallCode = ecall_code
         .try_into()
         .map_err(|x| ECallError::InvalidECallCode(x))?;
@@ -506,7 +506,7 @@ pub fn execute_ecall<E: Environment>(
 
             let [file_handle] = args(&ecall.args)?;
             let file_handle: u32 = match file_handle {
-                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state).unwrap_or_default(),
                 _ => return Err(ECallError::InvalidArguments),
             };
             let suc = environment.close(file_handle).is_err();
@@ -521,7 +521,7 @@ pub fn execute_ecall<E: Environment>(
 
             let [file_handle, buf_addr, size_reg] = args(&ecall.args)?;
             let file_handle: u32 = match file_handle {
-                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state).unwrap_or_default(),
                 _ => return Err(ECallError::InvalidArguments),
             };
             let mem_addr = match buf_addr {
@@ -531,7 +531,7 @@ pub fn execute_ecall<E: Environment>(
                 _ => return Err(ECallError::InvalidArguments),
             };
             let size: u64 = match size_reg {
-                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state).unwrap_or_default(),
                 _ => return Err(ECallError::InvalidArguments),
             };
             let buf = memory_state
@@ -548,7 +548,7 @@ pub fn execute_ecall<E: Environment>(
 
             let [file_handle, buf_addr, size_reg] = args(&ecall.args)?;
             let file_handle: u32 = match file_handle {
-                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state).unwrap_or_default(),
                 _ => return Err(ECallError::InvalidArguments),
             };
             let mem_addr = match buf_addr {
@@ -558,7 +558,7 @@ pub fn execute_ecall<E: Environment>(
                 _ => return Err(ECallError::InvalidArguments),
             };
             let size: u64 = match size_reg {
-                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state),
+                AnySingleRegOrConstant::Unsigned(x) => read_uint(x, state).unwrap_or_default(),
                 _ => return Err(ECallError::InvalidArguments),
             };
             let buf = memory_state
@@ -574,7 +574,8 @@ pub fn execute_ecall<E: Environment>(
 pub fn execute_debug(reg: &AnyReg, state: &RegState) {
     match reg {
         AnyReg::Single(AnySingleReg::Unsigned(reg)) => {
-            let x: ArbitraryUnsignedInt = read_uint(&RegOrConstant::Reg(reg.clone()), state);
+            let x: ArbitraryUnsignedInt =
+                read_uint(&RegOrConstant::Reg(reg.clone()), state).unwrap_or_default();
             if reg.width == u8::BITS {
                 let v: u32 = x.cast_into();
                 println!(
@@ -614,7 +615,7 @@ pub fn execute_debug(reg: &AnyReg, state: &RegState) {
     }
 }
 
-pub fn read_uint<T, S>(op: &RegOrConstant<UnsignedRegT>, state: &S) -> T
+pub fn read_uint<T, S>(op: &RegOrConstant<UnsignedRegT>, state: &S) -> Option<T>
 where
     T: CastSingleUnsigned,
     S: StorePrim<bool, UnsignedRegT>
@@ -624,26 +625,14 @@ where
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {
-            1 => {
-                let v: bool = state.read_prim(*num_reg).unwrap_or_default();
-                v.cast_into()
-            }
-            u32::BITS => {
-                let v: u32 = state.read_prim(*num_reg).unwrap_or_default();
-                v.cast_into()
-            }
-            u64::BITS => {
-                let v: u64 = state.read_prim(*num_reg).unwrap_or_default();
-                v.cast_into()
-            }
-            _ => {
-                let v: &ArbitraryUnsignedInt = state
-                    .read(*num_reg)
-                    .unwrap_or(ArbitraryUnsignedInt::ZERO_REF);
-                v.cast_into()
-            }
+            1 => state.read_prim(*num_reg).map(|x: bool| x.cast_into()),
+            u32::BITS => state.read_prim(*num_reg).map(|x: u32| x.cast_into()),
+            u64::BITS => state.read_prim(*num_reg).map(|x: u64| x.cast_into()),
+            _ => state
+                .read(*num_reg)
+                .map(|x: &ArbitraryUnsignedInt| x.cast_into()),
         },
-        RegOrConstant::Const(c) => c.cast_into(),
+        RegOrConstant::Const(c) => Some(c.cast_into()),
     }
 }
 
@@ -742,7 +731,7 @@ pub fn is_zero(p: &CompareToZero, state: &RegState) -> bool {
 
 pub fn read_offset(p: &OffsetOp, state: &RegState) -> isize {
     match p {
-        OffsetOp::Unsigned(op) => read_uint::<u64, _>(op, state) as isize,
+        OffsetOp::Unsigned(op) => read_uint::<u64, _>(op, state).unwrap_or_default() as isize,
         OffsetOp::Signed(op) => read_int::<i64, _>(op, state) as isize,
     }
 }

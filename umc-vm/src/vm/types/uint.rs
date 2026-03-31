@@ -105,6 +105,7 @@ impl ArbitraryUnsignedInt {
         vec
     }
 
+    #[allow(unused)]
     pub fn resized_clone(&self, new_bits: u32) -> Self {
         let new_len = new_bits.div_ceil(usize::BITS) as usize;
         let mut copy = Self {
