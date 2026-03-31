@@ -42,6 +42,7 @@ impl IntWidth {
     }
 
     /// Store a u64 into the given register, casting to fit as necessary
+    #[allow(unused)]
     pub fn store_i64<S>(reg: Reg<SignedRegT>, state: &mut S, val: i64)
     where
         S: StorePrim<i32, SignedRegT>

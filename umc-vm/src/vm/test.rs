@@ -160,13 +160,13 @@ fn compare_uints() {
         mov u32:0, #5
         mov u32:1, #0
 
-        gt u32:3, u32:0, u32:1
+        sgt u32:3, u32:0, u32:1
         dbg u32:3
 
-        le u1:0, u32:5, u32:5
+        sle u1:0, u32:5, u32:5
         dbg u1:0
 
-        lt u1:1, #10, u32:0
+        slt u1:1, #10, u32:0
         dbg u1:1
     ";
     let vm = compile_and_run(PROG);
@@ -241,7 +241,7 @@ fn nat_numbers_array() {
         add m:1, m:1, #4
         add u32:0, u32:0, #1
         dbg u32:0
-        ge u1:0, u32:0, #10
+        sge u1:0, u32:0, #10
         bz .FILL_LOOP, u1:0
 
         ; Get index 5
@@ -367,7 +367,7 @@ fn pre_init_addresses() {
         dbg u8:0
         dbg u8:1
 
-        eq u1:0, &CONST_A, &CONST_B
+        seq u1:0, &CONST_A, &CONST_B
         dbg u1:0
     ";
     let vm = compile_and_run(PROG);
@@ -384,7 +384,7 @@ fn pre_init_addresses() {
 fn test_compare_uint_constant() {
     const PROG: &str = "
         mov u32:0, 0x1
-        lt u1:0, u32:0, 0x800000000
+        slt u1:0, u32:0, 0x800000000
         dbg u1:0
     ";
     let vm = compile_and_run(PROG);
@@ -416,9 +416,9 @@ fn test_store_iaddress() {
         dbg n:3
 
         ; Should be true
-        eq u1:0, n:3, .DUMMY_LABEL_2
+        seq u1:0, n:3, .DUMMY_LABEL_2
         ; Should be false
-        eq u1:1, n:3, .DUMMY_LABEL_1
+        seq u1:1, n:3, .DUMMY_LABEL_1
 
         dbg u1:0
         dbg u1:1
@@ -442,10 +442,10 @@ fn test_store_mem_addr() {
         store m:0, m:1
 
         ; m:0 and m:1 should be different
-        eq u1:0, m:0, m:1
+        seq u1:0, m:0, m:1
         ; But the value at m:0 should be m:1
         load m:2, m:0
-        eq u1:1, m:1, m:2
+        seq u1:1, m:1, m:2
 
         dbg m:0
         dbg m:1

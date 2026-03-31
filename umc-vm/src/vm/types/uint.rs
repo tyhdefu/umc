@@ -98,6 +98,7 @@ impl ArbitraryUnsignedInt {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn to_le_bytes(&self) -> Vec<u8> {
         let mut vec = vec![0; self.bits.div_ceil(u8::BITS) as usize];
         self.write_bytes(&mut vec).unwrap();

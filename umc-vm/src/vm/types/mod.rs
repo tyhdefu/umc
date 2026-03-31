@@ -128,10 +128,6 @@ impl<T> CastSingleSigned for T where T: CastFrom<i32> + CastFrom<i64> /*+ CastFr
 pub trait CastSingleFloat: CastFrom<f32> + CastFrom<f64> {}
 impl<T> CastSingleFloat for T where T: CastFrom<f32> + CastFrom<f64> {}
 
-/// Any non-vector type that can be cast between all other types
-pub trait CastSingleAny: CastSingleUnsigned + CastSingleSigned {}
-impl<T> CastSingleAny for T where T: CastSingleUnsigned + CastSingleSigned {}
-
 pub trait CastFrom<T> {
     fn cast_from(value: &T) -> Self;
 }

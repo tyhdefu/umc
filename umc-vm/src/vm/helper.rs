@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt::Display;
 use std::iter::repeat_n;
 
 use crate::vm::environment::{ECallCode, Environment};
@@ -420,7 +421,7 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 state.store_prim(*c.dst(), v as i64);
             }
             _ => {
-                let v: ArbitraryUnsignedInt = read_uint(c.from(), state);
+                let _v: ArbitraryUnsignedInt = read_uint(c.from(), state);
                 todo!("Arbitrary signed integers unsupported");
             }
         },
@@ -435,6 +436,21 @@ pub enum ECallError {
     /// A particular argument had an invalid value
     InvalidArgValue(usize),
     InvalidDestination,
+}
+
+impl Display for ECallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ECallError::InvalidECallCode(code) => write!(f, "Invalid ecall Code {}", code),
+            ECallError::InvalidArguments => write!(f, "Invalid ecall Arguments"),
+            ECallError::InvalidArgValue(arg_num) => {
+                write!(f, "Invalid ecall, argument {} invalid", arg_num)
+            }
+            ECallError::InvalidDestination => {
+                write!(f, "Invalid ecall - invalid destination register")
+            }
+        }
+    }
 }
 
 pub fn execute_ecall<E: Environment>(
@@ -658,7 +674,7 @@ where
 pub fn read_int<T, S>(op: &RegOrConstant<SignedRegT>, state: &S) -> T
 where
     T: CastSingleSigned,
-    S: StorePrim<i32, SignedRegT> + StorePrim<i64, SignedRegT>, /*+ StoreFor<ArbitraryInt, SignedRegT>*/
+    S: StorePrim<i32, SignedRegT> + StorePrim<i64, SignedRegT> + StoreFor<ArbitraryInt, SignedRegT>,
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {

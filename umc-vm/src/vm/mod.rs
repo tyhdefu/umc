@@ -10,6 +10,8 @@ mod widths;
 #[cfg(test)]
 mod test;
 
+use std::fmt::Display;
+
 use crate::vm::environment::AnyEnvironment;
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::memory::{AllocateError, MemoryManager};
@@ -42,6 +44,7 @@ pub struct VMOptions {
 
 impl VMOptions {
     /// Recommended configuration for debugging the VM
+    #[allow(unused)]
     pub fn vm_debug() -> Self {
         Self { verbose: true }
     }
@@ -51,6 +54,18 @@ impl VMOptions {
 pub enum CreateVMError {
     /// Pre-initialised memory could not be allocated
     AllocateError(AllocateError),
+}
+
+impl Display for CreateVMError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AllocateError(e) => write!(
+                f,
+                "Could not create VM: Failed to allocate pre-allocated memory ({})",
+                e
+            ),
+        }
+    }
 }
 
 impl VirtualMachine {
@@ -84,50 +99,6 @@ impl VirtualMachine {
         while self.pc < program_len {
             self.execute_step();
         }
-    }
-
-    pub fn inspect_bool(&self, index: RegIndex) -> bool {
-        self.inspect_uint(index, 1)
-    }
-
-    pub fn inspect_uint<T>(&self, index: RegIndex, width: RegWidth) -> T
-    where
-        T: CastSingleUnsigned,
-        T: Default,
-    {
-        let reg = RegOrConstant::from_reg(Reg { index, width });
-        helper::read_uint::<T, _>(&reg, &self.state)
-    }
-
-    pub fn inspect_uint_vec<T>(
-        &self,
-        index: RegIndex,
-        width: RegWidth,
-        length: RegWidth,
-    ) -> Option<Vec<T>>
-    where
-        T: CastSingleUnsigned,
-        T: Default,
-    {
-        let reg: Reg<UnsignedRegT> = Reg { index, width };
-        helper::read_uint_vec(&reg, length, &self.state)
-    }
-
-    pub fn inspect_int<T>(&self, index: RegIndex, width: RegWidth) -> T
-    where
-        T: CastSingleSigned,
-        T: Default,
-    {
-        let reg = RegOrConstant::from_reg(Reg { index, width });
-        helper::read_int::<T, _>(&reg, &self.state)
-    }
-
-    pub fn inspect_float<T>(&self, index: RegIndex, width: RegWidth) -> T
-    where
-        T: CastSingleFloat,
-    {
-        let reg = RegOrConstant::from_reg(Reg { index, width });
-        helper::read_float(&reg, &self.state)
     }
 
     fn execute_step(&mut self) {
@@ -270,5 +241,57 @@ impl VirtualMachine {
             Instruction::Dbg(reg) => helper::execute_debug(reg, &self.state),
         };
         self.pc += 1;
+    }
+}
+
+// Used in testing, may be useful elsewhere
+impl VirtualMachine {
+    #[allow(unused)]
+    pub fn inspect_bool(&self, index: RegIndex) -> bool {
+        self.inspect_uint(index, 1)
+    }
+
+    #[allow(unused)]
+    pub fn inspect_uint<T>(&self, index: RegIndex, width: RegWidth) -> T
+    where
+        T: CastSingleUnsigned,
+        T: Default,
+    {
+        let reg = RegOrConstant::from_reg(Reg { index, width });
+        helper::read_uint::<T, _>(&reg, &self.state)
+    }
+
+    #[allow(unused)]
+    pub fn inspect_uint_vec<T>(
+        &self,
+        index: RegIndex,
+        width: RegWidth,
+        length: RegWidth,
+    ) -> Option<Vec<T>>
+    where
+        T: CastSingleUnsigned,
+        T: Default,
+    {
+        let reg: Reg<UnsignedRegT> = Reg { index, width };
+        helper::read_uint_vec(&reg, length, &self.state)
+    }
+
+    #[allow(unused)]
+    pub fn inspect_int<T>(&self, index: RegIndex, width: RegWidth) -> T
+    where
+        T: CastSingleSigned,
+        T: Default,
+    {
+        let reg = RegOrConstant::from_reg(Reg { index, width });
+        helper::read_int::<T, _>(&reg, &self.state)
+    }
+
+    #[allow(unused)]
+    pub fn inspect_float<T>(&self, index: RegIndex, width: RegWidth) -> T
+    where
+        T: CastSingleFloat,
+    {
+        let reg = RegOrConstant::from_reg(Reg { index, width });
+        helper::read_float(&reg, &self.state)
     }
 }

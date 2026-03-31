@@ -401,7 +401,7 @@ impl CastFrom<i64> for ArbitraryInt {
 
 #[cfg(test)]
 mod test {
-    use crate::vm::types::{int::ArbitraryInt, UMCArithmetic};
+    use crate::vm::types::{UMCArithmetic, int::ArbitraryInt};
 
     #[test]
     fn equal_different_bitwidth() {

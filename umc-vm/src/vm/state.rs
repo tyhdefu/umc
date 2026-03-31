@@ -20,6 +20,8 @@ pub trait StoreFor<V, RT: RegTypeT> {
 
     fn read_multi(&self, k: Reg<RT>, count: usize) -> Option<&VecValue<V>>;
 
+    // Not currently used since addresses are Clone not copy
+    #[allow(unused)]
     fn store_multi_copy(&mut self, k: Reg<RT>, vals: &[V])
     where
         V: Copy;
@@ -315,8 +317,7 @@ impl StoreFor<SafeAddress, MemRegT> for RegState<SafeAddress> {
     }
 
     fn store_multi_copy(&mut self, k: Reg<MemRegT>, vals: &[SafeAddress]) {
-        panic!("Uncallable method");
-        //self.mem_addresses.fallback.store_multi_copy(k.index, vals);
+        self.mem_addresses.fallback.store_multi_clone(k.index, vals);
     }
 
     fn store_multi_clone(&mut self, k: Reg<MemRegT>, vals: &[SafeAddress]) {

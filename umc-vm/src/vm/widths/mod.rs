@@ -1,7 +1,6 @@
 //! Abstractions over specialised widths in UMC
 
 pub mod int;
-pub mod single;
 pub mod uint;
 
 use std::cmp::Ordering;

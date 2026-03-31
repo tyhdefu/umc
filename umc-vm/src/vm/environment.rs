@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{Read, Write, stderr, stdin, stdout};
 
@@ -22,8 +23,20 @@ pub struct OpenFileError<'a> {
     filename: &'a str,
 }
 
+impl Display for OpenFileError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to open file '{}'", self.filename)
+    }
+}
+
 #[derive(Debug)]
 pub struct InvalidFileHandle(FileHandle);
+
+impl Display for InvalidFileHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid file handle: '{}'", self.0)
+    }
+}
 
 /// Platform specific interactions that implement the environment
 pub trait Environment {

@@ -46,7 +46,7 @@ impl<T: Clone> VecValue<T> {
     where
         T: Default,
     {
-        Self::from_vec(vec![T::default(); count])
+        Self::from_repeated(T::default(), count)
     }
 
     /// Replace the contents of this VecValue with the slice
