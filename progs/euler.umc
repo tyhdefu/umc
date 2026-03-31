@@ -29,7 +29,7 @@
 	; Multiply factorial
 	mul u64:3, u64:3, u32:1
 
-	ge u1:0, u32:1, u32:0
+	sge u1:0, u32:1, u32:0
 	bz .LOOP, u1:0
 
 	dbg u64:1

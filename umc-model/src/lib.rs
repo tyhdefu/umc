@@ -97,7 +97,9 @@ impl Display for Program {
             if let Some(l) = instr_labels.get(&i) {
                 writeln!(f, ".{}:", l)?;
             }
+            write!(f, "\t")?;
             instr.fmt_assembly(f, &opts)?;
+            writeln!(f, "")?;
         }
         Ok(())
     }

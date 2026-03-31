@@ -136,11 +136,11 @@ impl DisplayAssembly for Instruction {
             Instruction::Not(params) => write_instr(f, "not", params, opts),
             Instruction::Compare { cond, params } => {
                 let opcode = match cond {
-                    BinaryCondition::Equal => "eq",
-                    BinaryCondition::GreaterThan => "gt",
-                    BinaryCondition::GreaterThanOrEqualTo => "ge",
-                    BinaryCondition::LessThan => "lt",
-                    BinaryCondition::LessThanOrEqualTo => "le",
+                    BinaryCondition::Equal => "seq",
+                    BinaryCondition::GreaterThan => "sgt",
+                    BinaryCondition::GreaterThanOrEqualTo => "sge",
+                    BinaryCondition::LessThan => "slt",
+                    BinaryCondition::LessThanOrEqualTo => "sle",
                 };
                 write_instr(f, opcode, params, opts)
             }

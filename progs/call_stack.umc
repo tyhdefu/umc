@@ -18,11 +18,11 @@ jmp .END
 	dbg u32:0
 	
 	; Fib(0) = 0
-	eq u1:0, u32:0, #0
+	seq u1:0, u32:0, #0
 	bnz .FIB_RET_0, u1:0
 
 	; Fib(1) = 1
-	eq u1:0, u32:0, #1
+	seq u1:0, u32:0, #1
 	bnz .FIB_RET_1, u1:0
 
 	jmp .FIB_MAIN

@@ -36,7 +36,7 @@ Followed by each entry in series:
 Control Byte:
   - Length Flag:   1 bit
   - Constant Flag: 1 bit
-  - Reserved (0):  5 bits
+  - Reserved (0):  3 bits
   - Register Type: 3 bits
 Width: Unsigned LEB128
 Length: Unsigned LEB128 (Only if indicated in the control byte)

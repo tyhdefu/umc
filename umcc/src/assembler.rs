@@ -296,35 +296,35 @@ pub fn ast_to_bytecode(
             let params = NotParams::try_from(&refs[..]).map_err(|e| add_ctx(e, &instr))?;
             Ok(Instruction::Not(params))
         }
-        "eq" => {
+        "seq" => {
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::Equal,
                 params,
             })
         }
-        "gt" => {
+        "sgt" => {
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::GreaterThan,
                 params,
             })
         }
-        "ge" => {
+        "sge" => {
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::GreaterThanOrEqualTo,
                 params,
             })
         }
-        "lt" => {
+        "slt" => {
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::LessThan,
                 params,
             })
         }
-        "le" => {
+        "sle" => {
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::LessThanOrEqualTo,

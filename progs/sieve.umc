@@ -18,7 +18,7 @@
 
 	add u32:2, :2, #1
 	add m:1, m:1, #4
-	ge u1:0, m:1, m:2
+	sge u1:0, m:1, m:2
 
 	bz .FILL_LOOP, u1:0
 
@@ -32,7 +32,7 @@
 	add m:1, m:1, u32:3
 .SIEVE_SUB_LOOP:
 	add m:1, m:1, u32:3
-	ge u1:0, m:1, m:2
+	sge u1:0, m:1, m:2
 	bnz .SIEVE_LOOP_END, u1:0
 	mov u32:8, #0
 	store m:1, u32:8
@@ -40,7 +40,7 @@
 .SIEVE_LOOP_END:
 	mul u32:3, u32:2, #4 ; Memory address step
 	add u32:2, :2, #1
-	gt u1:0, u32:2, u32:0 ; Check if reached N
+	sgt u1:0, u32:2, u32:0 ; Check if reached N
 	bz .SIEVE_LOOP, u1:0
 
 	mov m:1, m:0
@@ -50,7 +50,7 @@
 	bz .ENDX, u32:4
 	dbg u32:4
 .ENDX:
-	ge u1:0, m:1, m:2
+	sge u1:0, m:1, m:2
 	bz .END, u1:0
 	free m:0
 

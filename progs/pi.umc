@@ -37,7 +37,7 @@
 	mov f64:3, #1.0 ; Initialise 1
 
 .ARC_TAN_LOOP:
-	ge u1:0, u32:1, u32:0 ; Exit if reached the desired number of iterations
+	sge u1:0, u32:1, u32:0 ; Exit if reached the desired number of iterations
 	bnz n:0, u1:0
 	; Calculate term
 	; f64:4 = f64:2 / f64:3
@@ -53,7 +53,7 @@
 	; Flip sign of f64:3
 	sub f64:3, #0.0, f64:3
 	; If negative, minus 2, else add 2
-	lt u1:0, f64:3, #0.0
+	slt u1:0, f64:3, #0.0
 	bnz .NEG, u1:0
 	add f64:3, f64:3, #2.0
 	jmp .ARC_TAN_LOOP

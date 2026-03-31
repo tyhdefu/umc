@@ -29,6 +29,10 @@ struct Args {
     /// Whether to disassemble instead, printing disassembly to standard output
     #[clap(short, long)]
     disassemble: bool,
+
+    /// Whether to not annotate instructions when disassembling
+    #[clap(long)]
+    no_annotate: bool,
 }
 
 fn main() {
@@ -37,7 +41,7 @@ fn main() {
     let input_file = Path::new(&args.file);
 
     if args.disassemble {
-        disassemble(input_file);
+        disassemble(input_file, args.no_annotate);
     } else {
         assemble(input_file);
     }
@@ -66,7 +70,7 @@ fn assemble(input_file: &Path) {
     }
 }
 
-fn disassemble(input_file: &Path) {
+fn disassemble(input_file: &Path, no_annotate: bool) {
     let file = File::open(input_file).expect("Failed to open input file");
     let buf_reader = BufReader::new(file);
     match umc_model::binary::disassemble(buf_reader) {
@@ -76,15 +80,15 @@ fn disassemble(input_file: &Path) {
         DisassembleResult::Partial(disassembly_info, decode_error) => {
             eprintln!("Invalid UMC Bytecode: {:?}", decode_error);
             eprintln!("Warning: Partial Disassembly");
-            print_disassembly(disassembly_info, None);
+            print_disassembly(disassembly_info, None, no_annotate);
         }
         DisassembleResult::Full(program, disassembly_info) => {
-            print_disassembly(disassembly_info, Some(program));
+            print_disassembly(disassembly_info, Some(program), no_annotate);
         }
     }
 }
 
-fn print_disassembly(info: DisassemblyInfo, prog: Option<Program>) {
+fn print_disassembly(info: DisassemblyInfo, prog: Option<Program>, no_annotate: bool) {
     println!("; UMC Bytecode File Version {}", info.get_version());
     match info.inner {
         InnerDisassembly::None => {
@@ -100,6 +104,10 @@ fn print_disassembly(info: DisassemblyInfo, prog: Option<Program>) {
                 mem_labels: HashMap::new(),
                 instr_labels: HashMap::new(),
             });
+            if no_annotate {
+                println!("{}", prog);
+                return;
+            }
             let instr_labels = prog.create_instr_labels();
             let mem_labels = prog.create_mem_labels();
 
