@@ -1,12 +1,17 @@
 # UMC Instructions
 
+Below is a list of all instructions in UMC.
+Instructions are written like:
+```
+add u32:2, u32:0, u32:1
+```
+which adds the value in `u32:0` and `u32:1` and stores the result in `u32:0`
+
 ## Misc
 | Mneumonic | Operand 1 | Operand 2 | Description |
 | --------- | --------- | --------- | ----------- |
 | `mov`     | Reg       | Any       | Sets op1 = op2 |
 | `cast`    | Reg       | Any       | Sets op1 = op2, casting |
-| `bcast`   | Integer Reg | Reg     | Bit / Reinterpret cast |
-| `abs`     | Numeric   | Signed Numeric | Gets positive value |
 | `nop`     |           |           | Does nothing |
 | `dbg`     | Reg       |           | Prints the value and register for debugging |
 

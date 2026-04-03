@@ -2,9 +2,10 @@
 - [Introduction](./intro.md)
 
 # Specification
-- [Instructions](./instructions.md)
 - [Register Sets](./reg_sets.md)
+- [Instructions](./instructions.md)
 - [Binary Format](./binary_format.md)
+- [Memory](./memory.md)
 - [Environment Calls](./ecalls.md)
 
 ---
