@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use crate::RegisterSet;
 
+/// A Register Operand composed of a [RegisterSet] and an index within that set
 #[derive(Debug, PartialEq, Clone)]
 pub struct RegOperand {
     pub set: RegisterSet,
@@ -14,6 +15,7 @@ impl Display for RegOperand {
     }
 }
 
+/// Any kind of operand that can be used in an instruction
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operand {
     Reg(RegOperand),

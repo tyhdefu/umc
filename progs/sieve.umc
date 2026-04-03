@@ -1,4 +1,4 @@
-; Prims using sieve method (using memory)
+; Primes using sieve method (using memory)
 .SIEVE:
 	; Calculate primes up to the given number
 	mov u32:0, #1000000

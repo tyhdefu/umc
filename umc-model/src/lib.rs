@@ -14,8 +14,11 @@ use std::str::FromStr;
 
 use crate::format::{DisplayAssembly, DisplayAssemblyParams};
 
+/// A UMC Program
 #[derive(Clone)]
 pub struct Program {
+    /// The instructions of the program.
+    /// Execution should start at the first instruction.
     pub instructions: Vec<instructions::Instruction>,
     /// List of pre-initialised memory
     pub pre_init_mem: Vec<Vec<u8>>,
@@ -37,6 +40,8 @@ impl Program {
         }
     }
 
+    /// Create a mapping from instruction index constants to label strings.
+    /// This will create labels if no label information exists
     pub fn create_instr_labels(&self) -> HashMap<usize, String> {
         let mut instr_labels: HashMap<usize, String> = self
             .instr_labels
@@ -54,6 +59,8 @@ impl Program {
         instr_labels
     }
 
+    /// Create a mapping from memory constants (pre-allocated memory indices) to label strings.
+    /// This will create labels if no label information exists
     pub fn create_mem_labels(&self) -> HashMap<usize, String> {
         let mut mem_labels: HashMap<usize, String> = self
             .mem_labels
@@ -110,6 +117,8 @@ pub type RegWidth = u32;
 /// The type used for the index of a register set
 pub type RegIndex = u32;
 
+/// A Register Type is a particular type of register that can be
+/// used as either a single or vector register to form a [`RegisterSet`]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum RegType {
     Num(NumRegType),
@@ -187,6 +196,8 @@ impl Display for NumRegType {
     }
 }
 
+/// A Register Set is a particular type of register.
+/// All registers sets in UMC are indexed uniquely
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum RegisterSet {
     Single(RegType),
