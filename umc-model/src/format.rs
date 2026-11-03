@@ -173,6 +173,13 @@ impl DisplayAssembly for Instruction {
                 }
             },
             Instruction::Cast(cast) => write_instr(f, "cast", cast, opts),
+            Instruction::Shift(params, ShiftType::LeftShift) => write_instr(f, "shl", params, opts),
+            Instruction::Shift(params, ShiftType::RightLogicalShift) => {
+                write_instr(f, "shr", params, opts)
+            }
+            Instruction::Shift(params, ShiftType::RightArithmeticShift) => {
+                write_instr(f, "ashr", params, opts)
+            }
             Instruction::ECall(ecall) => write_instr(f, "ecall", ecall, opts),
             Instruction::Dbg(reg_operand) => write_instr(f, "dbg", reg_operand, opts),
         }
@@ -459,6 +466,17 @@ impl DisplayAssembly for AnySingleRegOrConstant {
             AnySingleRegOrConstant::Instr(x) => x.fmt_assembly(f, opts),
             AnySingleRegOrConstant::Mem(x) => x.fmt_assembly(f, opts),
         }
+    }
+}
+
+impl DisplayAssembly for ShiftParams {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
+        ParamPair(&self.dst, &self.size).fmt_assembly(f, opts)?;
+        Ok(())
     }
 }
 

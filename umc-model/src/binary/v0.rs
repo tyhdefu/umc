@@ -9,7 +9,7 @@ use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::format::{DisplayAssembly, DisplayAssemblyParams};
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ECallParams,
-    Instruction, MovParams, NotParams, SimpleCast,
+    Instruction, MovParams, NotParams, ShiftParams, ShiftType, SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::parse::{parse_any_reg, parse_any_single_reg};
@@ -642,6 +642,21 @@ pub fn decode_instruction<R: io::Read>(
                 .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
             Ok(Instruction::Cast(cast))
         })?,
+        OpCode::SHL => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let shift = ShiftParams::try_from([d, p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
+            Ok(Instruction::Shift(shift, ShiftType::LeftShift))
+        })?,
+        OpCode::SHR => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let shift = ShiftParams::try_from([d, p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightLogicalShift))
+        })?,
+        OpCode::ASHR => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let shift = ShiftParams::try_from([d, p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightArithmeticShift))
+        })?,
         OpCode::ECALL => disassembler.decode_variable_instruction(src, opcode_raw, |ops| {
             Ok(Instruction::ECall(ECallParams::try_from(ops)?))
         })?,
@@ -694,6 +709,9 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Store(_, _) => OpCode::STORE,
         Instruction::SizeOf(_, _) => OpCode::SIZEOF,
         Instruction::Cast(_) => OpCode::CAST,
+        Instruction::Shift(_, ShiftType::LeftShift) => OpCode::SHL,
+        Instruction::Shift(_, ShiftType::RightLogicalShift) => OpCode::SHR,
+        Instruction::Shift(_, ShiftType::RightArithmeticShift) => OpCode::ASHR,
         Instruction::ECall(_) => OpCode::ECALL,
         Instruction::Dbg(_) => OpCode::DBG,
     };
@@ -942,6 +960,11 @@ enum OpCode {
 
     // Cast
     CAST = 0b110001,
+
+    // SHL
+    SHL = 0b101000,
+    SHR = 0b101001,
+    ASHR = 0b101010,
 
     // Environment call
     ECALL = 0b110100,

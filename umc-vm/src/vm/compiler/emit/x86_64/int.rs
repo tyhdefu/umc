@@ -101,7 +101,7 @@ impl IntEmitter for X86Emitter {
                 }
             }
             OpWidth::W32 => {
-                debug_assert!(imm <= u32::MAX as u64);
+                // W32 keeps the low half (matches aarch64); signed consts arrive sign-extended
                 self.asm.mov(r32(dst), imm as u32)
             }
         };

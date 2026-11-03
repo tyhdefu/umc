@@ -117,6 +117,13 @@ fn not_of_imm_is_folded() {
 }
 
 #[test]
+fn mov_imm_w32_truncates_sign_extended() {
+    let mut e = X86Emitter::new();
+    e.mov_imm(Tmp::T0, (-23814i64) as u64, OpWidth::W32); // sign-extended i32 const
+    assert_eq!(disasm(&e.finish().unwrap()), ["mov $0xFFFFA2FA,%eax"]);
+}
+
+#[test]
 fn truncate_and_sign_extend_use_shift_pairs() {
     let mut e = X86Emitter::new();
     e.truncate_unsigned(Tmp::T0, 8, OpWidth::W64);

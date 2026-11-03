@@ -268,6 +268,9 @@ impl VirtualMachine {
             Instruction::Cast(simple_cast) => {
                 helper::execute_simple_cast(simple_cast, &mut self.state);
             }
+            Instruction::Shift(params, shift_type) => {
+                helper::execute_shift(params, shift_type, &mut self.state);
+            }
             Instruction::ECall(ecall) => helper::execute_ecall(
                 ecall,
                 &mut self.state,

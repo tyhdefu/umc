@@ -14,7 +14,7 @@ clap = { version = "4.5.55", features = ["derive"]}
 rustc-hash = "2.1.1"
 int-enum = "1.2.0"
 
-# For consumption of LLVM IR and conversion into Rust data types
-llvm-ir = { version = "0.11.3", features = ["llvm-19"] }
+# For consumption of LLVM IR and conversion into Rust data types - commented out for now as it doesnt compile on windows
+# llvm-ir = { version = "0.11.3", features = ["llvm-19"] }
 
 

@@ -1,7 +1,7 @@
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
     CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, Instruction, MovParams,
-    NotParams, OffsetOp, ResizeCast, SimpleCast,
+    NotParams, OffsetOp, ResizeCast, ShiftParams, SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -67,6 +67,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
             Operand::Reg(reg.into()),
         ],
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
+        Instruction::Shift(params, _) => shift_to_raw(params),
         Instruction::ECall(ecall) => ecall_to_raw(ecall),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
@@ -195,6 +196,17 @@ fn simple_cast_to_raw(params: &SimpleCast) -> Vec<Operand> {
         SimpleCast::IBuoy(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
         SimpleCast::USink(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
         SimpleCast::ISink(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
+    }
+}
+
+fn shift_to_raw(params: &ShiftParams) -> Vec<Operand> {
+    let s = &params.size;
+    match &params.dst {
+        AnySingleReg::Unsigned(dst) => vec![Operand::Reg(dst.into()), s.into()],
+        AnySingleReg::Signed(dst) => vec![Operand::Reg(dst.into()), s.into()],
+        AnySingleReg::Float(dst) => vec![Operand::Reg(dst.into()), s.into()],
+        AnySingleReg::Mem(dst) => vec![Operand::Reg(dst.into()), s.into()],
+        AnySingleReg::Instr(dst) => vec![Operand::Reg(dst.into()), s.into()],
     }
 }
 

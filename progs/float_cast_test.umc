@@ -1,3 +1,8 @@
+.INIT:
+  mov u64:3, #50
+  bz .END, u64:3
+  mov u64:1, #0 ; int i = 0
+
 .CASTS:
   mov f64:0, #1432.02472
   dbg f64:0
@@ -38,6 +43,10 @@
   dbg i32:0
   cast f32:0, i32:0
   dbg f32:0
+
+  add u64:1, u64:1, #1
+  xor u64:2, u64:1, u64:3 ; Compare :1 and :0
+  bnz .CASTS, u64:2
 
 .END:
   nop

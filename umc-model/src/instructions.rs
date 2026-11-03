@@ -68,6 +68,9 @@ pub enum Instruction {
     // Simple cast based on the registers
     Cast(SimpleCast),
 
+    // Shift left or right based on registers
+    Shift(ShiftParams, ShiftType),
+
     /// Environment call
     ECall(ECallParams),
     // TODO: Float to integer cast
@@ -157,7 +160,7 @@ impl<RT: RegTypeT> VectorBroadcastParams<RT> {
     ) -> Self {
         Self {
             dst_full_index: dst,
-            length: length,
+            length,
             vec_index: vec_param,
             value: single,
             reversed,
@@ -207,7 +210,7 @@ impl<RT: RegTypeT> VectorVectorParams<RT> {
     pub fn new(dst: Reg<RT>, length: RegWidth, p1: RegIndex, p2: RegIndex) -> Self {
         Self {
             dst_full_index: dst,
-            length: length,
+            length,
             p1_index: p1,
             p2_index: p2,
         }
@@ -413,4 +416,21 @@ pub enum ResizeCast {
     Signed(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
     /// Precision increase / decrease
     Float(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ShiftParams {
+    pub dst: AnySingleReg,
+    pub size: RegOrConstant<UnsignedRegT>,
+}
+
+/// Type of shifts
+#[derive(Debug, PartialEq, Clone)]
+pub enum ShiftType {
+    // Shift left
+    LeftShift,
+    // Logical Right Shift
+    RightLogicalShift,
+    // Arithmetic Right Shift - only needed for preserving sign of signed integers
+    RightArithmeticShift,
 }

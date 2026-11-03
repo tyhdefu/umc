@@ -142,7 +142,11 @@ pub extern "C" fn jit_dbg_signed(value: u64, index: u64, width: u64) {
         index: index as _,
         width: width as _,
     };
-    println!("{} = {}", reg, value);
+    match width {
+        32 => println!("{} = {}", reg, value as i32),
+        64 => println!("{} = {}", reg, value as i64),
+        _ => unreachable!("arbitrary length signed integers not allowed"),
+    }
 }
 
 pub extern "C" fn jit_dbg_float(value: u64, index: u64, width: u64) {
@@ -150,7 +154,13 @@ pub extern "C" fn jit_dbg_float(value: u64, index: u64, width: u64) {
         index: index as _,
         width: width as _,
     };
-    println!("{} = {}", reg, value);
+    // `as f32` would numerically convert the bit pattern; from_bits reinterprets it.
+    // A panic here would abort across the extern "C" boundary, so never panic.
+    match width {
+        32 => println!("{} = {}", reg, f32::from_bits(value as u32)),
+        64 => println!("{} = {}", reg, f64::from_bits(value)),
+        _ => println!("{} = 0x{:X} (bad float width)", reg, value),
+    }
 }
 
 pub extern "C" fn jit_dbg_instr(value: u64, index: u64) {

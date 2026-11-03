@@ -4,7 +4,7 @@
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
     CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, IntegerCast, IntegerFloatCast,
-    MovParams, NotParams, OffsetOp, ResizeCast, SimpleCast, VectorBroadcastParams,
+    MovParams, NotParams, OffsetOp, ResizeCast, ShiftParams, SimpleCast, VectorBroadcastParams,
     VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
@@ -532,6 +532,30 @@ impl TryFrom<&[&Operand]> for SimpleCast {
                 _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
             },
             _ => Err(InstructionValidateError::InvalidRegType { op_index: 0 })?,
+        })
+    }
+}
+
+impl TryFrom<&[&Operand]> for ShiftParams {
+    type Error = InstructionValidateError;
+
+    fn try_from(value: &[&Operand]) -> Result<Self, Self::Error> {
+        let [p1, p2] = ops(value)?;
+        let dst_reg = match p1 {
+            Operand::Reg(reg) => parse_any_single_reg(reg)
+                .map_err(|_| InstructionValidateError::InvalidRegType { op_index: 0 })?,
+            _ => return Err(InstructionValidateError::ExpectedDstReg),
+        };
+
+        let p = parse_any_reg_or_constant(p2)
+            .map_err(|_| InstructionValidateError::InvalidRegType { op_index: 1 })?;
+
+        Ok(match p {
+            AnySingleRegOrConstant::Unsigned(p) => ShiftParams {
+                dst: dst_reg,
+                size: p,
+            },
+            _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
         })
     }
 }
