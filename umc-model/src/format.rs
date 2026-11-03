@@ -389,6 +389,10 @@ impl DisplayAssembly for SimpleCast {
             SimpleCast::Resize(ResizeCast::Float(d, p)) => write!(f, "{}, {}", d, p),
             SimpleCast::IgnoreSigned(p) => write!(f, "{}, {}", p.dst(), p.from()),
             SimpleCast::AddSign(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::UBuoy(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::IBuoy(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::USink(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::ISink(p) => write!(f, "{}, {}", p.dst(), p.from()),
         }
     }
 }

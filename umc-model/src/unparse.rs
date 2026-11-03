@@ -191,6 +191,10 @@ fn simple_cast_to_raw(params: &SimpleCast) -> Vec<Operand> {
         SimpleCast::Resize(ResizeCast::Float(dst, p)) => vec![Operand::Reg(dst.into()), p.into()],
         SimpleCast::IgnoreSigned(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
         SimpleCast::AddSign(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
+        SimpleCast::UBuoy(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
+        SimpleCast::IBuoy(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
+        SimpleCast::USink(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
+        SimpleCast::ISink(c) => vec![Operand::Reg(c.dst().into()), c.from().into()],
     }
 }
 

@@ -425,6 +425,59 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 todo!("Arbitrary signed integers unsupported");
             }
         },
+        SimpleCast::USink(c) => match c.width() {
+            32 => {
+                let f: f32 = read_float::<f32>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as u64);
+            }
+            64 => {
+                let f: f64 = read_float::<f64>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as u64);
+            }
+            _ => {
+                todo!("Arbitrary signed integers unsupported");
+            }
+        },
+        SimpleCast::ISink(c) => match c.width() {
+            32 => {
+                let f: f32 = read_float::<f32>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as i32);
+            }
+            64 => {
+                let f: f64 = read_float::<f64>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as i64);
+            }
+            _ => {
+                todo!("Arbitrary signed integers unsupported");
+            }
+        },
+        SimpleCast::UBuoy(c) => match c.width() {
+            32 => {
+                let v: u32 = read_uint(c.from(), state).unwrap_or_default();
+                state.store_prim(*c.dst(), f32::from_bits(v));
+            }
+            64 => {
+                let v: u64 = read_uint(c.from(), state).unwrap_or_default();
+                state.store_prim(*c.dst(), f64::from_bits(v));
+            }
+            _ => {
+                let _v: ArbitraryUnsignedInt = read_uint(c.from(), state).unwrap_or_default();
+                todo!("Arbitrary signed integers unsupported");
+            }
+        },
+        SimpleCast::IBuoy(c) => match c.width() {
+            32 => {
+                let v: i32 = read_int::<i32, RegStateRaw<SafeAddress>>(c.from(), state);
+                state.store_prim(*c.dst(), f32::from_bits(v as u32));
+            }
+            64 => {
+                let v: i64 = read_int::<i64, RegStateRaw<SafeAddress>>(c.from(), state);
+                state.store_prim(*c.dst(), f64::from_bits(v as u64));
+            }
+            _ => {
+                todo!("Arbitrary signed integers unsupported");
+            }
+        },
     }
 }
 

@@ -2,6 +2,7 @@
 //! Each instruction family has its own file, this one drives the block and dispatches
 
 mod address;
+mod cast;
 mod control;
 mod debug;
 mod float;
@@ -209,6 +210,9 @@ fn lower_instr<E: Emitter>(cx: &mut Ctx<E>, instr: &Instruction) -> Result<Flow,
         Instruction::SizeOf(dst, set) => {
             int::mov(cx, dst, &RegOrConstant::Const(helper::size_of(set) as u64))
         }
+        // I don't think JIT support for casts is particularly needed as it is just a reinterpretation at the VM level of a set of bits
+        // can add later on but not especially needed just yet
+        Instruction::Cast(_) => hand_over(cx),
         Instruction::ECall(_) => hand_over(cx),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(r))) => debug::dbg_unsigned(cx, r),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Signed(r))) => debug::dbg_signed(cx, r),
@@ -222,7 +226,7 @@ fn lower_instr<E: Emitter>(cx: &mut Ctx<E>, instr: &Instruction) -> Result<Flow,
     }
 }
 
-/// leave instruction to interpreter
+/// leave instruction to interpreter but don't blacklist blockt that would be wasteful
 fn hand_over<E: Emitter>(cx: &mut Ctx<E>) -> Result<Flow, CompileError> {
     if cx.pc == cx.entry {
         return Err(cx.unsupported("instruction always interpreted"));

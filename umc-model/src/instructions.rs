@@ -320,6 +320,14 @@ pub enum SimpleCast {
     /// Bitwise convert an unsigned integer to signed one
     /// > This is dangerous if the top bits of the unsigned register are used
     AddSign(IntegerCast<SignedRegT, UnsignedRegT>),
+    /// Bitwise convert an unsigned integer to float
+    USink(IntegerFloatCast<UnsignedRegT, FloatRegT>),
+    /// Bitwise convert a signed integer to float
+    ISink(IntegerFloatCast<SignedRegT, FloatRegT>),
+    /// Bitwise convert float to unsigned integer
+    UBuoy(IntegerFloatCast<FloatRegT, UnsignedRegT>),
+    /// Bitwise convert float to signed integer
+    IBuoy(IntegerFloatCast<FloatRegT, SignedRegT>),
     // TODO: Vector casts?
 }
 
@@ -333,6 +341,42 @@ where
 }
 
 impl<TO, FROM> IntegerCast<TO, FROM>
+where
+    TO: RegTypeT<WIDTH = RegWidth>,
+    FROM: RegTypeT<WIDTH = RegWidth>,
+{
+    pub fn try_create(to: Reg<TO>, from: RegOrConstant<FROM>) -> Result<Self, ()> {
+        if let Some(width) = from.width()
+            && width != to.width
+        {
+            return Err(());
+        }
+        Ok(Self { to, from })
+    }
+
+    pub fn dst(&self) -> &Reg<TO> {
+        &self.to
+    }
+
+    pub fn from(&self) -> &RegOrConstant<FROM> {
+        &self.from
+    }
+
+    pub fn width(&self) -> RegWidth {
+        self.to.width
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IntegerFloatCast<TO: RegTypeT, FROM: RegTypeT>
+where
+    TO: RegTypeT<WIDTH = FROM::WIDTH>,
+{
+    to: Reg<TO>,
+    from: RegOrConstant<FROM>,
+}
+
+impl<TO, FROM> IntegerFloatCast<TO, FROM>
 where
     TO: RegTypeT<WIDTH = RegWidth>,
     FROM: RegTypeT<WIDTH = RegWidth>,

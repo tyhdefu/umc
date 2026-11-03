@@ -1,0 +1,43 @@
+.CASTS:
+  mov f64:0, #1432.02472
+  dbg f64:0
+  cast u64:0, f64:0
+  dbg u64:0
+
+  mov u64:0, #10192039
+  dbg u64:0
+  cast f64:0, u64:0
+  dbg f64:0
+
+  mov f32:0, #1421.0123
+  dbg f32:0
+  cast u32:0, f32:0
+  dbg u32:0
+
+  mov u32:0, #1021283
+  dbg u32:0
+  cast f32:0, u32:0
+  dbg f32:0
+
+  mov f64:0, #123412.42824
+  dbg f64:0
+  cast i64:0, f64:0
+  dbg i64:0
+
+  mov i64:0, #-123928
+  dbg i64:0
+  cast f64:0, i64:0
+  dbg f64:0
+
+  mov f32:0, #1328.412
+  dbg f32:0
+  cast i32:0, f32:0
+  dbg i32:0
+
+  mov i32:0, #-23814
+  dbg i32:0
+  cast f32:0, i32:0
+  dbg f32:0
+
+.END:
+  nop

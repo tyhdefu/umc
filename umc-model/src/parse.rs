@@ -3,8 +3,9 @@
 
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, CompareParams,
-    CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, IntegerCast, MovParams,
-    NotParams, OffsetOp, ResizeCast, SimpleCast, VectorBroadcastParams, VectorVectorParams,
+    CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, IntegerCast, IntegerFloatCast,
+    MovParams, NotParams, OffsetOp, ResizeCast, SimpleCast, VectorBroadcastParams,
+    VectorVectorParams,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::reg_model::{
@@ -490,6 +491,12 @@ impl TryFrom<&[&Operand]> for SimpleCast {
                     })?;
                     SimpleCast::IgnoreSigned(cast)
                 }
+                AnySingleRegOrConstant::Float(p) => {
+                    let cast = IntegerFloatCast::try_create(reg, p).map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 1 }
+                    })?;
+                    SimpleCast::USink(cast)
+                }
                 _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
             },
             AnySingleReg::Signed(reg) => match p {
@@ -500,10 +507,28 @@ impl TryFrom<&[&Operand]> for SimpleCast {
                     })?;
                     SimpleCast::AddSign(cast)
                 }
+                AnySingleRegOrConstant::Float(p) => {
+                    let cast = IntegerFloatCast::try_create(reg, p).map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 1 }
+                    })?;
+                    SimpleCast::ISink(cast)
+                }
                 _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
             },
             AnySingleReg::Float(reg) => match p {
                 AnySingleRegOrConstant::Float(p) => SimpleCast::Resize(ResizeCast::Float(reg, p)),
+                AnySingleRegOrConstant::Unsigned(p) => {
+                    let cast = IntegerFloatCast::try_create(reg, p).map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 1 }
+                    })?;
+                    SimpleCast::UBuoy(cast)
+                }
+                AnySingleRegOrConstant::Signed(p) => {
+                    let cast = IntegerFloatCast::try_create(reg, p).map_err(|_| {
+                        InstructionValidateError::InconsistentOperand { op_index: 1 }
+                    })?;
+                    SimpleCast::IBuoy(cast)
+                }
                 _ => return Err(InstructionValidateError::InvalidRegType { op_index: 1 }),
             },
             _ => Err(InstructionValidateError::InvalidRegType { op_index: 0 })?,
