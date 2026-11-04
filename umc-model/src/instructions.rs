@@ -71,6 +71,9 @@ pub enum Instruction {
     // Shift left or right based on registers
     Shift(ShiftParams, ShiftType),
 
+    // Square root
+    Sqrt(AnySingleReg),
+
     /// Environment call
     ECall(ECallParams),
     // TODO: Float to integer cast

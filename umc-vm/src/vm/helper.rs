@@ -435,7 +435,7 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 state.store_prim(*c.dst(), f.to_bits() as u64);
             }
             _ => {
-                todo!("Arbitrary signed integers unsupported");
+                panic!("Arbitrary signed integers unsupported");
             }
         },
         SimpleCast::ISink(c) => match c.width() {
@@ -448,7 +448,7 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 state.store_prim(*c.dst(), f.to_bits() as i64);
             }
             _ => {
-                todo!("Arbitrary signed integers unsupported");
+                panic!("Arbitrary signed integers unsupported");
             }
         },
         SimpleCast::UBuoy(c) => match c.width() {
@@ -462,7 +462,7 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
             }
             _ => {
                 let _v: ArbitraryUnsignedInt = read_uint(c.from(), state).unwrap_or_default();
-                todo!("Arbitrary signed integers unsupported");
+                panic!("Arbitrary signed integers unsupported");
             }
         },
         SimpleCast::IBuoy(c) => match c.width() {
@@ -475,7 +475,7 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 state.store_prim(*c.dst(), f64::from_bits(v as u64));
             }
             _ => {
-                todo!("Arbitrary signed integers unsupported");
+                panic!("Arbitrary signed integers unsupported");
             }
         },
     }
@@ -496,7 +496,7 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
                     state.store_prim(dst, v << size);
                 }
                 _ => {
-                    todo!("Arbitrary width integers unsupported");
+                    panic!("Arbitrary width integers unsupported");
                 }
             },
             AnySingleReg::Signed(dst) => match dst.width {
@@ -513,7 +513,7 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
                     state.store_prim(dst, v << size);
                 }
                 _ => {
-                    todo!("Arbitrary width integers unsupported");
+                    panic!("Arbitrary width integers unsupported");
                 }
             },
             _ => panic!("Unsupported register for shifting"),
@@ -531,7 +531,7 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
                     state.store_prim(dst, v >> size);
                 }
                 _ => {
-                    todo!("Arbitrary width integers unsupported");
+                    panic!("Arbitrary width integers unsupported");
                 }
             },
             AnySingleReg::Signed(dst) => match dst.width {
@@ -548,7 +548,7 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
                     state.store_prim(dst, ((v as u64) >> size) as i64);
                 }
                 _ => {
-                    todo!("Arbitrary width integers unsupported");
+                    panic!("Arbitrary width integers unsupported");
                 }
             },
             _ => panic!("Unsupported register for shifting"),
@@ -566,7 +566,7 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
                     state.store_prim(dst, v >> size);
                 }
                 _ => {
-                    todo!("Arbitrary width integers unsupported");
+                    panic!("Arbitrary width integers unsupported");
                 }
             },
             AnySingleReg::Signed(dst) => match dst.width {
@@ -583,12 +583,59 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
                     state.store_prim(dst, v >> size);
                 }
                 _ => {
-                    todo!("Arbitrary width integers unsupported");
+                    panic!("Arbitrary width integers unsupported");
                 }
             },
             _ => panic!("Unsupported register for shifting"),
         },
         _ => unreachable!("Unsupported shift type"),
+    }
+}
+
+pub fn execute_sqrt(reg: &AnySingleReg, state: &mut RegState) {
+    match *reg {
+        AnySingleReg::Unsigned(dst) => match dst.width {
+            32 => {
+                let v: u32 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                state.store_prim(dst, v.isqrt())
+            }
+            64 => {
+                let v: u64 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                state.store_prim(dst, v.isqrt())
+            }
+            _ => {
+                panic!("Arbitrary width integers unsupported");
+            }
+        },
+        AnySingleReg::Signed(dst) => match dst.width {
+            32 => {
+                let v: i32 =
+                    read_int::<i32, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.isqrt())
+            }
+            64 => {
+                let v: i64 =
+                    read_int::<i64, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.isqrt())
+            }
+            _ => {
+                panic!("Arbitrary width integers unsupported");
+            }
+        },
+        AnySingleReg::Float(dst) => match dst.width {
+            32 => {
+                let v: f32 = read_float::<f32>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.sqrt())
+            }
+            64 => {
+                let v: f64 = read_float::<f64>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.sqrt())
+            }
+            _ => {
+                unreachable!("Arbitrary width floats unsupported");
+            }
+        },
+        _ => unreachable!("Unsupported sqrt type"),
     }
 }
 

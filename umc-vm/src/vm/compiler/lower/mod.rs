@@ -214,6 +214,7 @@ fn lower_instr<E: Emitter>(cx: &mut Ctx<E>, instr: &Instruction) -> Result<Flow,
         // can add later on but not especially needed just yet
         Instruction::Cast(_) => hand_over(cx),
         Instruction::Shift(_, _) => hand_over(cx),
+        Instruction::Sqrt(_) => hand_over(cx),
         Instruction::ECall(_) => hand_over(cx),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(r))) => debug::dbg_unsigned(cx, r),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Signed(r))) => debug::dbg_signed(cx, r),

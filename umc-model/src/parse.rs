@@ -757,6 +757,7 @@ impl TryFrom<&Operand> for VecOperand<InstrRegT> {
     }
 }
 
+#[derive(Debug)]
 pub struct UnexpectedVecReg {}
 
 pub fn parse_any_reg(reg: &RegOperand) -> AnyReg {

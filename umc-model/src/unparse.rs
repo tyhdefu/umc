@@ -68,6 +68,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         ],
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
         Instruction::Shift(params, _) => shift_to_raw(params),
+        Instruction::Sqrt(reg) => sqrt_to_raw(reg),
         Instruction::ECall(ecall) => ecall_to_raw(ecall),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }
@@ -204,9 +205,16 @@ fn shift_to_raw(params: &ShiftParams) -> Vec<Operand> {
     match &params.dst {
         AnySingleReg::Unsigned(dst) => vec![Operand::Reg(dst.into()), s.into()],
         AnySingleReg::Signed(dst) => vec![Operand::Reg(dst.into()), s.into()],
-        AnySingleReg::Float(dst) => vec![Operand::Reg(dst.into()), s.into()],
-        AnySingleReg::Mem(dst) => vec![Operand::Reg(dst.into()), s.into()],
-        AnySingleReg::Instr(dst) => vec![Operand::Reg(dst.into()), s.into()],
+        _ => unreachable!("shifts should only affect integers"),
+    }
+}
+
+fn sqrt_to_raw(reg: &AnySingleReg) -> Vec<Operand> {
+    match &reg {
+        AnySingleReg::Unsigned(dst) => vec![Operand::Reg(dst.into())],
+        AnySingleReg::Signed(dst) => vec![Operand::Reg(dst.into())],
+        AnySingleReg::Float(dst) => vec![Operand::Reg(dst.into())],
+        _ => unreachable!("sqrts should only affect integers and floats"),
     }
 }
 

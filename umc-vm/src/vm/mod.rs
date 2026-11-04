@@ -271,6 +271,9 @@ impl VirtualMachine {
             Instruction::Shift(params, shift_type) => {
                 helper::execute_shift(params, shift_type, &mut self.state);
             }
+            Instruction::Sqrt(reg) => {
+                helper::execute_sqrt(reg, &mut self.state);
+            }
             Instruction::ECall(ecall) => helper::execute_ecall(
                 ecall,
                 &mut self.state,

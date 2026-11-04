@@ -657,6 +657,19 @@ pub fn decode_instruction<R: io::Read>(
                 .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
             Ok(Instruction::Shift(shift, ShiftType::RightArithmeticShift))
         })?,
+        OpCode::SQRT => {
+            disassembler.decode_fixed_instruction(src, opcode_raw, |[op]| match op {
+                Operand::Reg(reg_operand) => Ok(Instruction::Sqrt(
+                    parse_any_single_reg(&reg_operand)
+                        .expect("SQRT instruction requires single operand register"),
+                )),
+                _ => {
+                    return Err(DecodeError::Malformed(format!(
+                        "SQRT Instruction requires a register operand"
+                    )));
+                }
+            })?
+        }
         OpCode::ECALL => disassembler.decode_variable_instruction(src, opcode_raw, |ops| {
             Ok(Instruction::ECall(ECallParams::try_from(ops)?))
         })?,
@@ -712,6 +725,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Shift(_, ShiftType::LeftShift) => OpCode::SHL,
         Instruction::Shift(_, ShiftType::RightLogicalShift) => OpCode::SHR,
         Instruction::Shift(_, ShiftType::RightArithmeticShift) => OpCode::ASHR,
+        Instruction::Sqrt(_) => OpCode::SQRT,
         Instruction::ECall(_) => OpCode::ECALL,
         Instruction::Dbg(_) => OpCode::DBG,
     };
@@ -965,6 +979,9 @@ enum OpCode {
     SHL = 0b101000,
     SHR = 0b101001,
     ASHR = 0b101010,
+
+    // SQRT
+    SQRT = 0b101100,
 
     // Environment call
     ECALL = 0b110100,

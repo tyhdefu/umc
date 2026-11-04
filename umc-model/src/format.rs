@@ -180,6 +180,7 @@ impl DisplayAssembly for Instruction {
             Instruction::Shift(params, ShiftType::RightArithmeticShift) => {
                 write_instr(f, "ashr", params, opts)
             }
+            Instruction::Sqrt(reg) => write_instr(f, "sqrt", reg, opts),
             Instruction::ECall(ecall) => write_instr(f, "ecall", ecall, opts),
             Instruction::Dbg(reg_operand) => write_instr(f, "dbg", reg_operand, opts),
         }
