@@ -213,7 +213,11 @@ fn lower_instr<E: Emitter>(cx: &mut Ctx<E>, instr: &Instruction) -> Result<Flow,
         // I don't think JIT support for casts is particularly needed as it is just a reinterpretation at the VM level of a set of bits
         // can add later on but not especially needed just yet
         Instruction::Cast(_) => hand_over(cx),
-        Instruction::Shift(_, _) => hand_over(cx),
+        Instruction::Shift(params, ShiftType::LeftShift) => int::left_shift(cx, params),
+        Instruction::Shift(params, ShiftType::RightLogicalShift) => int::logical_rshift(cx, params),
+        Instruction::Shift(params, ShiftType::RightArithmeticShift) => {
+            int::arithmetic_rshift(cx, params)
+        }
         Instruction::Sqrt(_) => hand_over(cx),
         Instruction::ECall(_) => hand_over(cx),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(r))) => debug::dbg_unsigned(cx, r),

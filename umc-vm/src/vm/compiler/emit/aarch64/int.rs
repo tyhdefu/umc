@@ -158,6 +158,35 @@ impl IntEmitter for ArmEmitter {
         }
     }
 
+    /// reg form (lslv) masks the amount mod width in hardware, imm is masked here to match, same as x86 shl
+    fn lshift(&mut self, dst: Tmp, size: Src, w: OpWidth) {
+        let d = reg(dst);
+        match (size, w) {
+            (Src::Tmp(s), OpWidth::W64) => arm!(self.ops ; lsl X(d), X(d), X(reg(s))),
+            (Src::Tmp(s), OpWidth::W32) => arm!(self.ops ; lsl W(d), W(d), W(reg(s))),
+            (Src::Imm(i), OpWidth::W64) => arm!(self.ops ; lsl X(d), X(d), #i as u32 & 63),
+            (Src::Imm(i), OpWidth::W32) => arm!(self.ops ; lsl W(d), W(d), #i as u32 & 31),
+        }
+    }
+    fn l_rshift(&mut self, dst: Tmp, size: Src, w: OpWidth) {
+        let d = reg(dst);
+        match (size, w) {
+            (Src::Tmp(s), OpWidth::W64) => arm!(self.ops ; lsr X(d), X(d), X(reg(s))),
+            (Src::Tmp(s), OpWidth::W32) => arm!(self.ops ; lsr W(d), W(d), W(reg(s))),
+            (Src::Imm(i), OpWidth::W64) => arm!(self.ops ; lsr X(d), X(d), #i as u32 & 63),
+            (Src::Imm(i), OpWidth::W32) => arm!(self.ops ; lsr W(d), W(d), #i as u32 & 31),
+        }
+    }
+    fn a_rshift(&mut self, dst: Tmp, size: Src, w: OpWidth) {
+        let d = reg(dst);
+        match (size, w) {
+            (Src::Tmp(s), OpWidth::W64) => arm!(self.ops ; asr X(d), X(d), X(reg(s))),
+            (Src::Tmp(s), OpWidth::W32) => arm!(self.ops ; asr W(d), W(d), W(reg(s))),
+            (Src::Imm(i), OpWidth::W64) => arm!(self.ops ; asr X(d), X(d), #i as u32 & 63),
+            (Src::Imm(i), OpWidth::W32) => arm!(self.ops ; asr W(d), W(d), #i as u32 & 31),
+        }
+    }
+
     /// keep low `bits`, zero the rest, single ubfx instead of x86's shl + shr
     fn truncate_unsigned(&mut self, dst: Tmp, bits: RegWidth, w: OpWidth) {
         let d = reg(dst);

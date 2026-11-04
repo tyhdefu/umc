@@ -588,7 +588,6 @@ pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut R
             },
             _ => panic!("Unsupported register for shifting"),
         },
-        _ => unreachable!("Unsupported shift type"),
     }
 }
 

@@ -1,7 +1,7 @@
 //! Integer alu ops, not and compare
 
 use umc_model::RegWidth;
-use umc_model::instructions::BinaryCondition;
+use umc_model::instructions::{AnySingleReg, BinaryCondition, ShiftParams};
 use umc_model::reg_model::{Reg, RegOrConstant, SignedRegT, UnsignedRegT};
 
 use super::operand::JitReg;
@@ -159,5 +159,80 @@ pub(super) fn store_flag<E: Emitter>(
 ) -> Result<Flow, CompileError> {
     let w = cx.width(dst.width)?;
     cx.store(dst, Tmp::T0, w);
+    Ok(Flow::Next)
+}
+
+/// left shift
+pub(super) fn left_shift<E: Emitter>(
+    cx: &mut Ctx<E>,
+    params: &ShiftParams,
+) -> Result<Flow, CompileError> {
+    match params.dst {
+        AnySingleReg::Unsigned(dst) => {
+            let w = cx.width(dst.width)?;
+            cx.load(&RegOrConstant::Reg(dst), Tmp::T0, w);
+            let src = cx.src(&params.size, Tmp::T1, w);
+            cx.e.lshift(Tmp::T0, src, w);
+            cx.store(&dst, Tmp::T0, w);
+        }
+        AnySingleReg::Signed(dst) => {
+            let w = cx.width(dst.width)?;
+            cx.load(&RegOrConstant::Reg(dst), Tmp::T0, w);
+            let src = cx.src(&params.size, Tmp::T1, w);
+            cx.e.lshift(Tmp::T0, src, w);
+            cx.store(&dst, Tmp::T0, w);
+        }
+        _ => panic!("Only uint and int can be bit shifted"),
+    }
+    Ok(Flow::Next)
+}
+
+/// logical right shift
+pub(super) fn logical_rshift<E: Emitter>(
+    cx: &mut Ctx<E>,
+    params: &ShiftParams,
+) -> Result<Flow, CompileError> {
+    match params.dst {
+        AnySingleReg::Unsigned(dst) => {
+            let w = cx.width(dst.width)?;
+            cx.load(&RegOrConstant::Reg(dst), Tmp::T0, w);
+            let src = cx.src(&params.size, Tmp::T1, w);
+            cx.e.l_rshift(Tmp::T0, src, w);
+            cx.store(&dst, Tmp::T0, w);
+        }
+        AnySingleReg::Signed(dst) => {
+            let w = cx.width(dst.width)?;
+            cx.load(&RegOrConstant::Reg(dst), Tmp::T0, w);
+            let src = cx.src(&params.size, Tmp::T1, w);
+            cx.e.l_rshift(Tmp::T0, src, w);
+            cx.store(&dst, Tmp::T0, w);
+        }
+        _ => panic!("Only uint and int can be bit shifted"),
+    }
+    Ok(Flow::Next)
+}
+
+/// arithmetic right shift
+pub(super) fn arithmetic_rshift<E: Emitter>(
+    cx: &mut Ctx<E>,
+    params: &ShiftParams,
+) -> Result<Flow, CompileError> {
+    match params.dst {
+        AnySingleReg::Unsigned(dst) => {
+            let w = cx.width(dst.width)?;
+            cx.load(&RegOrConstant::Reg(dst), Tmp::T0, w);
+            let src = cx.src(&params.size, Tmp::T1, w);
+            cx.e.a_rshift(Tmp::T0, src, w);
+            cx.store(&dst, Tmp::T0, w);
+        }
+        AnySingleReg::Signed(dst) => {
+            let w = cx.width(dst.width)?;
+            cx.load(&RegOrConstant::Reg(dst), Tmp::T0, w);
+            let src = cx.src(&params.size, Tmp::T1, w);
+            cx.e.a_rshift(Tmp::T0, src, w);
+            cx.store(&dst, Tmp::T0, w);
+        }
+        _ => panic!("Only uint and int can be bit shifted"),
+    }
     Ok(Flow::Next)
 }

@@ -208,6 +208,64 @@ impl IntEmitter for X86Emitter {
         }
     }
 
+    fn lshift(&mut self, dst: Tmp, size: Src, w: OpWidth) {
+        let r = match size {
+            Src::Tmp(s) => match w {
+                OpWidth::W64 => {
+                    record(&mut self.error, self.asm.mov(cl, reg8(s)));
+                    self.asm.shl(r64(dst), cl)
+                }
+                OpWidth::W32 => {
+                    record(&mut self.error, self.asm.mov(cl, reg8(s)));
+                    self.asm.shl(r32(dst), cl)
+                }
+            },
+            Src::Imm(i) => match w {
+                OpWidth::W64 => self.asm.shl(r64(dst), i as u32),
+                OpWidth::W32 => self.asm.shl(r32(dst), i as u32),
+            },
+        };
+        record(&mut self.error, r);
+    }
+    fn l_rshift(&mut self, dst: Tmp, size: Src, w: OpWidth) {
+        let r = match size {
+            Src::Tmp(s) => match w {
+                OpWidth::W64 => {
+                    record(&mut self.error, self.asm.mov(cl, reg8(s)));
+                    self.asm.shr(r64(dst), cl)
+                }
+                OpWidth::W32 => {
+                    record(&mut self.error, self.asm.mov(cl, reg8(s)));
+                    self.asm.shr(r32(dst), cl)
+                }
+            },
+            Src::Imm(i) => match w {
+                OpWidth::W64 => self.asm.shr(r64(dst), i as u32),
+                OpWidth::W32 => self.asm.shr(r32(dst), i as u32),
+            },
+        };
+        record(&mut self.error, r);
+    }
+    fn a_rshift(&mut self, dst: Tmp, size: Src, w: OpWidth) {
+        let r = match size {
+            Src::Tmp(s) => match w {
+                OpWidth::W64 => {
+                    record(&mut self.error, self.asm.mov(cl, reg8(s)));
+                    self.asm.sar(r64(dst), cl)
+                }
+                OpWidth::W32 => {
+                    record(&mut self.error, self.asm.mov(cl, reg8(s)));
+                    self.asm.sar(r32(dst), cl)
+                }
+            },
+            Src::Imm(i) => match w {
+                OpWidth::W64 => self.asm.sar(r64(dst), i as u32),
+                OpWidth::W32 => self.asm.sar(r32(dst), i as u32),
+            },
+        };
+        record(&mut self.error, r);
+    }
+
     /// UMC wrap at declared width - noop when bits already natural for withd
     fn truncate_unsigned(&mut self, dst: Tmp, bits: RegWidth, w: OpWidth) {
         let r = match w {

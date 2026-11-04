@@ -123,6 +123,10 @@ pub trait IntEmitter {
     fn alu(&mut self, op: AluOp, dst: Tmp, lhs: Tmp, rhs: Src, w: OpWidth, sign: Signedness);
     fn unop(&mut self, op: UnOp, dst: Tmp, src: Src, w: OpWidth);
 
+    fn lshift(&mut self, dst: Tmp, size: Src, w: OpWidth);
+    fn l_rshift(&mut self, dst: Tmp, size: Src, w: OpWidth);
+    fn a_rshift(&mut self, dst: Tmp, size: Src, w: OpWidth);
+
     /// UMC wrap at declared width - noop when bits already natural for withd
     fn truncate_unsigned(&mut self, dst: Tmp, bits: RegWidth, w: OpWidth);
     fn sign_extend(&mut self, dst: Tmp, bits: RegWidth, w: OpWidth);
