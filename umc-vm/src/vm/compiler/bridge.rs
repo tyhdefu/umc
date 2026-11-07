@@ -183,6 +183,10 @@ pub extern "C" fn jit_frem_f64(a: u64, b: u64) -> u64 {
     f64::from_bits(a).rem_euclid(f64::from_bits(b)).to_bits()
 }
 
+pub extern "C" fn jit_isqrt(a: u64) -> u64 {
+    a.isqrt()
+}
+
 pub extern "C" fn jit_frem_f32(a: u64, b: u64) -> u64 {
     f32::from_bits(a as u32)
         .rem_euclid(f32::from_bits(b as u32))

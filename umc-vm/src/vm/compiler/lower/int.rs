@@ -6,6 +6,7 @@ use umc_model::reg_model::{Reg, RegOrConstant, SignedRegT, UnsignedRegT};
 
 use super::operand::JitReg;
 use super::{Ctx, Flow};
+use crate::vm::compiler::bridge::jit_isqrt;
 use crate::vm::compiler::emit::*;
 use crate::vm::compiler::{BlockExit, CompileError};
 
@@ -234,5 +235,22 @@ pub(super) fn arithmetic_rshift<E: Emitter>(
         }
         _ => panic!("Only uint and int can be bit shifted"),
     }
+    Ok(Flow::Next)
+}
+
+/// integer square root in place, no native instruction so call into the host
+pub(super) fn sqrt<E: Emitter, RT: JitInt>(
+    cx: &mut Ctx<E>,
+    dst: &Reg<RT>,
+) -> Result<Flow, CompileError> {
+    let w = cx.width(dst.width)?;
+    cx.load_reg(dst, Tmp::T0, w);
+    // interpreter panics on negative isqrt, let it
+    if let Signedness::Signed = RT::SIGNEDNESS {
+        cx.bail_if(CmpCond::Lt, Tmp::T0, Src::Imm(0), w, Signedness::Signed);
+    }
+    // non-negative and zero extended here, so one u64 isqrt covers every width
+    cx.e.call_host(jit_isqrt as *const () as usize, &[Arg::Tmp(Tmp::T0)]);
+    cx.store(dst, Tmp::T0, w);
     Ok(Flow::Next)
 }

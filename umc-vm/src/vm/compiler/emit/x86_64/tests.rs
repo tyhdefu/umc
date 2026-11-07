@@ -142,6 +142,17 @@ fn truncate_and_sign_extend_use_shift_pairs() {
 }
 
 #[test]
+fn fsqrt_uses_sse_sqrt() {
+    let mut e = X86Emitter::new();
+    e.fsqrt(FTmp::F0, OpWidth::W64);
+    e.fsqrt(FTmp::F0, OpWidth::W32);
+    assert_eq!(
+        disasm(&e.finish().unwrap()),
+        ["sqrtsd %xmm0,%xmm0", "sqrtss %xmm0,%xmm0"]
+    );
+}
+
+#[test]
 fn set_cmp_unsigned_uses_below() {
     let mut e = X86Emitter::new();
     e.set_cmp(

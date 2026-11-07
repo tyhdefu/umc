@@ -146,3 +146,16 @@ pub(super) fn compare<E: Emitter>(
     cx.e.fset_cmp(Tmp::T0, cmp_cond(cond), FTmp::F0, FTmp::F1, w);
     store_flag(cx, dst)
 }
+
+/// float square root in place
+pub(super) fn sqrt<E: Emitter>(
+    cx: &mut Ctx<E>,
+    dst: &Reg<FloatRegT>,
+) -> Result<Flow, CompileError> {
+    let w = fwidth(cx, dst.width)?;
+    load(cx, &RegOrConstant::Reg(*dst), FTmp::F0, w)?;
+    cx.e.fsqrt(FTmp::F0, w);
+    let d = cx.layout.write_slot(FloatRegT::key(dst));
+    cx.e.fstore_slot(d, FTmp::F0, w);
+    Ok(Flow::Next)
+}

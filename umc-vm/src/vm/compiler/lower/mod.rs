@@ -218,7 +218,9 @@ fn lower_instr<E: Emitter>(cx: &mut Ctx<E>, instr: &Instruction) -> Result<Flow,
         Instruction::Shift(params, ShiftType::RightArithmeticShift) => {
             int::arithmetic_rshift(cx, params)
         }
-        Instruction::Sqrt(_) => hand_over(cx),
+        Instruction::Sqrt(AnySingleReg::Unsigned(r)) => int::sqrt(cx, r),
+        Instruction::Sqrt(AnySingleReg::Signed(r)) => int::sqrt(cx, r),
+        Instruction::Sqrt(AnySingleReg::Float(r)) => float::sqrt(cx, r),
         Instruction::ECall(_) => hand_over(cx),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Unsigned(r))) => debug::dbg_unsigned(cx, r),
         Instruction::Dbg(AnyReg::Single(AnySingleReg::Signed(r))) => debug::dbg_signed(cx, r),

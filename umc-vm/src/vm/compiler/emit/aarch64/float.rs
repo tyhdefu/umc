@@ -53,6 +53,14 @@ impl FloatEmitter for ArmEmitter {
         }
     }
 
+    fn fsqrt(&mut self, dst: FTmp, w: OpWidth) {
+        let d = freg(dst);
+        match w {
+            OpWidth::W64 => arm!(self.ops ; fsqrt D(d), D(d)),
+            OpWidth::W32 => arm!(self.ops ; fsqrt S(d), S(d)),
+        }
+    }
+
     /// arm is 3 address so no mov / dst == rhs juggling like x86
     fn falu(&mut self, op: FAluOp, dst: FTmp, rhs: FTmp, w: OpWidth) {
         let (d, r) = (freg(dst), freg(rhs));

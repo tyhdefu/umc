@@ -33,6 +33,14 @@ impl FloatEmitter for X86Emitter {
         record(&mut self.error, r);
     }
 
+    fn fsqrt(&mut self, dst: FTmp, w: OpWidth) {
+        let r = match w {
+            OpWidth::W64 => self.asm.sqrtsd(xmm(dst), xmm(dst)),
+            OpWidth::W32 => self.asm.sqrtss(xmm(dst), xmm(dst)),
+        };
+        record(&mut self.error, r);
+    }
+
     fn falu(&mut self, op: FAluOp, dst: FTmp, rhs: FTmp, w: OpWidth) {
         match w {
             OpWidth::W64 => {

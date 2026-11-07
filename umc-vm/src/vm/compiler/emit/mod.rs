@@ -147,6 +147,9 @@ pub trait FloatEmitter {
     fn fload_slot(&mut self, dst: FTmp, slot: FrameSlot, w: OpWidth);
     fn fstore_slot(&mut self, slot: FrameSlot, src: FTmp, w: OpWidth);
 
+    // dst = sqrt(dst)
+    fn fsqrt(&mut self, dst: FTmp, w: OpWidth);
+
     // raw IEEE bits, f32 in low 32
     fn fmov_imm(&mut self, dst: FTmp, bits: u64, w: OpWidth);
     // dst = dst op rhs
