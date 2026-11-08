@@ -45,25 +45,33 @@ impl IntWidth {
     #[allow(unused)]
     pub fn store_i64<S>(reg: Reg<SignedRegT>, state: &mut S, val: i64)
     where
-        S: StorePrim<i32, SignedRegT>
+        S: StorePrim<i8, SignedRegT>
+            + StorePrim<i16, SignedRegT>
+            + StorePrim<i32, SignedRegT>
             + StorePrim<i64, SignedRegT>
             + StoreFor<ArbitraryInt, SignedRegT>,
     {
-        match Self::from_width(reg.width) {
-            Self::I32 => state.store_prim(reg, val as i32),
-            Self::I64 => state.store_prim(reg, val as i64),
-            Self::Arbitrary(w) => {
-                let mut arb_val: ArbitraryInt = val.cast_into();
-                arb_val.resize_to(w);
-                state.store(reg, arb_val);
-            }
-        };
+        match reg.width {
+            8 => state.store_prim(reg, val as i8),
+            16 => state.store_prim(reg, val as i16),
+            _ => match Self::from_width(reg.width) {
+                Self::I32 => state.store_prim(reg, val as i32),
+                Self::I64 => state.store_prim(reg, val as i64),
+                Self::Arbitrary(w) => {
+                    let mut arb_val: ArbitraryInt = val.cast_into();
+                    arb_val.resize_to(w);
+                    state.store(reg, arb_val);
+                }
+            },
+        }
     }
 }
 
 impl<STATE> WidthOptions<STATE> for IntWidth
 where
-    STATE: StorePrim<i32, SignedRegT>
+    STATE: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
         + StorePrim<i64, SignedRegT>
         + StoreFor<ArbitraryInt, SignedRegT>,
 {
@@ -144,7 +152,9 @@ where
 
 impl<STATE, OP> WidthUnaryOp<STATE, OP> for IntWidth
 where
-    STATE: StorePrim<i32, SignedRegT>
+    STATE: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
         + StorePrim<i64, SignedRegT>
         + StoreFor<ArbitraryInt, SignedRegT>,
     OP: UnaryOp<i32> + UnaryOp<i64> + UnaryOp<ArbitraryInt>,
@@ -182,7 +192,9 @@ where
 
 impl<STATE, OP> WidthBinaryOp<STATE, OP> for IntWidth
 where
-    STATE: StorePrim<i32, SignedRegT>
+    STATE: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
         + StorePrim<i64, SignedRegT>
         + StoreFor<ArbitraryInt, SignedRegT>,
     OP: BinaryOp<i32> + BinaryOp<i64> + BinaryOp<ArbitraryInt>,

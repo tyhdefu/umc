@@ -530,6 +530,18 @@ impl CastFrom<ArbitraryUnsignedInt> for u32 {
     }
 }
 
+impl CastFrom<i8> for u32 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i16> for u32 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
+    }
+}
+
 impl CastFrom<i32> for u32 {
     fn cast_from(value: &i32) -> Self {
         *value as Self
@@ -569,6 +581,18 @@ impl CastFrom<ArbitraryUnsignedInt> for u64 {
             let upper = value.data.get(1).copied().unwrap_or(0) as u64;
             return lower + (upper << usize::BITS);
         }
+    }
+}
+
+impl CastFrom<i8> for u64 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i16> for u64 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
     }
 }
 

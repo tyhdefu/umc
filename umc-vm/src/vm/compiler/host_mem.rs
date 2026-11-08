@@ -13,6 +13,24 @@ pub(crate) trait SlotPrim: Serializable + Copy {
     fn from_slot(bits: u64) -> Self;
 }
 
+impl SlotPrim for u8 {
+    fn to_slot(self) -> u64 {
+        self as u64
+    }
+    fn from_slot(bits: u64) -> Self {
+        bits as u8
+    }
+}
+
+impl SlotPrim for u16 {
+    fn to_slot(self) -> u64 {
+        self as u64
+    }
+    fn from_slot(bits: u64) -> Self {
+        bits as u16
+    }
+}
+
 impl SlotPrim for u32 {
     fn to_slot(self) -> u64 {
         self as u64
@@ -28,6 +46,24 @@ impl SlotPrim for u64 {
     }
     fn from_slot(bits: u64) -> Self {
         bits
+    }
+}
+
+impl SlotPrim for i8 {
+    fn to_slot(self) -> u64 {
+        self as i64 as u64
+    }
+    fn from_slot(bits: u64) -> Self {
+        bits as i8
+    }
+}
+
+impl SlotPrim for i16 {
+    fn to_slot(self) -> u64 {
+        self as i64 as u64
+    }
+    fn from_slot(bits: u64) -> Self {
+        bits as i16
     }
 }
 

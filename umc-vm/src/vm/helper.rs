@@ -307,6 +307,8 @@ pub fn execute_load(
             }
         },
         AnySingleReg::Signed(reg) => match reg.width {
+            i8::BITS => load_prim::<_, i8>(*reg, &address, state, memory),
+            i16::BITS => load_prim::<_, i16>(*reg, &address, state, memory),
             i32::BITS => load_prim::<_, i32>(*reg, &address, state, memory),
             i64::BITS => load_prim::<_, i64>(*reg, &address, state, memory),
             _ => todo!(),
@@ -873,10 +875,22 @@ where
 pub fn read_int<T, S>(op: &RegOrConstant<SignedRegT>, state: &S) -> T
 where
     T: CastSingleSigned,
-    S: StorePrim<i32, SignedRegT> + StorePrim<i64, SignedRegT> + StoreFor<ArbitraryInt, SignedRegT>,
+    S: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
+        + StorePrim<i64, SignedRegT>
+        + StoreFor<ArbitraryInt, SignedRegT>,
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {
+            i8::BITS => {
+                let v: i8 = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
+            i16::BITS => {
+                let v: i16 = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
             i32::BITS => {
                 let v: i32 = state.read_prim(*num_reg).unwrap_or_default();
                 v.cast_into()

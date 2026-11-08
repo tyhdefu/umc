@@ -326,6 +326,19 @@ impl UMCBitwise for i64 {
 }
 
 // casts to i32
+
+impl CastFrom<i8> for i32 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i16> for i32 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
+    }
+}
+
 impl CastFrom<i64> for i32 {
     fn cast_from(value: &i64) -> Self {
         *value as Self
@@ -358,6 +371,18 @@ impl CastFrom<ArbitraryUnsignedInt> for i32 {
 }
 
 // casts to i64
+impl CastFrom<i8> for i64 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i16> for i64 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
+    }
+}
+
 impl CastFrom<i32> for i64 {
     fn cast_from(value: &i32) -> Self {
         *value as Self
@@ -384,6 +409,22 @@ impl CastFrom<ArbitraryUnsignedInt> for i64 {
 }
 
 // Casts to ArbitraryInt
+impl CastFrom<i8> for ArbitraryInt {
+    fn cast_from(value: &i8) -> Self {
+        Self {
+            inner: Some(Awi::from_i8(*value)),
+        }
+    }
+}
+
+impl CastFrom<i16> for ArbitraryInt {
+    fn cast_from(value: &i16) -> Self {
+        Self {
+            inner: Some(Awi::from_i16(*value)),
+        }
+    }
+}
+
 impl CastFrom<i32> for ArbitraryInt {
     fn cast_from(value: &i32) -> Self {
         Self {

@@ -57,8 +57,26 @@ fn call_checked<E: Emitter>(cx: &mut Ctx<E>, f: usize, args: &[Arg]) {
     );
 }
 
+/// host fn for a 8 / 16 / 32 / 64 bit value register
+fn by_width4<E: Emitter>(
+    cx: &Ctx<E>,
+    width: RegWidth,
+    f8_: usize,
+    f16_: usize,
+    f32_: usize,
+    f64_: usize,
+) -> Result<usize, CompileError> {
+    match width {
+        8 => Ok(f8_),
+        16 => Ok(f16_),
+        32 => Ok(f32_),
+        64 => Ok(f64_),
+        _ => Err(cx.unsupported("load width")),
+    }
+}
+
 /// host fn for a 32 / 64 bit value register
-fn by_width<E: Emitter>(
+fn by_width2<E: Emitter>(
     cx: &Ctx<E>,
     width: RegWidth,
     f32_: usize,
@@ -192,25 +210,29 @@ pub(super) fn load<E: Emitter>(
     let a = addr_slot(cx, src);
     let (f, d) = match dst {
         AnySingleReg::Unsigned(r) => (
-            by_width(
+            by_width4(
                 cx,
                 r.width,
+                jit_load::<u8> as *const () as usize,
+                jit_load::<u16> as *const () as usize,
                 jit_load::<u32> as *const () as usize,
                 jit_load::<u64> as *const () as usize,
             )?,
             cx.layout.write_slot(JitReg::key(r)),
         ),
         AnySingleReg::Signed(r) => (
-            by_width(
+            by_width4(
                 cx,
                 r.width,
+                jit_load::<i8> as *const () as usize,
+                jit_load::<i16> as *const () as usize,
                 jit_load::<i32> as *const () as usize,
                 jit_load::<i64> as *const () as usize,
             )?,
             cx.layout.write_slot(JitReg::key(r)),
         ),
         AnySingleReg::Float(r) => (
-            by_width(
+            by_width2(
                 cx,
                 r.width,
                 jit_load::<f32> as *const () as usize,
@@ -249,25 +271,29 @@ pub(super) fn store<E: Emitter>(
     let a = addr_slot(cx, dst);
     let (f, s) = match src {
         AnySingleReg::Unsigned(r) => (
-            by_width(
+            by_width4(
                 cx,
                 r.width,
+                jit_store::<u8> as *const () as usize,
+                jit_store::<u16> as *const () as usize,
                 jit_store::<u32> as *const () as usize,
                 jit_store::<u64> as *const () as usize,
             )?,
             cx.layout.read_slot(JitReg::key(r)),
         ),
         AnySingleReg::Signed(r) => (
-            by_width(
+            by_width4(
                 cx,
                 r.width,
+                jit_store::<i8> as *const () as usize,
+                jit_store::<i16> as *const () as usize,
                 jit_store::<i32> as *const () as usize,
                 jit_store::<i64> as *const () as usize,
             )?,
             cx.layout.read_slot(JitReg::key(r)),
         ),
         AnySingleReg::Float(r) => (
-            by_width(
+            by_width2(
                 cx,
                 r.width,
                 jit_store::<f32> as *const () as usize,

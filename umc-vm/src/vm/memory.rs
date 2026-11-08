@@ -128,11 +128,15 @@ macro_rules! impl_serialize_prim {
     };
 }
 
+impl_serialize_prim!(u8);
+impl_serialize_prim!(u16);
 impl_serialize_prim!(u32);
 impl_serialize_prim!(u64);
 
 impl_serialize_prim!(usize);
 
+impl_serialize_prim!(i8);
+impl_serialize_prim!(i16);
 impl_serialize_prim!(i32);
 impl_serialize_prim!(i64);
 
