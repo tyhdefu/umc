@@ -209,6 +209,7 @@ pub fn execute_comparison(
     let result = compare(&params.args, state, memory_constants)
         .map(|r| match cond {
             BinaryCondition::Equal => r.is_eq(),
+            BinaryCondition::NotEqual => !r.is_eq(),
             BinaryCondition::GreaterThan => r.is_gt(),
             BinaryCondition::GreaterThanOrEqualTo => r.is_ge(),
             BinaryCondition::LessThan => r.is_lt(),

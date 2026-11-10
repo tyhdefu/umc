@@ -308,6 +308,13 @@ pub fn ast_to_bytecode(
                 params,
             })
         }
+        "sne" => {
+            let params = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::NotEqual,
+                params,
+            })
+        }
         "sgt" => {
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {

@@ -145,6 +145,7 @@ pub(super) fn compare<E: Emitter, RT: JitInt>(
 pub(super) fn cmp_cond(cond: &BinaryCondition) -> CmpCond {
     match cond {
         BinaryCondition::Equal => CmpCond::Eq,
+        BinaryCondition::NotEqual => CmpCond::Ne,
         BinaryCondition::GreaterThan => CmpCond::Gt,
         BinaryCondition::GreaterThanOrEqualTo => CmpCond::Ge,
         BinaryCondition::LessThan => CmpCond::Lt,

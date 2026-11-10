@@ -129,6 +129,7 @@ impl AnySingleRegOrConstant {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryCondition {
     Equal,
+    NotEqual,
     GreaterThan,
     GreaterThanOrEqualTo,
     LessThan,

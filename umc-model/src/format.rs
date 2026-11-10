@@ -137,6 +137,7 @@ impl DisplayAssembly for Instruction {
             Instruction::Compare { cond, params } => {
                 let opcode = match cond {
                     BinaryCondition::Equal => "seq",
+                    BinaryCondition::NotEqual => "sne",
                     BinaryCondition::GreaterThan => "sgt",
                     BinaryCondition::GreaterThanOrEqualTo => "sge",
                     BinaryCondition::LessThan => "slt",

@@ -563,21 +563,21 @@ pub fn decode_instruction<R: io::Read>(
             let cmp_zero: CompareToZero = cmp_zero_op(&cond)?;
             Ok(Instruction::Bnz(iaddr_op(&dest)?, cmp_zero))
         })?,
-        OpCode::EQ | OpCode::GT | OpCode::GTE => {
-            disassembler.decode_fixed_instruction(src, opcode_raw, |[d, a, b]| {
+        OpCode::EQ | OpCode::NEQ | OpCode::GT | OpCode::GTE => disassembler
+            .decode_fixed_instruction(src, opcode_raw, |[d, a, b]| {
                 let ops_ref: [&Operand; 3] = [&d, &a, &b];
                 let params = CompareParams::try_from(ops_ref.as_slice()).map_err(|i| {
                     DecodeError::Malformed(format!("Invalid Instruction: {:?} | {:?}", i, ops_ref))
                 })?;
                 let cond = match opcode {
                     OpCode::EQ => BinaryCondition::Equal,
+                    OpCode::NEQ => BinaryCondition::NotEqual,
                     OpCode::GT => BinaryCondition::GreaterThan,
                     OpCode::GTE => BinaryCondition::GreaterThanOrEqualTo,
                     _ => unreachable!("All branches should be covered"),
                 };
                 Ok(Instruction::Compare { cond, params })
-            })?
-        }
+            })?,
         OpCode::AND => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::And(p))?,
         OpCode::OR => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Or(p))?,
         OpCode::XOR => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Xor(p))?,
@@ -701,6 +701,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Not(_) => OpCode::NOT,
         Instruction::Compare { cond, .. } => match cond {
             BinaryCondition::Equal => OpCode::EQ,
+            BinaryCondition::NotEqual => OpCode::NEQ,
             BinaryCondition::GreaterThan => OpCode::GT,
             BinaryCondition::GreaterThanOrEqualTo => OpCode::GTE,
             BinaryCondition::LessThan => {
@@ -956,8 +957,9 @@ enum OpCode {
 
     // Comparison
     EQ = 0b001100,
-    GT = 0b001101,
-    GTE = 0b001110,
+    NEQ = 0b001101,
+    GT = 0b001110,
+    GTE = 0b001111,
 
     // Bitwise Operations
     AND = 0b010000,
