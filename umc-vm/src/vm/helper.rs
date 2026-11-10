@@ -428,59 +428,40 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 todo!("Arbitrary signed integers unsupported");
             }
         },
-        SimpleCast::USink(c) => match c.width() {
-            32 => {
-                let f: f32 = read_float::<f32>(c.from(), state);
-                state.store_prim(*c.dst(), f.to_bits() as u32);
+        // Source and destination widths may differ, so read at 64 bits (exact for any
+        // 32/64-bit source) and value-cast straight to the destination width.
+        SimpleCast::USink(c) => {
+            let f: f64 = read_float(c.from(), state);
+            match c.width() {
+                32 => state.store_prim(*c.dst(), f as u32),
+                64 => state.store_prim(*c.dst(), f as u64),
+                _ => panic!("Arbitrary unsigned integers unsupported"),
             }
-            64 => {
-                let f: f64 = read_float::<f64>(c.from(), state);
-                state.store_prim(*c.dst(), f.to_bits() as u64);
+        }
+        SimpleCast::ISink(c) => {
+            let f: f64 = read_float(c.from(), state);
+            match c.width() {
+                32 => state.store_prim(*c.dst(), f as i32),
+                64 => state.store_prim(*c.dst(), f as i64),
+                _ => panic!("Arbitrary signed integers unsupported"),
             }
-            _ => {
-                panic!("Arbitrary signed integers unsupported");
+        }
+        SimpleCast::UBuoy(c) => {
+            let v: u64 = read_uint(c.from(), state).unwrap_or_default();
+            match c.width() {
+                32 => state.store_prim(*c.dst(), v as f32),
+                64 => state.store_prim(*c.dst(), v as f64),
+                _ => panic!("Floats can only be 32-bit or 64-bit"),
             }
-        },
-        SimpleCast::ISink(c) => match c.width() {
-            32 => {
-                let f: f32 = read_float::<f32>(c.from(), state);
-                state.store_prim(*c.dst(), f.to_bits() as i32);
+        }
+        SimpleCast::IBuoy(c) => {
+            let v: i64 = read_int::<i64, RegStateRaw<SafeAddress>>(c.from(), state);
+            match c.width() {
+                32 => state.store_prim(*c.dst(), v as f32),
+                64 => state.store_prim(*c.dst(), v as f64),
+                _ => panic!("Floats can only be 32-bit or 64-bit"),
             }
-            64 => {
-                let f: f64 = read_float::<f64>(c.from(), state);
-                state.store_prim(*c.dst(), f.to_bits() as i64);
-            }
-            _ => {
-                panic!("Arbitrary signed integers unsupported");
-            }
-        },
-        SimpleCast::UBuoy(c) => match c.width() {
-            32 => {
-                let v: u32 = read_uint(c.from(), state).unwrap_or_default();
-                state.store_prim(*c.dst(), f32::from_bits(v));
-            }
-            64 => {
-                let v: u64 = read_uint(c.from(), state).unwrap_or_default();
-                state.store_prim(*c.dst(), f64::from_bits(v));
-            }
-            _ => {
-                let _v: ArbitraryUnsignedInt = read_uint(c.from(), state).unwrap_or_default();
-                panic!("Arbitrary signed integers unsupported");
-            }
-        },
-        SimpleCast::IBuoy(c) => match c.width() {
-            32 => {
-                let v: i32 = read_int::<i32, RegStateRaw<SafeAddress>>(c.from(), state);
-                state.store_prim(*c.dst(), f32::from_bits(v as u32));
-            }
-            64 => {
-                let v: i64 = read_int::<i64, RegStateRaw<SafeAddress>>(c.from(), state);
-                state.store_prim(*c.dst(), f64::from_bits(v as u64));
-            }
-            _ => {
-                panic!("Arbitrary signed integers unsupported");
-            }
-        },
+        }
     }
 }
 

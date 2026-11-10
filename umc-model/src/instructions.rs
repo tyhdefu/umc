@@ -388,12 +388,8 @@ where
     TO: RegTypeT<WIDTH = RegWidth>,
     FROM: RegTypeT<WIDTH = RegWidth>,
 {
+    /// Value casts, so source and destination widths may differ (e.g. f32 -> i64)
     pub fn try_create(to: Reg<TO>, from: RegOrConstant<FROM>) -> Result<Self, ()> {
-        if let Some(width) = from.width()
-            && width != to.width
-        {
-            return Err(());
-        }
         Ok(Self { to, from })
     }
 
@@ -405,6 +401,7 @@ where
         &self.from
     }
 
+    /// Destination width
     pub fn width(&self) -> RegWidth {
         self.to.width
     }
