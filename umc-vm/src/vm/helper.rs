@@ -17,15 +17,15 @@ use crate::vm::types::{
 use crate::vm::widths::int::IntWidth;
 use crate::vm::widths::uint::UIntWidth;
 use crate::vm::widths::{WidthBinaryOp, WidthOptions, WidthUnaryOp};
-use umc_model::RegWidth;
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, AnyReg, AnySingleReg, AnySingleRegOrConstant, BinaryCondition,
     CompareParams, CompareToZero, ConsistentComparison, ConsistentOp, ECallParams, MovParams,
-    NotParams, OffsetOp, ResizeCast, SimpleCast,
+    NotParams, OffsetOp, ResizeCast, ShiftParams, ShiftType, SimpleCast,
 };
 use umc_model::reg_model::{
     FloatRegT, InstrRegT, MemRegT, Reg, RegOrConstant, RegTypeT, SignedRegT, UnsignedRegT,
 };
+use umc_model::{RegWidth, RegisterSet};
 
 // TODO: Make these helpers and the VM have a switchable Memory implementation
 type RegState = RegStateRaw<SafeAddress>;
@@ -307,6 +307,8 @@ pub fn execute_load(
             }
         },
         AnySingleReg::Signed(reg) => match reg.width {
+            i8::BITS => load_prim::<_, i8>(*reg, &address, state, memory),
+            i16::BITS => load_prim::<_, i16>(*reg, &address, state, memory),
             i32::BITS => load_prim::<_, i32>(*reg, &address, state, memory),
             i64::BITS => load_prim::<_, i64>(*reg, &address, state, memory),
             _ => todo!(),
@@ -425,6 +427,216 @@ pub fn execute_simple_cast(cast: &SimpleCast, state: &mut RegState) {
                 todo!("Arbitrary signed integers unsupported");
             }
         },
+        SimpleCast::USink(c) => match c.width() {
+            32 => {
+                let f: f32 = read_float::<f32>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as u32);
+            }
+            64 => {
+                let f: f64 = read_float::<f64>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as u64);
+            }
+            _ => {
+                panic!("Arbitrary signed integers unsupported");
+            }
+        },
+        SimpleCast::ISink(c) => match c.width() {
+            32 => {
+                let f: f32 = read_float::<f32>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as i32);
+            }
+            64 => {
+                let f: f64 = read_float::<f64>(c.from(), state);
+                state.store_prim(*c.dst(), f.to_bits() as i64);
+            }
+            _ => {
+                panic!("Arbitrary signed integers unsupported");
+            }
+        },
+        SimpleCast::UBuoy(c) => match c.width() {
+            32 => {
+                let v: u32 = read_uint(c.from(), state).unwrap_or_default();
+                state.store_prim(*c.dst(), f32::from_bits(v));
+            }
+            64 => {
+                let v: u64 = read_uint(c.from(), state).unwrap_or_default();
+                state.store_prim(*c.dst(), f64::from_bits(v));
+            }
+            _ => {
+                let _v: ArbitraryUnsignedInt = read_uint(c.from(), state).unwrap_or_default();
+                panic!("Arbitrary signed integers unsupported");
+            }
+        },
+        SimpleCast::IBuoy(c) => match c.width() {
+            32 => {
+                let v: i32 = read_int::<i32, RegStateRaw<SafeAddress>>(c.from(), state);
+                state.store_prim(*c.dst(), f32::from_bits(v as u32));
+            }
+            64 => {
+                let v: i64 = read_int::<i64, RegStateRaw<SafeAddress>>(c.from(), state);
+                state.store_prim(*c.dst(), f64::from_bits(v as u64));
+            }
+            _ => {
+                panic!("Arbitrary signed integers unsupported");
+            }
+        },
+    }
+}
+
+pub fn execute_shift(params: &ShiftParams, shift_type: &ShiftType, state: &mut RegState) {
+    match shift_type {
+        ShiftType::LeftShift => match params.dst {
+            AnySingleReg::Unsigned(dst) => match dst.width {
+                32 => {
+                    let size: u32 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: u32 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                    state.store_prim(dst, v << size);
+                }
+                64 => {
+                    let size: u64 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: u64 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                    state.store_prim(dst, v << size);
+                }
+                _ => {
+                    panic!("Arbitrary width integers unsupported");
+                }
+            },
+            AnySingleReg::Signed(dst) => match dst.width {
+                32 => {
+                    let size: u32 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: i32 =
+                        read_int::<i32, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                    state.store_prim(dst, v << size);
+                }
+                64 => {
+                    let size: u64 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: i64 =
+                        read_int::<i64, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                    state.store_prim(dst, v << size);
+                }
+                _ => {
+                    panic!("Arbitrary width integers unsupported");
+                }
+            },
+            _ => panic!("Unsupported register for shifting"),
+        },
+        ShiftType::RightLogicalShift => match params.dst {
+            AnySingleReg::Unsigned(dst) => match dst.width {
+                32 => {
+                    let size: u32 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: u32 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                    state.store_prim(dst, v >> size);
+                }
+                64 => {
+                    let size: u64 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: u64 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                    state.store_prim(dst, v >> size);
+                }
+                _ => {
+                    panic!("Arbitrary width integers unsupported");
+                }
+            },
+            AnySingleReg::Signed(dst) => match dst.width {
+                32 => {
+                    let size: u32 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: i32 =
+                        read_int::<i32, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                    state.store_prim(dst, ((v as u32) >> size) as i32);
+                }
+                64 => {
+                    let size: u64 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: i64 =
+                        read_int::<i64, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                    state.store_prim(dst, ((v as u64) >> size) as i64);
+                }
+                _ => {
+                    panic!("Arbitrary width integers unsupported");
+                }
+            },
+            _ => panic!("Unsupported register for shifting"),
+        },
+        ShiftType::RightArithmeticShift => match params.dst {
+            AnySingleReg::Unsigned(dst) => match dst.width {
+                32 => {
+                    let size: u32 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: u32 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                    state.store_prim(dst, v >> size);
+                }
+                64 => {
+                    let size: u64 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: u64 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                    state.store_prim(dst, v >> size);
+                }
+                _ => {
+                    panic!("Arbitrary width integers unsupported");
+                }
+            },
+            AnySingleReg::Signed(dst) => match dst.width {
+                32 => {
+                    let size: u32 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: i32 =
+                        read_int::<i32, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                    state.store_prim(dst, v >> size);
+                }
+                64 => {
+                    let size: u64 = read_uint(&params.size, state).unwrap_or_default();
+                    let v: i64 =
+                        read_int::<i64, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                    state.store_prim(dst, v >> size);
+                }
+                _ => {
+                    panic!("Arbitrary width integers unsupported");
+                }
+            },
+            _ => panic!("Unsupported register for shifting"),
+        },
+    }
+}
+
+pub fn execute_sqrt(reg: &AnySingleReg, state: &mut RegState) {
+    match *reg {
+        AnySingleReg::Unsigned(dst) => match dst.width {
+            32 => {
+                let v: u32 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                state.store_prim(dst, v.isqrt())
+            }
+            64 => {
+                let v: u64 = read_uint(&RegOrConstant::Reg(dst), state).unwrap_or_default();
+                state.store_prim(dst, v.isqrt())
+            }
+            _ => {
+                panic!("Arbitrary width integers unsupported");
+            }
+        },
+        AnySingleReg::Signed(dst) => match dst.width {
+            32 => {
+                let v: i32 =
+                    read_int::<i32, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.isqrt())
+            }
+            64 => {
+                let v: i64 =
+                    read_int::<i64, RegStateRaw<SafeAddress>>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.isqrt())
+            }
+            _ => {
+                panic!("Arbitrary width integers unsupported");
+            }
+        },
+        AnySingleReg::Float(dst) => match dst.width {
+            32 => {
+                let v: f32 = read_float::<f32>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.sqrt())
+            }
+            64 => {
+                let v: f64 = read_float::<f64>(&RegOrConstant::Reg(dst), state);
+                state.store_prim(dst, v.sqrt())
+            }
+            _ => {
+                unreachable!("Arbitrary width floats unsupported");
+            }
+        },
+        _ => unreachable!("Unsupported sqrt type"),
     }
 }
 
@@ -663,10 +875,22 @@ where
 pub fn read_int<T, S>(op: &RegOrConstant<SignedRegT>, state: &S) -> T
 where
     T: CastSingleSigned,
-    S: StorePrim<i32, SignedRegT> + StorePrim<i64, SignedRegT> + StoreFor<ArbitraryInt, SignedRegT>,
+    S: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
+        + StorePrim<i64, SignedRegT>
+        + StoreFor<ArbitraryInt, SignedRegT>,
 {
     match op {
         RegOrConstant::Reg(num_reg) => match num_reg.width {
+            i8::BITS => {
+                let v: i8 = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
+            i16::BITS => {
+                let v: i16 = state.read_prim(*num_reg).unwrap_or_default();
+                v.cast_into()
+            }
             i32::BITS => {
                 let v: i32 = state.read_prim(*num_reg).unwrap_or_default();
                 v.cast_into()
@@ -734,4 +958,22 @@ pub fn read_offset(p: &OffsetOp, state: &RegState) -> isize {
         OffsetOp::Unsigned(op) => read_uint::<u64, _>(op, state).unwrap_or_default() as isize,
         OffsetOp::Signed(op) => read_int::<i64, _>(op, state) as isize,
     }
+}
+
+pub fn size_of(reg_type: &RegisterSet) -> u32 {
+    let rt = match reg_type {
+        umc_model::RegisterSet::Single(rt) => rt,
+        umc_model::RegisterSet::Vector(rt, _) => rt,
+    };
+    let mut size_bytes: u32 = match rt {
+        umc_model::RegType::Num(umc_model::NumRegType::UnsignedInt(w)) => w.div_ceil(u8::BITS),
+        umc_model::RegType::Num(umc_model::NumRegType::SignedInt(w)) => w.div_ceil(u8::BITS),
+        umc_model::RegType::Num(umc_model::NumRegType::Float(w)) => w.div_ceil(u8::BITS),
+        umc_model::RegType::InstructionAddress => InstructionAddress::SIZE_BYTES,
+        umc_model::RegType::MemoryAddress => SafeAddress::SIZE_BYTES,
+    };
+    if let umc_model::RegisterSet::Vector(_, length) = reg_type {
+        size_bytes = size_bytes * length;
+    }
+    size_bytes
 }

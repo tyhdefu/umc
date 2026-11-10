@@ -16,6 +16,8 @@ use umc_model::reg_model::{Reg, RegOrConstant, SignedRegT};
 /// Abstraction over the specialised widths provided by the given state implementation
 #[derive(Debug)]
 pub enum IntWidth {
+    I8,
+    I16,
     I32,
     I64,
     Arbitrary(RegWidth),
@@ -25,6 +27,8 @@ impl IntWidth {
     /// Convert the given width exactly to a supported integer domain
     pub fn from_width(width: RegWidth) -> Self {
         match width {
+            i8::BITS => Self::I8,
+            i16::BITS => Self::I16,
             i32::BITS => Self::I32,
             i64::BITS => Self::I64,
             w => Self::Arbitrary(w),
@@ -35,6 +39,8 @@ impl IntWidth {
     /// Useful for comparing two values or if you don't need wrapping behaviour
     pub fn from_width_fitting(width: RegWidth) -> Self {
         match width {
+            w if w <= i8::BITS => Self::I8,
+            w if w <= i16::BITS => Self::I16,
             w if w <= i32::BITS => Self::I32,
             w if w <= i64::BITS => Self::I64,
             w => Self::Arbitrary(w),
@@ -45,11 +51,15 @@ impl IntWidth {
     #[allow(unused)]
     pub fn store_i64<S>(reg: Reg<SignedRegT>, state: &mut S, val: i64)
     where
-        S: StorePrim<i32, SignedRegT>
+        S: StorePrim<i8, SignedRegT>
+            + StorePrim<i16, SignedRegT>
+            + StorePrim<i32, SignedRegT>
             + StorePrim<i64, SignedRegT>
             + StoreFor<ArbitraryInt, SignedRegT>,
     {
         match Self::from_width(reg.width) {
+            Self::I8 => state.store_prim(reg, val as i8),
+            Self::I16 => state.store_prim(reg, val as i16),
             Self::I32 => state.store_prim(reg, val as i32),
             Self::I64 => state.store_prim(reg, val as i64),
             Self::Arbitrary(w) => {
@@ -57,13 +67,15 @@ impl IntWidth {
                 arb_val.resize_to(w);
                 state.store(reg, arb_val);
             }
-        };
+        }
     }
 }
 
 impl<STATE> WidthOptions<STATE> for IntWidth
 where
-    STATE: StorePrim<i32, SignedRegT>
+    STATE: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
         + StorePrim<i64, SignedRegT>
         + StoreFor<ArbitraryInt, SignedRegT>,
 {
@@ -81,6 +93,16 @@ where
         );
 
         match domain {
+            Self::I8 => {
+                let v1: i8 = read_int(p1, state);
+                let v2: i8 = read_int(p2, state);
+                v1.partial_cmp(&v2)
+            }
+            Self::I16 => {
+                let v1: i16 = read_int(p1, state);
+                let v2: i16 = read_int(p2, state);
+                v1.partial_cmp(&v2)
+            }
             Self::I32 => {
                 let v1: i32 = read_int(p1, state);
                 let v2: i32 = read_int(p2, state);
@@ -103,6 +125,14 @@ where
             RegOrConstant::Const(c) => return *c == 0,
         };
         match Self::from_width(reg.width) {
+            Self::I8 => {
+                let v: i8 = state.read_prim(*reg).unwrap_or(0);
+                v == 0
+            }
+            Self::I16 => {
+                let v: i16 = state.read_prim(*reg).unwrap_or(0);
+                v == 0
+            }
             Self::I32 => {
                 let v: i32 = state.read_prim(*reg).unwrap_or(0);
                 v == 0
@@ -125,6 +155,14 @@ where
         address: &M::Address,
     ) -> Result<(), MemoryAccessError<M::Address>> {
         match Self::from_width(reg.width) {
+            Self::I8 => {
+                let v: i8 = state.read_prim(reg).unwrap_or(0);
+                memory.store_prim(v, address)
+            }
+            Self::I16 => {
+                let v: i16 = state.read_prim(reg).unwrap_or(0);
+                memory.store_prim(v, address)
+            }
             Self::I32 => {
                 let v: i32 = state.read_prim(reg).unwrap_or(0);
                 memory.store_prim(v, address)
@@ -144,10 +182,12 @@ where
 
 impl<STATE, OP> WidthUnaryOp<STATE, OP> for IntWidth
 where
-    STATE: StorePrim<i32, SignedRegT>
+    STATE: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
         + StorePrim<i64, SignedRegT>
         + StoreFor<ArbitraryInt, SignedRegT>,
-    OP: UnaryOp<i32> + UnaryOp<i64> + UnaryOp<ArbitraryInt>,
+    OP: UnaryOp<i8> + UnaryOp<i16> + UnaryOp<i32> + UnaryOp<i64> + UnaryOp<ArbitraryInt>,
 {
     type RT = SignedRegT;
 
@@ -159,6 +199,16 @@ where
         op: &OP,
     ) {
         match self {
+            Self::I8 => {
+                let mut v: i8 = read_int(&p, state);
+                op.operate(&mut v);
+                state.store_prim(dst, v);
+            }
+            Self::I16 => {
+                let mut v: i16 = read_int(&p, state);
+                op.operate(&mut v);
+                state.store_prim(dst, v);
+            }
             Self::I32 => {
                 let mut v: i32 = read_int(&p, state);
                 op.operate(&mut v);
@@ -182,10 +232,12 @@ where
 
 impl<STATE, OP> WidthBinaryOp<STATE, OP> for IntWidth
 where
-    STATE: StorePrim<i32, SignedRegT>
+    STATE: StorePrim<i8, SignedRegT>
+        + StorePrim<i16, SignedRegT>
+        + StorePrim<i32, SignedRegT>
         + StorePrim<i64, SignedRegT>
         + StoreFor<ArbitraryInt, SignedRegT>,
-    OP: BinaryOp<i32> + BinaryOp<i64> + BinaryOp<ArbitraryInt>,
+    OP: BinaryOp<i8> + BinaryOp<i16> + BinaryOp<i32> + BinaryOp<i64> + BinaryOp<ArbitraryInt>,
 {
     type RT = SignedRegT;
 
@@ -199,6 +251,18 @@ where
         operation: &OP,
     ) {
         match self {
+            Self::I8 => {
+                let mut v1: i8 = read_int(p1, state);
+                let v2: i8 = read_int(p2, state);
+                operation.operate(&mut v1, &v2);
+                state.store_prim(dst, v1);
+            }
+            Self::I16 => {
+                let mut v1: i16 = read_int(p1, state);
+                let v2: i16 = read_int(p2, state);
+                operation.operate(&mut v1, &v2);
+                state.store_prim(dst, v1);
+            }
             Self::I32 => {
                 let mut v1: i32 = read_int(p1, state);
                 let v2: i32 = read_int(p2, state);
@@ -230,6 +294,24 @@ where
         let length = params.length() as usize;
 
         match self {
+            Self::I8 => {
+                let mut vector: VecValue<i8> = state
+                    .read_multi_prim(params.vec_param(), length)
+                    .cloned()
+                    .unwrap_or(VecValue::from_repeated_default(length));
+                let v: i8 = read_int(params.value_param(), state);
+                compute_broadcast(&mut vector, &v, op, params.is_reversed());
+                state.store_multi_copy_prim(*params.dst(), vector.as_slice());
+            }
+            Self::I16 => {
+                let mut vector: VecValue<i16> = state
+                    .read_multi_prim(params.vec_param(), length)
+                    .cloned()
+                    .unwrap_or(VecValue::from_repeated_default(length));
+                let v: i16 = read_int(params.value_param(), state);
+                compute_broadcast(&mut vector, &v, op, params.is_reversed());
+                state.store_multi_copy_prim(*params.dst(), vector.as_slice());
+            }
             Self::I32 => {
                 let mut vector: VecValue<i32> = state
                     .read_multi_prim(params.vec_param(), length)
@@ -273,6 +355,24 @@ where
     ) {
         let length = params.length() as usize;
         match self {
+            Self::I8 => {
+                let mut vector: VecValue<i8> = state
+                    .read_multi_prim(params.p1(), length)
+                    .cloned()
+                    .unwrap_or(VecValue::from_repeated_default(length));
+                let param: Option<&VecValue<i8>> = state.read_multi_prim(params.p2(), length);
+                compute_vector(&mut vector, param, &0, op);
+                state.store_multi_copy_prim(*params.dst(), vector.as_slice());
+            }
+            Self::I16 => {
+                let mut vector: VecValue<i16> = state
+                    .read_multi_prim(params.p1(), length)
+                    .cloned()
+                    .unwrap_or(VecValue::from_repeated_default(length));
+                let param: Option<&VecValue<i16>> = state.read_multi_prim(params.p2(), length);
+                compute_vector(&mut vector, param, &0, op);
+                state.store_multi_copy_prim(*params.dst(), vector.as_slice());
+            }
             Self::I32 => {
                 let mut vector: VecValue<i32> = state
                     .read_multi_prim(params.p1(), length)

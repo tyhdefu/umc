@@ -31,6 +31,31 @@ Run unit tests on ARM 32-bit (emulation via QEMU):
 Run a ARM 32-bit binary (emulation via QEMU)
 `cross run -p umc-vm --target armv7-unknown-linux-gnueabihf -- progs/fib.umc`
 
+## AArch64 on Windows (WSL2 + QEMU user-mode)
+Compiles natively in WSL and runs only the resulting binary under `qemu-aarch64`, so no full VM is needed.
+
+One-time setup inside WSL (Ubuntu):
+- `sudo apt install -y build-essential gcc-aarch64-linux-gnu qemu-user`
+- `rustup target add aarch64-unknown-linux-gnu`
+- Add the following to `~/.cargo/config.toml`:
+```toml
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+# -L points qemu at the aarch64 libc; use "qemu-aarch64 -cpu max -L ..." for newer extensions (e.g. LSE)
+runner = "qemu-aarch64 -L /usr/aarch64-linux-gnu"
+```
+
+Work from a copy in the Linux filesystem (building from `/mnt/c/...` is slow), e.g. `cp -r /mnt/c/.../umc ~/umc && rm -rf ~/umc/target`, then:
+- Run unit tests: `cargo test -p umc-vm --target aarch64-unknown-linux-gnu`
+- Run a program: `cargo run -p umc-vm --target aarch64-unknown-linux-gnu -- --verbose progs/fib.umc`
+
+To limit WSL's RAM/CPU, put the following in `C:\Users\<you>\.wslconfig` and run `wsl --shutdown`:
+```ini
+[wsl2]
+memory=2GB
+processors=2
+```
+
 # Building and testing for Web Assembly
 Running and testing for Web Assembly is simple.
 

@@ -4,7 +4,8 @@ use std::ops::RangeInclusive;
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero,
-    ConsistentComparison, ECallParams, Instruction, MovParams, NotParams, SimpleCast,
+    ConsistentComparison, ECallParams, Instruction, MovParams, NotParams, ShiftParams, ShiftType,
+    SimpleCast,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
@@ -415,6 +416,31 @@ pub fn ast_to_bytecode(
             let refs: Vec<&Operand> = inferred.iter().collect();
             let cast = SimpleCast::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
             Ok(Instruction::Cast(cast))
+        }
+        "shl" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let shift = ShiftParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Shift(shift, ShiftType::LeftShift))
+        }
+        "shr" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let shift = ShiftParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightLogicalShift))
+        }
+        "ashr" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let shift = ShiftParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightArithmeticShift))
+        }
+        "sqrt" => {
+            let [p1] = ops::<1>(&instr)?;
+            let operand = parse_dst_reg(p1)?;
+            let reg = parse_any_single_reg(&operand)
+                .expect("SQRT instruction requires only a single register operand");
+            Ok(Instruction::Sqrt(reg))
         }
         "ecall" => {
             let ecall = ecall_instr(&instr, labels)?;

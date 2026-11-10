@@ -16,8 +16,19 @@ clap = { version = "4.5.55", features = ["derive"]}
 rustc-hash = "2.1.1"
 int-enum = "1.2.0"
 
-# LLVM-JIT
-inkwell = { version = "0.8.0", features = ["llvm21-1"], optional = true }
+# for assembly emission to x86_64 and AArch64
+iced-x86 = { version = "1.21", optional = true, default-features = false, features = ["std", "block_encoder", "decoder", "gas", "code_asm"] }
+dynasmrt = { version = "5.1.0", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", optional = true }
+
+[dev-dependencies]
+yaxpeax-arch = "0.3"
+yaxpeax-arm = "0.4"
 
 [features]
-llvm-jit = ["dep:inkwell"]
+default = ["jit"]
+jit = ["dep:libc", "dep:iced-x86", "dep:dynasmrt"]
+
+

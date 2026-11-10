@@ -122,8 +122,14 @@ impl<T> CastSingleUnsigned for T where
 }
 
 /// Any non-vector type that can be cast into from a signed integer
-pub trait CastSingleSigned: CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/ {}
-impl<T> CastSingleSigned for T where T: CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/ {}
+pub trait CastSingleSigned: CastFrom<i8> + CastFrom<i16> + CastFrom<i32> + CastFrom<i64>
+/*+ CastFrom<ArbitraryInt>*/
+{
+}
+impl<T> CastSingleSigned for T where
+    T: CastFrom<i8> + CastFrom<i16> + CastFrom<i32> + CastFrom<i64> /*+ CastFrom<ArbitraryInt>*/
+{
+}
 
 pub trait CastSingleFloat: CastFrom<f32> + CastFrom<f64> {}
 impl<T> CastSingleFloat for T where T: CastFrom<f32> + CastFrom<f64> {}

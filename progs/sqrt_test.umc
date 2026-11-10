@@ -1,0 +1,120 @@
+.INIT:
+  mov u64:0, #50
+  bz .END, u64:0
+  mov u64:1, #0 ; int i = 0
+
+.SQRTS:
+  mov u64:3, #16
+  dbg u64:3
+  sqrt u64:3
+  dbg u64:3
+
+  mov u64:3, #15
+  sqrt u64:3
+  dbg u64:3
+
+  mov u64:3, #144
+  dbg u64:3
+  sqrt u64:3
+  dbg u64:3
+
+  mov u64:3, #2384930
+  sqrt u64:3
+  dbg u64:3
+
+  mov u32:3, #16
+  dbg u32:3
+  sqrt u32:3
+  dbg u32:3
+
+  mov u32:3, #15
+  sqrt u32:3
+  dbg u32:3
+
+  mov u32:3, #144
+  dbg u32:3
+  sqrt u32:3
+  dbg u32:3
+
+  mov u32:3, #2384930
+  sqrt u32:3
+  dbg u32:3
+
+  mov i64:3, #16
+  dbg i64:3
+  sqrt i64:3
+  dbg i64:3
+
+  mov i64:3, #15
+  sqrt i64:3
+  dbg i64:3
+
+  mov i64:3, #144
+  dbg i64:3
+  sqrt i64:3
+  dbg i64:3
+
+  mov i64:3, #2384930
+  sqrt i64:3
+  dbg i64:3
+
+  mov i32:3, #16
+  dbg i32:3
+  sqrt i32:3
+  dbg i32:3
+
+  mov i32:3, #15
+  sqrt i32:3
+  dbg i32:3
+
+  mov i32:3, #144
+  dbg i32:3
+  sqrt i32:3
+  dbg i32:3
+
+  mov i32:3, #2384930
+  sqrt i32:3
+  dbg i32:3
+
+  mov f64:3, #16.0
+  dbg f64:3
+  sqrt f64:3
+  dbg f64:3
+
+  mov f64:3, #23.4
+  sqrt f64:3
+  dbg f64:3
+
+  mov f64:3, #144.0
+  dbg f64:3
+  sqrt f64:3
+  dbg f64:3
+
+  mov f64:3, #2384930.0
+  sqrt f64:3
+  dbg f64:3
+
+  mov f32:3, #16.0
+  dbg f32:3
+  sqrt f32:3
+  dbg f32:3
+
+  mov f32:3, #15.0
+  sqrt f32:3
+  dbg f32:3
+
+  mov f32:3, #144.0
+  dbg f32:3
+  sqrt f32:3
+  dbg f32:3
+
+  mov f32:3, #2384930.0
+  sqrt f32:3
+  dbg f32:3
+
+  add u64:1, u64:1, #1
+  xor u64:2, u64:1, u64:0 ; Compare :1 and :0
+  bnz .SQRTS, u64:2
+
+.END:
+  nop

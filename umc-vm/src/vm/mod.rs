@@ -2,7 +2,9 @@ mod memory;
 mod state;
 mod types;
 
+#[cfg(feature = "jit")]
 mod compiler;
+
 mod environment;
 mod helper;
 mod widths;
@@ -12,6 +14,12 @@ mod test;
 
 use std::fmt::Display;
 
+#[cfg(feature = "jit")]
+use crate::vm::compiler::BlockExit;
+#[cfg(feature = "jit")]
+use crate::vm::compiler::engine::JitEngine;
+#[cfg(feature = "jit")]
+use crate::vm::compiler::jit::NativeJit;
 use crate::vm::environment::AnyEnvironment;
 use crate::vm::memory::safe::{SafeAddress, SafeMemoryManager};
 use crate::vm::memory::{AllocateError, MemoryManager};
@@ -24,7 +32,7 @@ use crate::vm::types::{
 use crate::vm::widths::uint::UIntWidth;
 use umc_model::instructions::Instruction;
 use umc_model::reg_model::{Reg, RegOrConstant, UnsignedRegT};
-use umc_model::{NumRegType, Program, RegIndex, RegType, RegWidth, RegisterSet};
+use umc_model::{Program, RegIndex, RegWidth};
 
 pub struct VirtualMachine {
     program: Vec<Instruction>,
@@ -35,18 +43,28 @@ pub struct VirtualMachine {
     memory_constants: Vec<SafeAddress>,
     environment: AnyEnvironment,
     verbose: bool,
+    #[cfg(feature = "jit")]
+    jit: JitEngine,
 }
+
+/// Number of times a block entry is interpreted before it is JIT compiled
+pub const DEFAULT_THRESHOLD: u32 = 20;
 
 pub struct VMOptions {
     /// Whether to print extra debugging information about which instructions are being executed
     pub verbose: bool,
+    /// Ignored when the `jit` feature is disabled
+    pub jit_threshold: u32,
 }
 
 impl VMOptions {
     /// Recommended configuration for debugging the VM
     #[allow(unused)]
     pub fn vm_debug() -> Self {
-        Self { verbose: true }
+        Self {
+            verbose: true,
+            jit_threshold: DEFAULT_THRESHOLD,
+        }
     }
 }
 
@@ -82,6 +100,8 @@ impl VirtualMachine {
             memory_constants.push(address);
         }
 
+        #[cfg(feature = "jit")]
+        let program_len = program.instructions.len();
         Ok(Self {
             program: program.instructions,
             pc: 0,
@@ -90,6 +110,15 @@ impl VirtualMachine {
             memory_constants: memory_constants,
             verbose: options.verbose,
             environment: AnyEnvironment::new(),
+            #[cfg(feature = "jit")]
+            jit: JitEngine {
+                jit: NativeJit::new(),
+                counters: vec![0; program_len],
+                blocks: Default::default(),
+                blacklist: Default::default(),
+                threshold: options.jit_threshold,
+                verbose: options.verbose,
+            },
         })
     }
 
@@ -97,8 +126,29 @@ impl VirtualMachine {
     pub fn execute(&mut self) {
         let program_len = self.program.len();
         while self.pc < program_len {
+            #[cfg(feature = "jit")]
+            match self.try_run_jit() {
+                Some(BlockExit::Goto(next)) => {
+                    self.pc = next;
+                    continue;
+                }
+                // fall through to interpret this one instruction without consulting jit
+                Some(BlockExit::Interpret(at)) => self.pc = at,
+                None => {}
+            }
             self.execute_step();
         }
+    }
+
+    #[cfg(feature = "jit")]
+    fn try_run_jit(&mut self) -> Option<BlockExit> {
+        self.jit.try_run(
+            self.pc,
+            &self.program,
+            &mut self.state,
+            &mut self.memory,
+            &self.memory_constants,
+        )
     }
 
     fn execute_step(&mut self) {
@@ -212,24 +262,17 @@ impl VirtualMachine {
                 });
             }
             Instruction::SizeOf(reg, reg_type) => {
-                let rt = match reg_type {
-                    umc_model::RegisterSet::Single(rt) => rt,
-                    umc_model::RegisterSet::Vector(rt, _) => rt,
-                };
-                let mut size_bytes: u32 = match rt {
-                    RegType::Num(NumRegType::UnsignedInt(w)) => w.div_ceil(u8::BITS),
-                    RegType::Num(NumRegType::SignedInt(w)) => w.div_ceil(u8::BITS),
-                    RegType::Num(NumRegType::Float(w)) => w.div_ceil(u8::BITS),
-                    RegType::InstructionAddress => InstructionAddress::SIZE_BYTES,
-                    RegType::MemoryAddress => SafeAddress::SIZE_BYTES,
-                };
-                if let RegisterSet::Vector(_, length) = reg_type {
-                    size_bytes = size_bytes * length;
-                }
+                let size_bytes = helper::size_of(reg_type);
                 UIntWidth::store_u64(*reg, &mut self.state, size_bytes as u64);
             }
             Instruction::Cast(simple_cast) => {
                 helper::execute_simple_cast(simple_cast, &mut self.state);
+            }
+            Instruction::Shift(params, shift_type) => {
+                helper::execute_shift(params, shift_type, &mut self.state);
+            }
+            Instruction::Sqrt(reg) => {
+                helper::execute_sqrt(reg, &mut self.state);
             }
             Instruction::ECall(ecall) => helper::execute_ecall(
                 ecall,

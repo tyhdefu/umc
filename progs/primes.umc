@@ -1,6 +1,6 @@
 ; Calculate the first n prime numbers
 .PRIMES:
-	mov u32:0, #10 ; How many prime numbers to calculate
+	mov u32:0, #100 ; How many prime numbers to calculate
 	mov u32:1, #0 ; Counter
 	mov u32:2, #2 ; First value to check
 
