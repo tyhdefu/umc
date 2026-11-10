@@ -287,6 +287,10 @@ pub fn ast_to_bytecode(
             let params = coherent_num_op(&instr, labels)?;
             Ok(Instruction::Mod(params))
         }
+        "or" => {
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Or(params))
+        }
         "xor" => {
             let params = coherent_num_op(&instr, labels)?;
             Ok(Instruction::Xor(params))

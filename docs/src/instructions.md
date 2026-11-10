@@ -39,11 +39,11 @@ Comparisons are only allowed between the same register sets.
 
 | Mneumonic | Operand 1    | Operand 2 | Operand 3 | Description |
 | --------- | ------------ | --------- | --------- | ----------- |
-| `eq`      | Unsigned Reg | Numeric   | Numeric   | \\(op2 = op3\\) |
-| `gt`      | Unsigned Reg | Numeric   | Numeric   | \\(op2 \gt op1\\) |
-| `gte`     | Unsigned Reg | Numeric   | Numeric   | \\(op2 \ge op3\\) |
-| `lt`      | Unsigned Reg | Numeric   | Numeric   | \\(op2 \lt op3\\) |
-| `lte`     | Unsigned Reg | Numeric   | Numeric   | \\(op2 \le op3\\) |
+| `seq`      | Unsigned Reg | Numeric   | Numeric   | \\(op2 = op3\\) |
+| `sgt`      | Unsigned Reg | Numeric   | Numeric   | \\(op2 \gt op1\\) |
+| `sge`     | Unsigned Reg | Numeric   | Numeric   | \\(op2 \ge op3\\) |
+| `slt`      | Unsigned Reg | Numeric   | Numeric   | \\(op2 \lt op3\\) |
+| `sle`     | Unsigned Reg | Numeric   | Numeric   | \\(op2 \le op3\\) |
 
 ## Bitwise Operations
 All (signed and unsigned) integers are defined to be stored in twos-complement representation.
