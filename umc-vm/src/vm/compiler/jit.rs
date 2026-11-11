@@ -317,6 +317,51 @@ mod tests {
     }
 
     #[test]
+    fn casts_match_rust_as() {
+        use crate::vm::helper::read_int;
+        use umc_model::reg_model::SignedRegT;
+        let s = |index, width| Reg::<SignedRegT> { index, width };
+        let u = unsigned;
+        const PROG: &str = "
+            cast i64:1, f32:0
+            cast u32:2, f64:0
+            cast i32:3, f64:1
+            cast f64:2, i32:4
+            cast f32:3, i64:5
+            cast f64:4, f32:0
+            cast i64:6, i32:4
+            cast u64:7, u32:8
+            cast u32:9, u64:10
+            cast u32:11, i32:4
+            cast u64:12, f32:5
+        ";
+        let prog = assemble_prog(PROG).unwrap();
+        let (exit, st) = run_on(&prog.instructions, |st| {
+            st.store_prim(f32_reg(0), -3.75f32);
+            st.store_prim(f64_reg(0), 1e20f64);
+            st.store_prim(f64_reg(1), f64::NAN);
+            st.store_prim(s(4, 32), -7i32);
+            st.store_prim(s(5, 64), i64::MAX);
+            st.store_prim(u(8, 32), u32::MAX);
+            st.store_prim(u(10, 64), 0x1_2345_6789u64);
+            st.store_prim(f32_reg(5), -1.0f32);
+        });
+        assert_eq!(exit, BlockExit::Goto(11));
+        let int = |r| read_int::<i64, _>(&RegOrConstant::Reg(r), &st);
+        assert_eq!(int(s(1, 64)), -3); // trunc toward zero
+        assert_eq!(read(&st, u(2, 32)), u32::MAX as u64); // saturates
+        assert_eq!(int(s(3, 32)), 0); // NaN
+        assert_eq!(readf::<f64>(&st, f64_reg(2)), -7.0);
+        assert_eq!(readf::<f32>(&st, f32_reg(3)), i64::MAX as f32);
+        assert_eq!(readf::<f64>(&st, f64_reg(4)), -3.75);
+        assert_eq!(int(s(6, 64)), -7); // sign extends
+        assert_eq!(read(&st, u(7, 64)), u32::MAX as u64); // zero extends
+        assert_eq!(read(&st, u(9, 32)), 0x2345_6789); // truncates
+        assert_eq!(read(&st, u(11, 32)), -7i32 as u32 as u64); // bitwise
+        assert_eq!(read(&st, u(12, 64)), 0); // negative float to unsigned
+    }
+
+    #[test]
     fn float_div_by_zero_is_inf() {
         let (exit, state) = run_f64("div f64:1, f64:0, #0.0\n", &[(0, 1.0)]);
         assert_eq!(exit, BlockExit::Goto(1));

@@ -13,7 +13,7 @@ use crate::vm::compiler::bridge::{jit_frem_f32, jit_frem_f64};
 use crate::vm::compiler::emit::*;
 
 // interpreter only has f32 and f64
-fn fwidth<E: Emitter>(cx: &Ctx<E>, bits: RegWidth) -> Result<OpWidth, CompileError> {
+pub(super) fn fwidth<E: Emitter>(cx: &Ctx<E>, bits: RegWidth) -> Result<OpWidth, CompileError> {
     match bits {
         32 => Ok(OpWidth::W32),
         64 => Ok(OpWidth::W64),
@@ -58,7 +58,7 @@ fn load<E: Emitter>(
 }
 
 // raw bits into integere tmp for host calls
-fn load_bits<E: Emitter>(
+pub(super) fn load_bits<E: Emitter>(
     cx: &mut Ctx<E>,
     op: &RegOrConstant<FloatRegT>,
     t: Tmp,

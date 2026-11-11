@@ -1,0 +1,247 @@
+
+; Hand translation of PolyBench/C's gemm benchmark for testing purposes before creating llvm -> umc translator
+; C := alpha*A*B + beta*C
+; Calling convention:
+;   n:0        return addr
+;   m:0        stack ptr
+;   args       per register class
+;   return     f64:0 or i32:0
+;   locals     callees use 10+, main uses 20+
+; shortcut: disjoint register ranges for local vars replace caller saved spills, recursive functions must spill to m:0
+
+.ENTRY:
+	alloc m:0, #1024
+	jal .MAIN, n:0
+	free m:0
+	jmp .END
+
+; ------------------------------------------ main()
+.MAIN:
+	; prologue: push ret addr
+	msize u32:20
+	store m:0, n:0
+	add m:0, m:0, u32:20
+
+	; MINI_DATASET in polybench is NI=20, NJ=25, NK=30
+	; SMALL_DATASET is NI=60, NJ=70, NK=80
+	; MEDIUM_DATASET is NI=200, NJ=220, NK=240
+
+	; using MINI for this test program
+	
+	; double C[20][25], A[20][30], B[30][25]
+	alloc m:20, #4000
+	alloc m:21, #4800
+	alloc m:22, #6000
+
+	; init_array(ni, nj, nk, C, A, B)
+	mov i32:0, #20
+	mov i32:1, #25
+	mov i32:2, #30
+	mov m:1, m:20
+	mov m:2, m:21
+	mov m:3, m:22
+	jal .INIT_ARRAY, n:0
+
+	; kernel_gemm(ni, nj, nk, alpha, beta, C, A, B)
+	mov i32:0, #20
+	mov i32:1, #25
+	mov i32:2, #30
+	mov f64:0, #1.5
+	mov f64:1, #1.2
+	mov m:1, m:20
+	mov m:2, m:21
+	mov m:3, m:22
+	jal .KERNEL_GEMM, n:0
+
+	; checksum = print_array(ni, nj, C)
+	mov i32:0, #20
+	mov i32:1, #25
+	mov m:1, m:20
+	jal .PRINT_ARRAY, n:0
+	dbg f64:0
+
+	free m:20
+	free m:21
+	free m:22
+
+	; epilogue: pop ret addr
+	cast i32:30, u32:20
+	mul i32:30, i32:30, #-1
+	add m:0, m:0, i32:30
+	load n:0, m:0
+	jmp n:0
+
+; ------------------------------------------ init_array(ni, nj, nk, C, A, B)
+.INIT_ARRAY:
+	cast f64:10, i32:0
+	cast f64:11, i32:1
+	cast f64:12, i32:2
+
+	; C[i][j] = (double)((i*j+1) % ni) / ni
+	mov i32:10, #0
+.IA_C_I:
+	mov i32:11, #0
+.IA_C_J:
+	mul i32:12, i32:10, i32:11
+	add i32:12, i32:12, #1
+	mod i32:12, i32:12, i32:0
+	cast f64:13, i32:12
+	div f64:13, f64:13, f64:10
+
+	; &C[i][j] = C + (i*nj + j)*8
+	mul i32:13, i32:10, i32:1
+	add i32:13, i32:13, i32:11
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8
+	add m:10, m:1, i64:13
+	store m:10, f64:13
+
+	add i32:11, i32:11, #1
+	slt u1:0, i32:11, i32:1
+	bnz .IA_C_J, u1:0
+
+	add i32:10, i32:10, #1
+	slt u1:0, i32:10, i32:0
+	bnz .IA_C_I, u1:0
+
+	; A[i][k] = (double)(i*(k+1) % nk) / nk
+	mov i32:10, #0
+.IA_A_I:
+	mov i32:11, #0
+.IA_A_K:
+	add i32:12, i32:11, #1
+	mul i32:12, i32:10, i32:12
+	mod i32:12, i32:12, i32:2
+	cast f64:13, i32:12
+	div f64:13, f64:13, f64:12
+
+	; &A[i][k] = C + (i*nk + k)*8
+	mul i32:13, i32:10, i32:2
+	add i32:13, i32:13, i32:11
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8
+	add m:10, m:2, i64:13
+	store m:10, f64:13
+
+	add i32:11, i32:11, #1
+	slt u1:0, i32:11, i32:2
+	bnz .IA_A_K, u1:0
+
+	add i32:10, i32:10, #1
+	slt u1:0, i32:10, i32:0
+	bnz .IA_A_I, u1:0
+
+	; B[k][j] = (double)(i*(j+2) % nj) / nj
+	mov i32:10, #0
+.IA_B_K:
+	mov i32:11, #0
+.IA_B_J:
+	add i32:12, i32:11, #2
+	mul i32:12, i32:10, i32:12
+	mod i32:12, i32:12, i32:1
+	cast f64:13, i32:12
+	div f64:13, f64:13, f64:11
+
+	; &B[k][j] = C + (k*nj + j)*8
+	mul i32:13, i32:10, i32:1
+	add i32:13, i32:13, i32:11
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8
+	add m:10, m:3, i64:13
+	store m:10, f64:13
+
+	add i32:11, i32:11, #1
+	slt u1:0, i32:11, i32:1
+	bnz .IA_B_J, u1:0
+
+	add i32:10, i32:10, #1
+	slt u1:0, i32:10, i32:2
+	bnz .IA_B_K, u1:0
+
+	jmp n:0
+
+; ------------------------------------------ kernel_gemm(ni, nj, nk, alpha, beta, C, A, B)
+; for i: { for j: C[i][j] *= beta, for k: for j: C[i][j] += alpha * A[i][k] * B[k][j]; }
+.KERNEL_GEMM:
+	mov i32:10, #0
+.KG_I:
+	mov i32:11, #0
+.KG_SCALE_J:
+	mul i32:13, i32:10, i32:1   ; i * nj
+	add i32:13, i32:13, i32:11  ; + j
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8      ; mem pos of C[i][j]
+	add m:10, m:1, i64:13
+	load f64:10, m:10
+	mul f64:10, f64:10, f64:1   ; *= beta
+	store m:10, f64:10
+
+	add i32:11, i32:11, #1
+	slt u1:0, i32:11, i32:1
+	bnz .KG_SCALE_J, u1:0
+
+	mov i32:12, #0
+.KG_K:
+	; alpha * A[i][k], hoisted out of j loop (loop invariant code motion)
+	mul i32:13, i32:10, i32:2
+	add i32:13, i32:13, i32:12
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8
+	add m:11, m:2, i64:13
+	load f64:11, m:11
+	mul f64:11, f64:0, f64:11   ; alpha * A[i][k]
+
+	mov i32:11, #0
+.KG_J:
+	; B[k][j]
+	mul i32:13, i32:12, i32:1
+	add i32:13, i32:13, i32:11
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8
+	add m:12, m:3, i64:13
+	load f64:12, m:12
+
+	; C[i][j]
+	mul i32:13, i32:10, i32:1
+	add i32:13, i32:13, i32:11
+	cast i64:13, i32:13
+	mul i64:13, i64:13, #8
+	add m:10, m:1, i64:13
+	load f64:10, m:10
+	mul f64:12, f64:11, f64:12
+	add f64:10, f64:10, f64:12
+	store m:10, f64:10
+
+	add i32:11, i32:11, #1
+	slt u1:0, i32:11, i32:1
+	bnz .KG_J, u1:0
+
+	add i32:12, i32:12, #1
+	slt u1:0, i32:12, i32:2
+	bnz .KG_K, u1:0
+
+	add i32:10, i32:10, #1
+	slt u1:0, i32:10, i32:0
+	bnz .KG_I, u1:0
+
+	jmp n:0
+
+; ------------------------------------------ print_array(ni, nj, C) -> sum of C
+.PRINT_ARRAY:
+	mov f64:0, #0.0
+	mov m:10, m:1
+	mul i32:10, i32:0, i32:1
+	cast i64:10, i32:10
+	mul i64:10, i64:10, #8
+	add m:11, m:1, i64:10
+.PA_LOOP:
+	load f64:10, m:10
+	dbg f64:10
+	add f64:0, f64:0, f64:10
+	add m:10, m:10, #8
+	slt u1:0, m:10, m:11
+	bnz .PA_LOOP, u1:0
+	jmp n:0
+
+.END:
+	nop

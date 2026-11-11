@@ -192,3 +192,46 @@ pub extern "C" fn jit_frem_f32(a: u64, b: u64) -> u64 {
         .rem_euclid(f32::from_bits(b as u32))
         .to_bits() as u64
 }
+
+// operand kinds for jit_num_cast, or'd with the op width (32 or 64)
+pub const CAST_U: u64 = 0;
+pub const CAST_I: u64 = 1;
+pub const CAST_F: u64 = 2;
+
+/// value cast with the interpreter's `as` semantics, for any cast touching a float
+/// bits arrive at src width, src / dst are CAST_* | width
+pub extern "C" fn jit_num_cast(bits: u64, src: u64, dst: u64) -> u64 {
+    enum N {
+        U(u64),
+        I(i64),
+        F(f64),
+    }
+    let (src64, dst64) = (src & 64 != 0, dst & 64 != 0);
+    // widen source exactly, like the interpreter reading at 64 bits
+    let v = match src & 3 {
+        CAST_U if src64 => N::U(bits),
+        CAST_U => N::U(bits as u32 as u64),
+        CAST_I if src64 => N::I(bits as i64),
+        CAST_I => N::I(bits as i32 as i64),
+        _ if src64 => N::F(f64::from_bits(bits)),
+        _ => N::F(f32::from_bits(bits as u32) as f64),
+    };
+    // straight to dst type, never via f64, so i64 -> f32 rounds once
+    match (dst & 3, v) {
+        (CAST_U, N::F(f)) if dst64 => f as u64,
+        (CAST_U, N::F(f)) => f as u32 as u64,
+        (CAST_I, N::F(f)) if dst64 => f as i64 as u64,
+        (CAST_I, N::F(f)) => f as i32 as u32 as u64,
+        (CAST_F, N::U(x)) if dst64 => (x as f64).to_bits(),
+        (CAST_F, N::U(x)) => (x as f32).to_bits() as u64,
+        (CAST_F, N::I(x)) if dst64 => (x as f64).to_bits(),
+        (CAST_F, N::I(x)) => (x as f32).to_bits() as u64,
+        (CAST_F, N::F(x)) if dst64 => x.to_bits(),
+        (CAST_F, N::F(x)) => (x as f32).to_bits() as u64,
+        // int <-> int is lowered natively, never sent here
+        _ => {
+            debug_assert!(false, "jit_num_cast: int to int");
+            0
+        }
+    }
+}
