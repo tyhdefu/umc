@@ -21,26 +21,30 @@
 	store m:0, n:0
 	add m:0, m:0, u32:20
 
-	; MINI DATASET in polybech is NI=20, NJ=25, NK=30
+	; MINI_DATASET in polybench is NI=20, NJ=25, NK=30
+	; SMALL_DATASET is NI=60, NJ=70, NK=80
+	; MEDIUM_DATASET is NI=200, NJ=220, NK=240
+
+	; using MEDIUM for this test program
 	
-	; double C[20][25], A[20][30], B[30][25]
-	alloc m:20, #4000
-	alloc m:21, #4800
-	alloc m:22, #6000
+	; double C[200][220], A[200][240], B[240][220]
+	alloc m:20, #352000
+	alloc m:21, #384000
+	alloc m:22, #422400
 
 	; init_array(ni, nj, nk, C, A, B)
-	mov i32:0, #20
-	mov i32:1, #25
-	mov i32:2, #30
+	mov i32:0, #200
+	mov i32:1, #220
+	mov i32:2, #240
 	mov m:1, m:20
 	mov m:2, m:21
 	mov m:3, m:22
 	jal .INIT_ARRAY, n:0
 
 	; kernel_gemm(ni, nj, nk, alpha, beta, C, A, B)
-	mov i32:0, #20
-	mov i32:1, #25
-	mov i32:2, #30
+	mov i32:0, #200
+	mov i32:1, #220
+	mov i32:2, #240
 	mov f64:0, #1.5
 	mov f64:1, #1.2
 	mov m:1, m:20
@@ -49,8 +53,8 @@
 	jal .KERNEL_GEMM, n:0
 
 	; checksum = print_array(ni, nj, C)
-	mov i32:0, #20
-	mov i32:1, #25
+	mov i32:0, #200
+	mov i32:1, #220
 	mov m:1, m:20
 	jal .PRINT_ARRAY, n:0
 	dbg f64:0
