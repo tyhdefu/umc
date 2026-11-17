@@ -235,6 +235,8 @@ impl DisplayAssembly for RegOrConstant<FloatRegT> {
     ) -> std::fmt::Result {
         match self {
             RegOrConstant::Reg(r) => write!(f, "{}", r),
+            // The LALRPOP grammar needs a '.' to parse a float constant, so `1.0` must not print as `#1`
+            RegOrConstant::Const(c) if c.fract() == 0.0 => write!(f, "#{:.1}", c),
             RegOrConstant::Const(c) => write!(f, "#{}", c),
         }
     }
