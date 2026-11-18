@@ -1,5 +1,5 @@
 //! Wrapped Posix functions to allocate RW virtual pages and change protection to RX, flush instruction cache, and drop accordingly
-use core::ffi::{c_char, c_void};
+use core::ffi::c_void;
 use core::ptr::{NonNull, null_mut};
 
 use super::ExecMemError;
