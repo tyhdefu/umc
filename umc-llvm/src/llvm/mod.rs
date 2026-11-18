@@ -32,6 +32,7 @@ enum V {
     M(RegOrConstant<MemRegT>),
 }
 
+// macro for generating impl fns for each of the LLVM+UMC Value enums
 macro_rules! accessors {
     ($val:ident, $reg:ident, $var:ident, $t:ty) => {
         fn $val(&self) -> RegOrConstant<$t> {
