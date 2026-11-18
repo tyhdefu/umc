@@ -919,6 +919,20 @@ impl<'m> Tx<'m> {
             },
             _ => unimplemented!("indirect call"),
         };
+        if name == "printf" || name == "fprintf" {
+            // shortcut for polybench: only scalar register args are printed
+            // polybench doesn't use any vector arithmetic etc so we'll just avoid it for this dissertation scope
+            // handled before collecting args since the format string is a global (`@.str`) that konst() can't translate
+            for (op, _) in &x.arguments {
+                if let Operand::LocalOperand { .. } = op {
+                    let a = self.val(op);
+                    if !a.is_const() && !matches!(a, V::M(_)) {
+                        self.out.push(Instruction::Dbg(AnyReg::Single(a.any())));
+                    }
+                }
+            }
+            return;
+        }
         // collect args and ret val destination
         let args: Vec<V> = x.arguments.iter().map(|(a, _)| self.val(a)).collect();
         let d = x.dest.as_ref().map(|n| self.vals[n].clone());
@@ -988,15 +1002,6 @@ impl<'m> Tx<'m> {
         } else if n == "free" {
             // very simple - just free target mem reg
             self.out.push(Instruction::Free(args[0].rm()));
-        } else if n == "printf" || n == "fprintf" {
-            // shortcut for polybench: only scalar register args are printed
-            // polybench doesn't use any vector arithmetic etc so we'll just avoid it for this dissertation scope
-            for a in args
-                .iter()
-                .filter(|a| !a.is_const() && !matches!(a, V::M(_)))
-            {
-                self.out.push(Instruction::Dbg(AnyReg::Single(a.any())));
-            }
         } else if self.module.get_func_by_name(n).is_some() {
             // avoid recursion for now because of the shortcuts we've taken in callee/caller register assignment
             // luckily polybench doesn't utilise recursion, so again just avoid for this dissertation scope
