@@ -9,8 +9,9 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.2 = private unnamed_addr constant [2 x i8] c"C\00", align 1
 @.str.3 = private unnamed_addr constant [2 x i8] c"\0A\00", align 1
 @.str.4 = private unnamed_addr constant [8 x i8] c"%0.2lf \00", align 1
-@.str.5 = private unnamed_addr constant [17 x i8] c"\0Aend   dump: %s\0A\00", align 1
-@.str.6 = private unnamed_addr constant [23 x i8] c"==END   DUMP_ARRAYS==\0A\00", align 1
+@.str.5 = private unnamed_addr constant [16 x i8] c"checksum %.17g\0A\00", align 1
+@.str.6 = private unnamed_addr constant [17 x i8] c"\0Aend   dump: %s\0A\00", align 1
+@.str.7 = private unnamed_addr constant [23 x i8] c"==END   DUMP_ARRAYS==\0A\00", align 1
 
 ; Function Attrs: nounwind uwtable
 define dso_local noundef i32 @main(i32 noundef %0, ptr nocapture noundef readnone %1) local_unnamed_addr #0 {
@@ -137,15 +138,15 @@ define dso_local noundef i32 @main(i32 noundef %0, ptr nocapture noundef readnon
   %86 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %85, ptr noundef nonnull @.str.1, ptr noundef nonnull @.str.2) #4
   br label %87
 
-87:                                               ; preds = %112, %82
-  %88 = phi i64 [ 0, %82 ], [ %113, %112 ]
-  %89 = phi i32 [ undef, %82 ], [ %109, %112 ]
+87:                                               ; preds = %110, %82
+  %88 = phi i64 [ 0, %82 ], [ %111, %110 ]
+  %89 = phi double [ 0.000000e+00, %82 ], [ %107, %110 ]
   %90 = mul nuw nsw i64 %88, 200
   br label %91
 
 91:                                               ; preds = %101, %87
-  %92 = phi i64 [ 0, %87 ], [ %110, %101 ]
-  %93 = phi i32 [ %89, %87 ], [ %109, %101 ]
+  %92 = phi i64 [ 0, %87 ], [ %108, %101 ]
+  %93 = phi double [ %89, %87 ], [ %107, %101 ]
   %94 = add nuw nsw i64 %92, %90
   %95 = trunc nuw nsw i64 %94 to i32
   %96 = urem i32 %95, 20
@@ -163,25 +164,23 @@ define dso_local noundef i32 @main(i32 noundef %0, ptr nocapture noundef readnon
   %104 = load double, ptr %103, align 8, !tbaa !5
   %105 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %102, ptr noundef nonnull @.str.4, double noundef %104) #4
   %106 = load double, ptr %103, align 8, !tbaa !5
-  %107 = sitofp i32 %93 to double
-  %108 = fadd double %106, %107
-  %109 = fptosi double %108 to i32
-  %110 = add nuw nsw i64 %92, 1
-  %111 = icmp eq i64 %110, 220
-  br i1 %111, label %112, label %91, !llvm.loop !23
+  %107 = fadd double %93, %106
+  %108 = add nuw nsw i64 %92, 1
+  %109 = icmp eq i64 %108, 220
+  br i1 %109, label %110, label %91, !llvm.loop !23
 
-112:                                              ; preds = %101
-  %113 = add nuw nsw i64 %88, 1
-  %114 = icmp eq i64 %113, 200
-  br i1 %114, label %115, label %87, !llvm.loop !24
+110:                                              ; preds = %101
+  %111 = add nuw nsw i64 %88, 1
+  %112 = icmp eq i64 %111, 200
+  br i1 %112, label %113, label %87, !llvm.loop !24
 
-115:                                              ; preds = %112
+113:                                              ; preds = %110
+  %114 = load ptr, ptr @stderr, align 8, !tbaa !21
+  %115 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %114, ptr noundef nonnull @.str.5, double noundef %107) #4
   %116 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %117 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %116, ptr noundef nonnull @.str.4, i32 noundef %109) #4
+  %117 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %116, ptr noundef nonnull @.str.6, ptr noundef nonnull @.str.2) #4
   %118 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %119 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %118, ptr noundef nonnull @.str.5, ptr noundef nonnull @.str.2) #4
-  %120 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %121 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %120, ptr noundef nonnull @.str.6) #4
+  %119 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %118, ptr noundef nonnull @.str.7) #4
   tail call void @free(ptr noundef nonnull %3) #4
   tail call void @free(ptr noundef %4) #4
   tail call void @free(ptr noundef %5) #4
