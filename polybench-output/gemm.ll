@@ -137,43 +137,51 @@ define dso_local noundef i32 @main(i32 noundef %0, ptr nocapture noundef readnon
   %86 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %85, ptr noundef nonnull @.str.1, ptr noundef nonnull @.str.2) #4
   br label %87
 
-87:                                               ; preds = %106, %82
-  %88 = phi i64 [ 0, %82 ], [ %107, %106 ]
-  %89 = mul nuw nsw i64 %88, 200
-  br label %90
+87:                                               ; preds = %112, %82
+  %88 = phi i64 [ 0, %82 ], [ %113, %112 ]
+  %89 = phi i32 [ undef, %82 ], [ %109, %112 ]
+  %90 = mul nuw nsw i64 %88, 200
+  br label %91
 
-90:                                               ; preds = %99, %87
-  %91 = phi i64 [ 0, %87 ], [ %104, %99 ]
-  %92 = add nuw nsw i64 %91, %89
-  %93 = trunc nuw nsw i64 %92 to i32
-  %94 = urem i32 %93, 20
-  %95 = icmp eq i32 %94, 0
-  br i1 %95, label %96, label %99
+91:                                               ; preds = %101, %87
+  %92 = phi i64 [ 0, %87 ], [ %110, %101 ]
+  %93 = phi i32 [ %89, %87 ], [ %109, %101 ]
+  %94 = add nuw nsw i64 %92, %90
+  %95 = trunc nuw nsw i64 %94 to i32
+  %96 = urem i32 %95, 20
+  %97 = icmp eq i32 %96, 0
+  br i1 %97, label %98, label %101
 
-96:                                               ; preds = %90
-  %97 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %98 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %97, ptr noundef nonnull @.str.3) #4
-  br label %99
+98:                                               ; preds = %91
+  %99 = load ptr, ptr @stderr, align 8, !tbaa !21
+  %100 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %99, ptr noundef nonnull @.str.3) #4
+  br label %101
 
-99:                                               ; preds = %96, %90
-  %100 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %101 = getelementptr inbounds [220 x double], ptr %3, i64 %88, i64 %91
-  %102 = load double, ptr %101, align 8, !tbaa !5
-  %103 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %100, ptr noundef nonnull @.str.4, double noundef %102) #4
-  %104 = add nuw nsw i64 %91, 1
-  %105 = icmp eq i64 %104, 220
-  br i1 %105, label %106, label %90, !llvm.loop !23
+101:                                              ; preds = %98, %91
+  %102 = load ptr, ptr @stderr, align 8, !tbaa !21
+  %103 = getelementptr inbounds [220 x double], ptr %3, i64 %88, i64 %92
+  %104 = load double, ptr %103, align 8, !tbaa !5
+  %105 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %102, ptr noundef nonnull @.str.4, double noundef %104) #4
+  %106 = load double, ptr %103, align 8, !tbaa !5
+  %107 = sitofp i32 %93 to double
+  %108 = fadd double %106, %107
+  %109 = fptosi double %108 to i32
+  %110 = add nuw nsw i64 %92, 1
+  %111 = icmp eq i64 %110, 220
+  br i1 %111, label %112, label %91, !llvm.loop !23
 
-106:                                              ; preds = %99
-  %107 = add nuw nsw i64 %88, 1
-  %108 = icmp eq i64 %107, 200
-  br i1 %108, label %109, label %87, !llvm.loop !24
+112:                                              ; preds = %101
+  %113 = add nuw nsw i64 %88, 1
+  %114 = icmp eq i64 %113, 200
+  br i1 %114, label %115, label %87, !llvm.loop !24
 
-109:                                              ; preds = %106
-  %110 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %111 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %110, ptr noundef nonnull @.str.5, ptr noundef nonnull @.str.2) #4
-  %112 = load ptr, ptr @stderr, align 8, !tbaa !21
-  %113 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %112, ptr noundef nonnull @.str.6) #4
+115:                                              ; preds = %112
+  %116 = load ptr, ptr @stderr, align 8, !tbaa !21
+  %117 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %116, ptr noundef nonnull @.str.4, i32 noundef %109) #4
+  %118 = load ptr, ptr @stderr, align 8, !tbaa !21
+  %119 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %118, ptr noundef nonnull @.str.5, ptr noundef nonnull @.str.2) #4
+  %120 = load ptr, ptr @stderr, align 8, !tbaa !21
+  %121 = tail call i32 (ptr, ptr, ...) @fprintf(ptr noundef %120, ptr noundef nonnull @.str.6) #4
   tail call void @free(ptr noundef nonnull %3) #4
   tail call void @free(ptr noundef %4) #4
   tail call void @free(ptr noundef %5) #4
