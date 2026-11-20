@@ -121,15 +121,16 @@ fn zero(ty: &Type) -> V {
 
 // get size in bytes of type
 // needed for GEP scaling & for allocas if needed (ideally avoid allocas with full SSA)
-fn size_of(ty: &Type) -> u64 {
+fn size_of(ty: &Type, ptr_bytes: u64) -> u64 {
     match ty {
         Type::IntegerType { bits } => (*bits as u64).div_ceil(8),
         Type::FPType(FPType::Double) => 8,
         Type::FPType(FPType::Single) => 4,
+        Type::PointerType { .. } => ptr_bytes,
         Type::ArrayType {
             element_type,
             num_elements,
-        } => size_of(element_type) * *num_elements as u64,
+        } => size_of(element_type, ptr_bytes) * *num_elements as u64,
         t => unimplemented!("size of {t:?}"),
     }
 }
@@ -244,6 +245,7 @@ struct Tx<'m> {
     fname: String,
     vals: HashMap<Name, V>,
     ret_addr: RegIndex,
+    ptr_bytes: u64,
 }
 
 /// Translate whole module into UMC program that runs `main`
@@ -257,6 +259,7 @@ pub fn translate(module: &Module) -> Program {
         fname: String::new(),
         vals: HashMap::new(),
         ret_addr: 0,
+        ptr_bytes: module.data_layout.alignments.ptr_alignment(0).size as u64 / 8,
     };
 
     // Entry stub: give main's argc/argv defined values, call it then halt
@@ -803,7 +806,7 @@ impl<'m> Tx<'m> {
                     v => unimplemented!("dynamic alloca {v:?}"),
                 };
                 let d = dst(self, &x.dest);
-                let size = RegOrConstant::Const(size_of(&x.allocated_type) * n);
+                let size = RegOrConstant::Const(size_of(&x.allocated_type, self.ptr_bytes) * n);
                 self.out.push(Instruction::Alloc(d.rm(), size));
             }
             LI::Load(x) => {
@@ -866,7 +869,7 @@ impl<'m> Tx<'m> {
                     t => unimplemented!("GEP into {t:?}"),
                 };
             }
-            let scale = size_of(&ty) as i64;
+            let scale = size_of(&ty, self.ptr_bytes) as i64;
             match self.val(idx) {
                 V::I(RegOrConstant::Const(c)) => off += c * scale, // compile-time if constant index
                 V::I(RegOrConstant::Reg(r)) => {
