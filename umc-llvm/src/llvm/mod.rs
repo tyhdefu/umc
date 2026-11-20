@@ -826,6 +826,22 @@ impl<'m> Tx<'m> {
             }
             LI::GetElementPtr(x) => self.gep(x),
             LI::Call(x) => self.call(f, x),
+            LI::BitCast(x) => {
+                let d = dst(self, &x.dest);
+                let a = self.in_reg(&x.operand);
+                if std::mem::discriminant(&d) == std::mem::discriminant(&a) {
+                    // same reg class; bits match so just copy
+                    self.out.push(mov(&d, a));
+                } else {
+                    // int <-> float: umc casts convert vals, so reinterpret through 8-byte slot
+                    let s = self.tmp(('m'), 0);
+                    self.out
+                        .push(Instruction::Alloc(s.rm(), RegOrConstant::Const(8)));
+                    self.out.push(Instruction::Store(s.rm(), a.any()));
+                    self.out.push(Instruction::Load(d.any(), s.rm()));
+                    self.out.push(Instruction::Free(s.rm()));
+                }
+            }
             i => unimplemented!("instruction {i:?}"),
         }
     }
