@@ -949,7 +949,7 @@ impl<'m> Tx<'m> {
             let [a, b, c] = args.try_into().unwrap();
             self.out.push(Instruction::Mul(num(&d, a, b)));
             self.out.push(add(&d, d.clone(), c));
-        } else if n.starts_with("llvm.sqrt") {
+        } else if n.starts_with("llvm.sqrt") || n.starts_with("sqrt") {
             let d = d.unwrap();
             // mov into dst reg, then call native UMC sqrt
             self.out.push(mov(&d, args[0].clone()));
