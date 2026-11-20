@@ -1,0 +1,269 @@
+.ENTRY:
+	mov i32:0, #0
+	alloc m:1, #8
+	jal .FN_MAIN, n:0
+	jmp .END
+.FN_MAIN:
+	mov i32:16, i32:0
+	mov m:16, m:1
+	mov n:16, n:0
+.MAIN__2:
+	mul i64:51, #48000, #8
+	cast u64:16, i64:51
+	alloc m:17, u64:16
+	mul i64:52, #57600, #8
+	cast u64:17, i64:52
+	alloc m:18, u64:17
+	mul i64:53, #48000, #8
+	cast u64:18, i64:53
+	alloc m:19, u64:18
+	mov i64:16, #0
+.MAIN__6:
+	mov i64:17, #0
+.MAIN__8:
+	mul i64:18, i64:17, i64:16
+	cast i32:17, i64:18
+	cast u32:16, i32:17
+	mod u32:17, u32:16, #200
+	cast i32:18, u32:17
+	cast u32:18, i32:18
+	cast f64:16, u32:18
+	div f64:17, f64:16, #200.0
+	mul f64:18, f64:17, #100.0
+	add f64:18, f64:18, #10.0
+	mul i64:54, i64:16, #1920
+	add m:20, m:17, i64:54
+	mul i64:55, i64:17, #8
+	add m:20, m:20, i64:55
+	store m:20, f64:18
+	mul i64:56, i64:16, #1920
+	add m:21, m:19, i64:56
+	mul i64:57, i64:17, #8
+	add m:21, m:21, i64:57
+	mov f64:37, #0.0
+	store m:21, f64:37
+	add i64:19, i64:17, #1
+	seq u1:16, i64:19, #240
+	bnz .MAIN__20, u1:16
+	mov i64:17, i64:19
+	jmp .MAIN__8
+.MAIN__20:
+	add i64:20, i64:16, #1
+	seq u1:17, i64:20, #200
+	bnz .MAIN__20_T, u1:17
+	mov i64:16, i64:20
+	jmp .MAIN__6
+.MAIN__20_T:
+	mov i64:21, #0
+.MAIN__23:
+	mov i64:22, #0
+.MAIN__25:
+	mul i64:58, i64:21, #1920
+	add m:22, m:18, i64:58
+	mul i64:59, i64:22, #8
+	add m:22, m:22, i64:59
+	mov f64:38, #0.0
+	store m:22, f64:38
+	add i64:23, i64:22, #1
+	seq u1:18, i64:23, #240
+	bnz .MAIN__30, u1:18
+	mov i64:22, i64:23
+	jmp .MAIN__25
+.MAIN__30:
+	add i64:24, i64:21, #1
+	seq u1:19, i64:24, #240
+	bnz .MAIN__30_T, u1:19
+	mov i64:21, i64:24
+	jmp .MAIN__23
+.MAIN__30_T:
+	mov i64:26, #0
+	mov i64:27, #1
+	jmp .MAIN__36
+.MAIN__33:
+	add i64:25, i64:27, #1
+	seq u1:20, i64:32, #240
+	bnz .MAIN__89, u1:20
+	mov i64:26, i64:32
+	mov i64:27, i64:25
+.MAIN__36:
+	mov i64:28, #0
+	mov f64:19, #0.0
+.MAIN__39:
+	mul i64:60, i64:28, #1920
+	add m:23, m:17, i64:60
+	mul i64:61, i64:26, #8
+	add m:23, m:23, i64:61
+	load f64:20, m:23
+	mul f64:21, f64:20, f64:20
+	add f64:21, f64:21, f64:19
+	add i64:29, i64:28, #1
+	seq u1:21, i64:29, #200
+	bnz .MAIN__47, u1:21
+	mov i64:28, i64:29
+	mov f64:19, f64:21
+	jmp .MAIN__39
+.MAIN__47:
+	mov f64:22, f64:21
+	sqrt f64:22
+	mul i64:62, i64:26, #1920
+	add m:24, m:18, i64:62
+	mul i64:63, i64:26, #8
+	add m:24, m:24, i64:63
+	store m:24, f64:22
+	mov i64:30, #0
+.MAIN__50:
+	mul i64:64, i64:30, #1920
+	add m:25, m:17, i64:64
+	mul i64:65, i64:26, #8
+	add m:25, m:25, i64:65
+	load f64:23, m:25
+	load f64:24, m:24
+	div f64:25, f64:23, f64:24
+	mul i64:66, i64:30, #1920
+	add m:26, m:19, i64:66
+	mul i64:67, i64:26, #8
+	add m:26, m:26, i64:67
+	store m:26, f64:25
+	add i64:31, i64:30, #1
+	seq u1:22, i64:31, #200
+	bnz .MAIN__59, u1:22
+	mov i64:30, i64:31
+	jmp .MAIN__50
+.MAIN__59:
+	add i64:32, i64:26, #1
+	cast u64:19, i64:26
+	slt u1:23, u64:19, #239
+	bnz .MAIN__59_T, u1:23
+	jmp .MAIN__33
+.MAIN__59_T:
+	mov i64:33, i64:27
+.MAIN__62:
+	mul i64:68, i64:26, #1920
+	add m:27, m:18, i64:68
+	mul i64:69, i64:33, #8
+	add m:27, m:27, i64:69
+	mov f64:39, #0.0
+	store m:27, f64:39
+	mov i64:34, #0
+	mov f64:26, #0.0
+.MAIN__65:
+	mul i64:70, i64:34, #1920
+	add m:28, m:19, i64:70
+	mul i64:71, i64:26, #8
+	add m:28, m:28, i64:71
+	load f64:27, m:28
+	mul i64:72, i64:34, #1920
+	add m:29, m:17, i64:72
+	mul i64:73, i64:33, #8
+	add m:29, m:29, i64:73
+	load f64:28, m:29
+	mul f64:29, f64:27, f64:28
+	add f64:29, f64:29, f64:26
+	store m:27, f64:29
+	add i64:35, i64:34, #1
+	seq u1:24, i64:35, #200
+	bnz .MAIN__65_T, u1:24
+	mov i64:34, i64:35
+	mov f64:26, f64:29
+	jmp .MAIN__65
+.MAIN__65_T:
+	mov i64:36, #0
+.MAIN__75:
+	mul i64:74, i64:36, #1920
+	add m:30, m:17, i64:74
+	mul i64:75, i64:33, #8
+	add m:30, m:30, i64:75
+	load f64:30, m:30
+	mul i64:76, i64:36, #1920
+	add m:31, m:19, i64:76
+	mul i64:77, i64:26, #8
+	add m:31, m:31, i64:77
+	load f64:31, m:31
+	load f64:32, m:27
+	mul f64:33, f64:31, #-1.0
+	mul f64:34, f64:33, f64:32
+	add f64:34, f64:34, f64:30
+	store m:30, f64:34
+	add i64:37, i64:36, #1
+	seq u1:25, i64:37, #200
+	bnz .MAIN__86, u1:25
+	mov i64:36, i64:37
+	jmp .MAIN__75
+.MAIN__86:
+	add i64:38, i64:33, #1
+	seq u1:26, i64:38, #240
+	bnz .MAIN__33, u1:26
+	mov i64:33, i64:38
+	jmp .MAIN__62
+.MAIN__89:
+	mov i64:39, #0
+.MAIN__94:
+	mul i64:40, i64:39, #240
+	mov i64:41, #0
+.MAIN__97:
+	add i64:42, i64:41, i64:40
+	cast i32:21, i64:42
+	cast u32:19, i32:21
+	mod u32:20, u32:19, #20
+	cast i32:22, u32:20
+	seq u1:27, i32:22, #0
+	bnz .MAIN__106, u1:27
+	jmp .MAIN__106
+.MAIN__106:
+	mul i64:78, i64:39, #1920
+	add m:36, m:18, i64:78
+	mul i64:79, i64:41, #8
+	add m:36, m:36, i64:79
+	load f64:35, m:36
+	dbg f64:35
+	add i64:43, i64:41, #1
+	seq u1:28, i64:43, #240
+	bnz .MAIN__113, u1:28
+	mov i64:41, i64:43
+	jmp .MAIN__97
+.MAIN__113:
+	add i64:44, i64:39, #1
+	seq u1:29, i64:44, #240
+	bnz .MAIN__116, u1:29
+	mov i64:39, i64:44
+	jmp .MAIN__94
+.MAIN__116:
+	mov i64:45, #0
+.MAIN__121:
+	mul i64:46, i64:45, #240
+	mov i64:47, #0
+.MAIN__124:
+	add i64:48, i64:47, i64:46
+	cast i32:27, i64:48
+	cast u32:21, i32:27
+	mod u32:22, u32:21, #20
+	cast i32:28, u32:22
+	seq u1:30, i32:28, #0
+	bnz .MAIN__130, u1:30
+	jmp .MAIN__130
+.MAIN__130:
+	mul i64:80, i64:45, #1920
+	add m:41, m:19, i64:80
+	mul i64:81, i64:47, #8
+	add m:41, m:41, i64:81
+	load f64:36, m:41
+	dbg f64:36
+	add i64:49, i64:47, #1
+	seq u1:31, i64:49, #240
+	bnz .MAIN__140, u1:31
+	mov i64:47, i64:49
+	jmp .MAIN__124
+.MAIN__140:
+	add i64:50, i64:45, #1
+	seq u1:32, i64:50, #200
+	bnz .MAIN__143, u1:32
+	mov i64:45, i64:50
+	jmp .MAIN__121
+.MAIN__143:
+	free m:17
+	free m:18
+	free m:19
+	mov i32:0, #0
+	jmp n:16
+.END:
+	nop
