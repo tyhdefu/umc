@@ -1,7 +1,5 @@
 //! A safe memory manager implementation that catches invalid attempts to read/write out of bounds, or use-after free
 
-use std::usize;
-
 use crate::vm::memory::{
     AllocateError, MemoryAccessError, MemoryAddress, MemoryManager, Serializable, SerializableArb,
 };
@@ -67,6 +65,18 @@ impl SafeAddress {
             block_id: id,
             offset: 0,
         }
+    }
+
+    pub(crate) fn from_parts(block_id: usize, offset: usize) -> Self {
+        Self { block_id, offset }
+    }
+
+    pub(crate) fn block_id(&self) -> usize {
+        self.block_id
+    }
+
+    pub(crate) fn byte_offset(&self) -> usize {
+        self.offset
     }
 }
 

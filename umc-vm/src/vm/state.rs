@@ -49,6 +49,8 @@ pub struct RegState<M: MemoryAddress> {
     u32s: FastPrimStore<u32>,
     u64s: HashMapStore<RegIndex, u64>,
     uas: HashMapStore<Reg<UnsignedRegT>, ArbitraryUnsignedInt>,
+    i8s: HashMapStore<RegIndex, i8>,
+    i16s: HashMapStore<RegIndex, i16>,
     i32s: HashMapStore<RegIndex, i32>,
     i64s: HashMapStore<RegIndex, i64>,
     ias: HashMapStore<Reg<SignedRegT>, ArbitraryInt>,
@@ -65,6 +67,8 @@ impl<M: MemoryAddress> RegState<M> {
             u32s: FastPrimStore::new_default(),
             u64s: HashMapStore::new(),
             uas: HashMapStore::new(),
+            i8s: HashMapStore::new(),
+            i16s: HashMapStore::new(),
             i32s: HashMapStore::new(),
             i64s: HashMapStore::new(),
             ias: HashMapStore::new(),
@@ -378,6 +382,30 @@ impl<M: MemoryAddress> PrimNumStoreFor<UnsignedRegT, u64> for RegState<M> {
 
     fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, u64> {
         &mut self.u64s
+    }
+}
+
+impl<M: MemoryAddress> PrimNumStoreFor<SignedRegT, i8> for RegState<M> {
+    const BITS: u32 = i8::BITS;
+
+    fn get_store(&self) -> &HashMapStore<RegIndex, i8> {
+        &self.i8s
+    }
+
+    fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, i8> {
+        &mut self.i8s
+    }
+}
+
+impl<M: MemoryAddress> PrimNumStoreFor<SignedRegT, i16> for RegState<M> {
+    const BITS: u32 = i16::BITS;
+
+    fn get_store(&self) -> &HashMapStore<RegIndex, i16> {
+        &self.i16s
+    }
+
+    fn get_store_mut(&mut self) -> &mut HashMapStore<RegIndex, i16> {
+        &mut self.i16s
     }
 }
 

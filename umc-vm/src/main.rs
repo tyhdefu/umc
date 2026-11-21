@@ -3,14 +3,11 @@ use std::io::BufReader;
 use std::path::PathBuf;
 
 use clap::Parser;
-use umc_model::binary::decode;
-use vm::VirtualMachine;
-
 use umc_model::Program;
+use umc_model::binary::decode;
 
-use crate::vm::VMOptions;
-
-mod vm;
+use umc_vm::vm::VMOptions;
+use umc_vm::vm::VirtualMachine;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -66,6 +63,7 @@ fn main() {
 
     let options = VMOptions {
         verbose: args.verbose,
+        jit_threshold: umc_vm::vm::DEFAULT_THRESHOLD,
     };
     println!("Executing program");
     VirtualMachine::create(prog, options).unwrap().execute();

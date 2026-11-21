@@ -314,6 +314,44 @@ fn fib_encode_and_decode() {
 }
 
 #[test]
+fn hot_div_mod_loop() {
+    // runs past the jit threshold so the loop body is compiled
+    const PROG: &str = "
+        mov u64:0, #50
+        mov u64:1, #0
+        mov u64:2, #0
+        mov u64:5, #7
+    .LOOP:
+        sge u64:6, u64:0, u64:5 ; leaves a value in rdx before the div
+        div u64:3, u64:0, #3
+        add u64:1, u64:1, u64:3
+        mod u64:4, u64:0, u64:5
+        add u64:2, u64:2, u64:4
+        sub u64:0, u64:0, #1
+        bnz .LOOP, u64:0
+    ";
+    let vm = compile_and_run(PROG);
+    let div_sum: u64 = (1..=50u64).map(|i| i / 3).sum();
+    let mod_sum: u64 = (1..=50u64).map(|i| i % 7).sum();
+    assert_eq!(vm.inspect_uint::<u64>(1, u64::BITS), div_sum);
+    assert_eq!(vm.inspect_uint::<u64>(2, u64::BITS), mod_sum);
+}
+
+#[test]
+#[should_panic(expected = "divide by zero")]
+fn hot_div_by_zero_panics_like_interpreter() {
+    // divisor reaches zero after the loop body has been compiled
+    const PROG: &str = "
+        mov u64:0, #25
+    .LOOP:
+        sub u64:0, u64:0, #1
+        div u64:1, #100, u64:0
+        bnz .LOOP, u64:0
+    ";
+    compile_and_run(PROG);
+}
+
+#[test]
 fn jump_and_link() {
     const PROG: &str = "
         mov u32:1, #300

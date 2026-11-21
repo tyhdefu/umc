@@ -1,0 +1,9 @@
+.DIV:
+  mov u64:0, #50
+  div u64:1, u64:0, #37
+  mod u64:2, u64:0, #37
+
+.END:
+  dbg u64:0
+  dbg u64:1
+  dbg u64:2

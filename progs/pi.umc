@@ -6,7 +6,7 @@
 ; https://en.wikipedia.org/wiki/Machin-like_formula
 
 .PROG:
-	mov u32:0, #10 ; Number of terms to calculate
+	mov u32:0, #100000 ; Number of terms to calculate
 
 	; Calculate arctan(1/5)
 	mov n:0, .PROG_X

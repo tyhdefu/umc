@@ -1,0 +1,387 @@
+.ENTRY:
+	mov i32:0, #0
+	alloc m:1, #8
+	jal .FN_MAIN, n:0
+	jmp .END
+.FN_MAIN:
+	mov i32:16, i32:0
+	mov m:16, m:1
+	mov n:16, n:0
+.MAIN__2:
+	alloc m:17, #8
+	alloc m:18, #8
+	alloc m:19, #8
+	alloc m:20, #8
+	alloc m:21, #8
+	alloc m:22, #8
+	alloc m:23, #8
+	alloc m:24, #8
+	alloc m:25, #8
+	alloc m:26, #8
+	alloc m:27, #8
+	alloc m:28, #8
+	alloc m:29, #8
+	alloc m:30, #8
+	alloc m:31, #8
+	alloc m:32, #8
+	alloc m:33, #8
+	alloc m:34, #8
+	alloc m:35, #8
+	alloc m:36, #8
+	alloc m:37, #8
+	alloc m:38, #8
+	alloc m:39, #8
+	alloc m:40, #8
+	alloc m:41, #8
+	alloc m:42, #8
+	alloc m:43, #8
+	alloc m:44, #8
+	alloc m:45, #8
+	alloc m:46, #8
+	alloc m:47, #8
+	alloc m:48, #8
+	alloc m:49, #8
+	alloc m:50, #8
+	alloc m:51, #8
+	alloc m:52, #8
+	alloc m:53, #8
+	alloc m:54, #8
+	alloc m:55, #8
+	alloc m:56, #8
+	alloc m:57, #8
+	mov i32:34, #0
+	mov i32:17, i32:34
+	mul i64:94, #44000, #8
+	cast u64:16, i64:94
+	alloc m:58, u64:16
+	store m:43, m:58
+	mul i64:95, #48000, #8
+	cast u64:17, i64:95
+	alloc m:59, u64:17
+	store m:42, m:59
+	mul i64:96, #52800, #8
+	cast u64:18, i64:96
+	alloc m:60, u64:18
+	store m:41, m:60
+	mov i64:97, #0
+	store m:57, i64:97
+.MAIN__6:
+	load i64:16, m:57
+	store m:40, i64:16
+	mov i64:98, #0
+	store m:56, i64:98
+.MAIN__7:
+	load i64:17, m:56
+	load i64:18, m:40
+	mul i64:19, i64:17, i64:18
+	cast i32:18, i64:19
+	add i32:19, i32:18, #1
+	cast u32:16, i32:19
+	mod u32:17, u32:16, #200
+	cast i32:20, u32:17
+	cast u32:18, i32:20
+	cast f64:16, u32:18
+	div f64:17, f64:16, #200.0
+	load i64:20, m:40
+	load m:61, m:43
+	mul i64:99, i64:20, #1760
+	add m:62, m:61, i64:99
+	mul i64:100, i64:17, #8
+	add m:62, m:62, i64:100
+	store m:62, f64:17
+	add i64:21, i64:17, #1
+	store m:39, i64:21
+	load i64:22, m:39
+	seq u1:16, i64:22, #220
+	bnz .MAIN__17, u1:16
+.MAIN____CRIT_EDGE:
+	load i64:23, m:39
+	store m:56, i64:23
+	jmp .MAIN__7
+.MAIN__17:
+	load i64:24, m:40
+	add i64:25, i64:24, #1
+	store m:38, i64:25
+	load i64:26, m:38
+	seq u1:17, i64:26, #200
+	bnz .MAIN____CRIT_EDGE1, u1:17
+.MAIN____CRIT_EDGE2:
+	load i64:27, m:38
+	store m:57, i64:27
+	jmp .MAIN__6
+.MAIN____CRIT_EDGE1:
+	mov i64:101, #0
+	store m:55, i64:101
+.MAIN__20:
+	load i64:28, m:55
+	store m:37, i64:28
+	mov i64:102, #0
+	store m:54, i64:102
+.MAIN__21:
+	load i64:29, m:54
+	add i64:30, i64:29, #1
+	store m:36, i64:30
+	load i64:31, m:36
+	load i64:32, m:37
+	mul i64:33, i64:31, i64:32
+	cast i32:21, i64:33
+	cast u32:19, i32:21
+	mod u32:20, u32:19, #240
+	cast i32:22, u32:20
+	cast u32:21, i32:22
+	cast f64:18, u32:21
+	div f64:19, f64:18, #240.0
+	load i64:34, m:37
+	load m:63, m:42
+	mul i64:103, i64:34, #1920
+	add m:64, m:63, i64:103
+	mul i64:104, i64:29, #8
+	add m:64, m:64, i64:104
+	store m:64, f64:19
+	load i64:35, m:36
+	seq u1:18, i64:35, #240
+	bnz .MAIN__30, u1:18
+.MAIN____CRIT_EDGE3:
+	load i64:36, m:36
+	store m:54, i64:36
+	jmp .MAIN__21
+.MAIN__30:
+	load i64:37, m:37
+	add i64:38, i64:37, #1
+	store m:35, i64:38
+	load i64:39, m:35
+	seq u1:19, i64:39, #200
+	bnz .MAIN____CRIT_EDGE4, u1:19
+.MAIN____CRIT_EDGE5:
+	load i64:40, m:35
+	store m:55, i64:40
+	jmp .MAIN__20
+.MAIN____CRIT_EDGE4:
+	mov i64:105, #0
+	store m:53, i64:105
+.MAIN__33:
+	load i64:41, m:53
+	store m:34, i64:41
+	mov i64:106, #0
+	store m:52, i64:106
+.MAIN__34:
+	load i64:42, m:52
+	add i64:43, i64:42, #2
+	load i64:44, m:34
+	mul i64:45, i64:43, i64:44
+	cast i32:23, i64:45
+	cast u32:22, i32:23
+	mod u32:23, u32:22, #220
+	cast i32:24, u32:23
+	cast u32:24, i32:24
+	cast f64:20, u32:24
+	div f64:21, f64:20, #220.0
+	load i64:46, m:34
+	load m:65, m:41
+	mul i64:107, i64:46, #1760
+	add m:66, m:65, i64:107
+	mul i64:108, i64:42, #8
+	add m:66, m:66, i64:108
+	store m:66, f64:21
+	add i64:47, i64:42, #1
+	store m:33, i64:47
+	load i64:48, m:33
+	seq u1:20, i64:48, #220
+	bnz .MAIN__44, u1:20
+.MAIN____CRIT_EDGE6:
+	load i64:49, m:33
+	store m:52, i64:49
+	jmp .MAIN__34
+.MAIN__44:
+	load i64:50, m:34
+	add i64:51, i64:50, #1
+	store m:32, i64:51
+	load i64:52, m:32
+	seq u1:21, i64:52, #240
+	bnz .MAIN____CRIT_EDGE7, u1:21
+.MAIN____CRIT_EDGE8:
+	load i64:53, m:32
+	store m:53, i64:53
+	jmp .MAIN__33
+.MAIN____CRIT_EDGE7:
+	mov i64:109, #0
+	store m:51, i64:109
+.MAIN__47:
+	load i64:54, m:51
+	store m:31, i64:54
+	mov i64:110, #0
+	store m:50, i64:110
+.MAIN__48:
+	load i64:55, m:50
+	load i64:56, m:31
+	load m:67, m:43
+	mul i64:111, i64:56, #1760
+	add m:68, m:67, i64:111
+	mul i64:112, i64:55, #8
+	add m:68, m:68, i64:112
+	load f64:22, m:68
+	mul f64:23, f64:22, #1.2
+	store m:68, f64:23
+	add i64:57, i64:55, #1
+	store m:30, i64:57
+	load i64:58, m:30
+	seq u1:22, i64:58, #220
+	bnz .MAIN____CRIT_EDGE9, u1:22
+.MAIN____CRIT_EDGE10:
+	load i64:59, m:30
+	store m:50, i64:59
+	jmp .MAIN__48
+.MAIN____CRIT_EDGE9:
+	mov i64:113, #0
+	store m:49, i64:113
+.MAIN__54:
+	load i64:60, m:49
+	store m:29, i64:60
+	load i64:61, m:29
+	load i64:62, m:31
+	load m:69, m:42
+	mul i64:114, i64:62, #1920
+	add m:70, m:69, i64:114
+	mul i64:115, i64:61, #8
+	add m:70, m:70, i64:115
+	store m:28, m:70
+	mov i64:116, #0
+	store m:48, i64:116
+.MAIN__56:
+	load i64:63, m:48
+	load m:71, m:28
+	load f64:24, m:71
+	mul f64:25, f64:24, #1.5
+	load i64:64, m:29
+	load m:72, m:41
+	mul i64:117, i64:64, #1760
+	add m:73, m:72, i64:117
+	mul i64:118, i64:63, #8
+	add m:73, m:73, i64:118
+	load f64:26, m:73
+	load i64:65, m:31
+	load m:74, m:43
+	mul i64:119, i64:65, #1760
+	add m:75, m:74, i64:119
+	mul i64:120, i64:63, #8
+	add m:75, m:75, i64:120
+	load f64:27, m:75
+	mul f64:28, f64:25, f64:26
+	add f64:28, f64:28, f64:27
+	store m:75, f64:28
+	add i64:66, i64:63, #1
+	store m:27, i64:66
+	load i64:67, m:27
+	seq u1:23, i64:67, #220
+	bnz .MAIN__66, u1:23
+.MAIN____CRIT_EDGE11:
+	load i64:68, m:27
+	store m:48, i64:68
+	jmp .MAIN__56
+.MAIN__66:
+	load i64:69, m:29
+	add i64:70, i64:69, #1
+	store m:26, i64:70
+	load i64:71, m:26
+	seq u1:24, i64:71, #240
+	bnz .MAIN__69, u1:24
+.MAIN____CRIT_EDGE12:
+	load i64:72, m:26
+	store m:49, i64:72
+	jmp .MAIN__54
+.MAIN__69:
+	load i64:73, m:31
+	add i64:74, i64:73, #1
+	store m:25, i64:74
+	load i64:75, m:25
+	seq u1:25, i64:75, #200
+	bnz .MAIN__72, u1:25
+.MAIN____CRIT_EDGE13:
+	load i64:76, m:25
+	store m:51, i64:76
+	jmp .MAIN__47
+.MAIN__72:
+	mov f64:39, #0.0
+	store m:46, f64:39
+	mov i64:121, #0
+	store m:47, i64:121
+.MAIN__77:
+	load i64:77, m:47
+	load f64:29, m:46
+	store m:24, i64:77
+	store m:23, f64:29
+	load i64:78, m:24
+	mul i64:79, i64:78, #200
+	store m:22, i64:79
+	load f64:30, m:23
+	store m:44, f64:30
+	mov i64:122, #0
+	store m:45, i64:122
+.MAIN__79:
+	load i64:80, m:45
+	load f64:31, m:44
+	store m:21, i64:80
+	store m:20, f64:31
+	load i64:81, m:21
+	load i64:82, m:22
+	add i64:83, i64:81, i64:82
+	cast i32:27, i64:83
+	cast u32:25, i32:27
+	mod u32:26, u32:25, #20
+	cast i32:28, u32:26
+	seq u1:26, i32:28, #0
+	bnz .MAIN__87, u1:26
+.MAIN____CRIT_EDGE14:
+	jmp .MAIN__87
+.MAIN__87:
+	load i64:84, m:21
+	load i64:85, m:24
+	load m:80, m:43
+	mul i64:123, i64:85, #1760
+	add m:81, m:80, i64:123
+	mul i64:124, i64:84, #8
+	add m:81, m:81, i64:124
+	load f64:32, m:81
+	dbg f64:32
+	load f64:33, m:81
+	load f64:34, m:20
+	add f64:35, f64:34, f64:33
+	store m:19, f64:35
+	load i64:86, m:21
+	add i64:87, i64:86, #1
+	store m:18, i64:87
+	load i64:88, m:18
+	seq u1:27, i64:88, #220
+	bnz .MAIN__96, u1:27
+.MAIN____CRIT_EDGE15:
+	load i64:89, m:18
+	load f64:36, m:19
+	store m:44, f64:36
+	store m:45, i64:89
+	jmp .MAIN__79
+.MAIN__96:
+	load i64:90, m:24
+	add i64:91, i64:90, #1
+	store m:17, i64:91
+	load i64:92, m:17
+	seq u1:28, i64:92, #200
+	bnz .MAIN__99, u1:28
+.MAIN____CRIT_EDGE16:
+	load i64:93, m:17
+	load f64:37, m:19
+	store m:46, f64:37
+	store m:47, i64:93
+	jmp .MAIN__77
+.MAIN__99:
+	load f64:38, m:19
+	dbg f64:38
+	load m:85, m:43
+	free m:85
+	load m:86, m:42
+	free m:86
+	load m:87, m:41
+	free m:87
+	mov i32:0, #0
+	jmp n:16
+.END:
+	nop

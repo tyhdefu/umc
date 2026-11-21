@@ -245,6 +245,86 @@ impl UMCBitwise for ArbitraryInt {
     }
 }
 
+impl UMCArithmetic for i8 {
+    fn add(&mut self, rhs: &Self) {
+        *self = self.wrapping_add(*rhs);
+    }
+
+    fn sub(&mut self, rhs: &Self) {
+        *self = self.wrapping_sub(*rhs);
+    }
+
+    fn modulo(&mut self, rhs: &Self) {
+        *self = *self % *rhs;
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        *self = self.wrapping_mul(*rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        *self = *self / *rhs;
+    }
+}
+
+impl UMCBitwise for i8 {
+    fn and(&mut self, rhs: &Self) {
+        self.bitand_assign(*rhs);
+    }
+
+    fn or(&mut self, rhs: &Self) {
+        self.bitor_assign(rhs);
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        self.bitxor_assign(*rhs);
+    }
+
+    fn not(&mut self) {
+        *self = !*self;
+    }
+}
+
+impl UMCArithmetic for i16 {
+    fn add(&mut self, rhs: &Self) {
+        *self = self.wrapping_add(*rhs);
+    }
+
+    fn sub(&mut self, rhs: &Self) {
+        *self = self.wrapping_sub(*rhs);
+    }
+
+    fn modulo(&mut self, rhs: &Self) {
+        *self = *self % *rhs;
+    }
+
+    fn mul(&mut self, rhs: &Self) {
+        *self = self.wrapping_mul(*rhs);
+    }
+
+    fn div(&mut self, rhs: &Self) {
+        *self = *self / *rhs;
+    }
+}
+
+impl UMCBitwise for i16 {
+    fn and(&mut self, rhs: &Self) {
+        self.bitand_assign(*rhs);
+    }
+
+    fn or(&mut self, rhs: &Self) {
+        self.bitor_assign(rhs);
+    }
+
+    fn xor(&mut self, rhs: &Self) {
+        self.bitxor_assign(*rhs);
+    }
+
+    fn not(&mut self) {
+        *self = !*self;
+    }
+}
+
 impl UMCArithmetic for i32 {
     fn add(&mut self, rhs: &Self) {
         *self = self.wrapping_add(*rhs);
@@ -325,7 +405,110 @@ impl UMCBitwise for i64 {
     }
 }
 
+// casts to i8
+
+impl CastFrom<i16> for i8 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i32> for i8 {
+    fn cast_from(value: &i32) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i64> for i8 {
+    fn cast_from(value: &i64) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<ArbitraryInt> for i8 {
+    fn cast_from(value: &ArbitraryInt) -> Self {
+        value.inner.as_ref().map(|v| v.to_i8()).unwrap_or(0)
+    }
+}
+
+impl CastFrom<u32> for i8 {
+    fn cast_from(value: &u32) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<u64> for i8 {
+    fn cast_from(value: &u64) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<ArbitraryUnsignedInt> for i8 {
+    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
+        let v: u32 = value.cast_into();
+        v as Self
+    }
+}
+
+// casts to i16
+
+impl CastFrom<i8> for i16 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i32> for i16 {
+    fn cast_from(value: &i32) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i64> for i16 {
+    fn cast_from(value: &i64) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<ArbitraryInt> for i16 {
+    fn cast_from(value: &ArbitraryInt) -> Self {
+        value.inner.as_ref().map(|v| v.to_i16()).unwrap_or(0)
+    }
+}
+
+impl CastFrom<u32> for i16 {
+    fn cast_from(value: &u32) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<u64> for i16 {
+    fn cast_from(value: &u64) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<ArbitraryUnsignedInt> for i16 {
+    fn cast_from(value: &ArbitraryUnsignedInt) -> Self {
+        let v: u32 = value.cast_into();
+        v as Self
+    }
+}
+
 // casts to i32
+
+impl CastFrom<i8> for i32 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i16> for i32 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
+    }
+}
+
 impl CastFrom<i64> for i32 {
     fn cast_from(value: &i64) -> Self {
         *value as Self
@@ -358,6 +541,18 @@ impl CastFrom<ArbitraryUnsignedInt> for i32 {
 }
 
 // casts to i64
+impl CastFrom<i8> for i64 {
+    fn cast_from(value: &i8) -> Self {
+        *value as Self
+    }
+}
+
+impl CastFrom<i16> for i64 {
+    fn cast_from(value: &i16) -> Self {
+        *value as Self
+    }
+}
+
 impl CastFrom<i32> for i64 {
     fn cast_from(value: &i32) -> Self {
         *value as Self
@@ -384,6 +579,22 @@ impl CastFrom<ArbitraryUnsignedInt> for i64 {
 }
 
 // Casts to ArbitraryInt
+impl CastFrom<i8> for ArbitraryInt {
+    fn cast_from(value: &i8) -> Self {
+        Self {
+            inner: Some(Awi::from_i8(*value)),
+        }
+    }
+}
+
+impl CastFrom<i16> for ArbitraryInt {
+    fn cast_from(value: &i16) -> Self {
+        Self {
+            inner: Some(Awi::from_i16(*value)),
+        }
+    }
+}
+
 impl CastFrom<i32> for ArbitraryInt {
     fn cast_from(value: &i32) -> Self {
         Self {

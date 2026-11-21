@@ -4,7 +4,8 @@ use std::ops::RangeInclusive;
 use crate::ast::{self, OperandWithLoc};
 use umc_model::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero,
-    ConsistentComparison, ECallParams, Instruction, MovParams, NotParams, SimpleCast,
+    ConsistentComparison, ECallParams, Instruction, MovParams, NotParams, ShiftParams, ShiftType,
+    SimpleCast,
 };
 use umc_model::operand::{Operand, RegOperand};
 use umc_model::parse::{InstructionValidateError, parse_any_reg, parse_any_single_reg};
@@ -286,6 +287,10 @@ pub fn ast_to_bytecode(
             let params = coherent_num_op(&instr, labels)?;
             Ok(Instruction::Mod(params))
         }
+        "or" => {
+            let params = coherent_num_op(&instr, labels)?;
+            Ok(Instruction::Or(params))
+        }
         "xor" => {
             let params = coherent_num_op(&instr, labels)?;
             Ok(Instruction::Xor(params))
@@ -300,6 +305,13 @@ pub fn ast_to_bytecode(
             let params = comparison_op(&instr, labels)?;
             Ok(Instruction::Compare {
                 cond: BinaryCondition::Equal,
+                params,
+            })
+        }
+        "sne" => {
+            let params = comparison_op(&instr, labels)?;
+            Ok(Instruction::Compare {
+                cond: BinaryCondition::NotEqual,
                 params,
             })
         }
@@ -415,6 +427,42 @@ pub fn ast_to_bytecode(
             let refs: Vec<&Operand> = inferred.iter().collect();
             let cast = SimpleCast::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
             Ok(Instruction::Cast(cast))
+        }
+        "shl" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let shift = ShiftParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Shift(shift, ShiftType::LeftShift))
+        }
+        "shr" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let shift = ShiftParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightLogicalShift))
+        }
+        "ashr" => {
+            let inferred = infer_ops::<2>(&instr, labels)?;
+            let refs: Vec<&Operand> = inferred.iter().collect();
+            let shift = ShiftParams::try_from(refs.as_slice()).map_err(|e| add_ctx(e, &instr))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightArithmeticShift))
+        }
+        "sqrt" => {
+            let [p1] = ops::<1>(&instr)?;
+            let operand = parse_dst_reg(p1)?;
+            let reg = parse_any_single_reg(&operand)
+                .expect("SQRT instruction requires only a single register operand");
+            Ok(Instruction::Sqrt(reg))
+        }
+        "exp" => {
+            let [p1, p2] = ops::<2>(&instr)?;
+            let dst_reg = parse_dst_reg(p1)?;
+            let operand = parse_reg_or_constant(p2, None, labels)?;
+
+            let dst_reg = Reg::from_float(&Operand::Reg(dst_reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+            let operand = RegOrConstant::from_float(&operand)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
+            Ok(Instruction::Exp(dst_reg, operand))
         }
         "ecall" => {
             let ecall = ecall_instr(&instr, labels)?;

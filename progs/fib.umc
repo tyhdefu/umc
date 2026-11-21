@@ -1,5 +1,5 @@
 .FIB:
-  mov u64:0, #30
+  mov u64:0, #50
   bz .END, u64:0
 
   mov u64:1, #0 ; int cur = 0
@@ -15,8 +15,8 @@
   mov u64:2, u64:4        ; next = next2
   add u64:3, u64:3, #1
 
-  ; dbg u64:3
-  ; dbg u64:0
+  dbg u64:3
+  dbg u64:0
 
   xor u64:8, u64:3, u64:0 ; Compare :3 and :0
   bnz .LOOP, u64:8

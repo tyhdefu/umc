@@ -1,0 +1,25 @@
+alloc m:0, #1000
+
+mov u8:0, #42
+store m:0, u8:0
+load u8:1, m:0
+dbg u8:1
+
+mov u16:0, #123
+store m:0, u16:0
+load u16:1, m:0
+dbg u16:1
+
+
+mov i8:0, #-12
+store m:0, i8:0
+load i8:1, m:0
+dbg i8:1
+
+mov i16:0, #-123
+store m:0, i16:0
+load i16:1, m:0
+dbg i16:1
+
+.END:
+	free m:0

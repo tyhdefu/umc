@@ -9,7 +9,7 @@ use crate::binary::{BinaryFormatVersion, DecodeError, EncodeError};
 use crate::format::{DisplayAssembly, DisplayAssemblyParams};
 use crate::instructions::{
     AddParams, AnyConsistentNumOp, BinaryCondition, CompareParams, CompareToZero, ECallParams,
-    Instruction, MovParams, NotParams, SimpleCast,
+    Instruction, MovParams, NotParams, ShiftParams, ShiftType, SimpleCast,
 };
 use crate::operand::{Operand, RegOperand};
 use crate::parse::{parse_any_reg, parse_any_single_reg};
@@ -563,21 +563,21 @@ pub fn decode_instruction<R: io::Read>(
             let cmp_zero: CompareToZero = cmp_zero_op(&cond)?;
             Ok(Instruction::Bnz(iaddr_op(&dest)?, cmp_zero))
         })?,
-        OpCode::EQ | OpCode::GT | OpCode::GTE => {
-            disassembler.decode_fixed_instruction(src, opcode_raw, |[d, a, b]| {
+        OpCode::EQ | OpCode::NEQ | OpCode::GT | OpCode::GTE => disassembler
+            .decode_fixed_instruction(src, opcode_raw, |[d, a, b]| {
                 let ops_ref: [&Operand; 3] = [&d, &a, &b];
                 let params = CompareParams::try_from(ops_ref.as_slice()).map_err(|i| {
                     DecodeError::Malformed(format!("Invalid Instruction: {:?} | {:?}", i, ops_ref))
                 })?;
                 let cond = match opcode {
                     OpCode::EQ => BinaryCondition::Equal,
+                    OpCode::NEQ => BinaryCondition::NotEqual,
                     OpCode::GT => BinaryCondition::GreaterThan,
                     OpCode::GTE => BinaryCondition::GreaterThanOrEqualTo,
                     _ => unreachable!("All branches should be covered"),
                 };
                 Ok(Instruction::Compare { cond, params })
-            })?
-        }
+            })?,
         OpCode::AND => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::And(p))?,
         OpCode::OR => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Or(p))?,
         OpCode::XOR => disassembler.decode_3_num_op(src, opcode_raw, |p| Instruction::Xor(p))?,
@@ -642,6 +642,47 @@ pub fn decode_instruction<R: io::Read>(
                 .map_err(|e| DecodeError::Malformed(format!("Invalid cast: {:?}", e)))?;
             Ok(Instruction::Cast(cast))
         })?,
+        OpCode::SHL => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let shift = ShiftParams::try_from([d, p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
+            Ok(Instruction::Shift(shift, ShiftType::LeftShift))
+        })?,
+        OpCode::SHR => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let shift = ShiftParams::try_from([d, p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightLogicalShift))
+        })?,
+        OpCode::ASHR => disassembler.decode_fixed_instruction(src, opcode_raw, |[d, p]| {
+            let shift = ShiftParams::try_from([d, p].as_slice())
+                .map_err(|e| DecodeError::Malformed(format!("Invalid shift: {:?}", e)))?;
+            Ok(Instruction::Shift(shift, ShiftType::RightArithmeticShift))
+        })?,
+        OpCode::SQRT => {
+            disassembler.decode_fixed_instruction(src, opcode_raw, |[op]| match op {
+                Operand::Reg(reg_operand) => Ok(Instruction::Sqrt(
+                    parse_any_single_reg(&reg_operand)
+                        .expect("SQRT instruction requires single operand register"),
+                )),
+                _ => {
+                    return Err(DecodeError::Malformed(format!(
+                        "SQRT Instruction requires a register operand"
+                    )));
+                }
+            })?
+        }
+        OpCode::EXP => disassembler.decode_fixed_instruction(src, opcode_raw, |[op1, op2]| {
+            let dst_reg = Reg::from_float(&op1).map_err(|_| {
+                DecodeError::Malformed(format!(
+                    "Invalid Exp Instruction: Expected float dst register"
+                ))
+            })?;
+            let operand = RegOrConstant::from_float(&op2).map_err(|_| {
+                DecodeError::Malformed(format!(
+                    "Invalid Exp Instruction: Expected float register / immediate"
+                ))
+            })?;
+            Ok(Instruction::Exp(dst_reg, operand))
+        })?,
         OpCode::ECALL => disassembler.decode_variable_instruction(src, opcode_raw, |ops| {
             Ok(Instruction::ECall(ECallParams::try_from(ops)?))
         })?,
@@ -673,6 +714,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Not(_) => OpCode::NOT,
         Instruction::Compare { cond, .. } => match cond {
             BinaryCondition::Equal => OpCode::EQ,
+            BinaryCondition::NotEqual => OpCode::NEQ,
             BinaryCondition::GreaterThan => OpCode::GT,
             BinaryCondition::GreaterThanOrEqualTo => OpCode::GTE,
             BinaryCondition::LessThan => {
@@ -694,6 +736,11 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Store(_, _) => OpCode::STORE,
         Instruction::SizeOf(_, _) => OpCode::SIZEOF,
         Instruction::Cast(_) => OpCode::CAST,
+        Instruction::Shift(_, ShiftType::LeftShift) => OpCode::SHL,
+        Instruction::Shift(_, ShiftType::RightLogicalShift) => OpCode::SHR,
+        Instruction::Shift(_, ShiftType::RightArithmeticShift) => OpCode::ASHR,
+        Instruction::Sqrt(_) => OpCode::SQRT,
+        Instruction::Exp(_, _) => OpCode::EXP,
         Instruction::ECall(_) => OpCode::ECALL,
         Instruction::Dbg(_) => OpCode::DBG,
     };
@@ -924,8 +971,9 @@ enum OpCode {
 
     // Comparison
     EQ = 0b001100,
-    GT = 0b001101,
-    GTE = 0b001110,
+    NEQ = 0b001101,
+    GT = 0b001110,
+    GTE = 0b001111,
 
     // Bitwise Operations
     AND = 0b010000,
@@ -942,6 +990,17 @@ enum OpCode {
 
     // Cast
     CAST = 0b110001,
+
+    // SHL
+    SHL = 0b101000,
+    SHR = 0b101001,
+    ASHR = 0b101010,
+
+    // SQRT
+    SQRT = 0b101100,
+
+    // EXP
+    EXP = 0b101101,
 
     // Environment call
     ECALL = 0b110100,

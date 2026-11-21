@@ -1,0 +1,108 @@
+.INIT:
+  mov u64:0, #50
+  bz .END, u64:0
+  mov u64:1, #0 ; int i = 0
+
+.SHIFTS:
+  mov u64:3, #16
+  dbg u64:3
+  shl u64:3, #1
+  dbg u64:3
+  mov u64:4, #1
+  shl u64:3, u64:4
+  dbg u64:3
+
+  mov i64:3, #-16
+  dbg i64:3
+  shl i64:3, #1
+  dbg i64:3
+  mov u64:4, #1
+  shl i64:3, u64:4
+  dbg i64:3
+
+  mov u64:3, #16
+  dbg u64:3
+  shr u64:3, #1
+  dbg u64:3
+  mov u64:4, #1
+  shr u64:3, u64:4
+  dbg u64:3
+
+  mov i64:3, #-16
+  dbg i64:3
+  shr i64:3, #1
+  dbg i64:3
+  mov u64:4, #1
+  shr i64:3, u64:4
+  dbg i64:3
+
+  mov u64:3, #16
+  dbg u64:3
+  ashr u64:3, #1
+  dbg u64:3
+  mov u64:4, #1
+  ashr u64:3, u64:4
+  dbg u64:3
+
+  mov i64:3, #-16
+  dbg i64:3
+  ashr i64:3, #1
+  dbg i64:3
+  mov u64:4, #1
+  ashr i64:3, u64:4
+  dbg i64:3
+
+ mov u32:3, #16
+  dbg u32:3
+  shl u32:3, #1
+  dbg u32:3
+  mov u32:4, #1
+  shl u32:3, u32:4
+  dbg u32:3
+
+  mov i32:3, #-16
+  dbg i32:3
+  shl i32:3, #1
+  dbg i32:3
+  mov u32:4, #1
+  shl i32:3, u32:4
+  dbg i32:3
+
+  mov u32:3, #16
+  dbg u32:3
+  shr u32:3, #1
+  dbg u32:3
+  mov u32:4, #1
+  shr u32:3, u32:4
+  dbg u32:3
+
+  mov i32:3, #-16
+  dbg i32:3
+  shr i32:3, #1
+  dbg i32:3
+  mov u32:4, #1
+  shr i32:3, u32:4
+  dbg i32:3
+
+  mov u32:3, #16
+  dbg u32:3
+  ashr u32:3, #1
+  dbg u32:3
+  mov u32:4, #1
+  ashr u32:3, u32:4
+  dbg u32:3
+
+  mov i32:3, #-16
+  dbg i32:3
+  ashr i32:3, #1
+  dbg i32:3
+  mov u32:4, #1
+  ashr i32:3, u32:4
+  dbg i32:3
+
+  add u64:1, u64:1, #1
+  xor u64:2, u64:1, u64:0 ; Compare :1 and :0
+  bnz .SHIFTS, u64:2
+
+.END:
+  nop

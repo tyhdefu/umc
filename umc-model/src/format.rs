@@ -137,6 +137,7 @@ impl DisplayAssembly for Instruction {
             Instruction::Compare { cond, params } => {
                 let opcode = match cond {
                     BinaryCondition::Equal => "seq",
+                    BinaryCondition::NotEqual => "sne",
                     BinaryCondition::GreaterThan => "sgt",
                     BinaryCondition::GreaterThanOrEqualTo => "sge",
                     BinaryCondition::LessThan => "slt",
@@ -173,6 +174,15 @@ impl DisplayAssembly for Instruction {
                 }
             },
             Instruction::Cast(cast) => write_instr(f, "cast", cast, opts),
+            Instruction::Shift(params, ShiftType::LeftShift) => write_instr(f, "shl", params, opts),
+            Instruction::Shift(params, ShiftType::RightLogicalShift) => {
+                write_instr(f, "shr", params, opts)
+            }
+            Instruction::Shift(params, ShiftType::RightArithmeticShift) => {
+                write_instr(f, "ashr", params, opts)
+            }
+            Instruction::Sqrt(reg) => write_instr(f, "sqrt", reg, opts),
+            Instruction::Exp(reg, op) => write_instr(f, "exp", &ParamPair(reg, op), opts),
             Instruction::ECall(ecall) => write_instr(f, "ecall", ecall, opts),
             Instruction::Dbg(reg_operand) => write_instr(f, "dbg", reg_operand, opts),
         }
@@ -389,6 +399,10 @@ impl DisplayAssembly for SimpleCast {
             SimpleCast::Resize(ResizeCast::Float(d, p)) => write!(f, "{}, {}", d, p),
             SimpleCast::IgnoreSigned(p) => write!(f, "{}, {}", p.dst(), p.from()),
             SimpleCast::AddSign(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::UBuoy(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::IBuoy(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::USink(p) => write!(f, "{}, {}", p.dst(), p.from()),
+            SimpleCast::ISink(p) => write!(f, "{}, {}", p.dst(), p.from()),
         }
     }
 }
@@ -455,6 +469,17 @@ impl DisplayAssembly for AnySingleRegOrConstant {
             AnySingleRegOrConstant::Instr(x) => x.fmt_assembly(f, opts),
             AnySingleRegOrConstant::Mem(x) => x.fmt_assembly(f, opts),
         }
+    }
+}
+
+impl DisplayAssembly for ShiftParams {
+    fn fmt_assembly(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        opts: &DisplayAssemblyParams,
+    ) -> std::fmt::Result {
+        ParamPair(&self.dst, &self.size).fmt_assembly(f, opts)?;
+        Ok(())
     }
 }
 

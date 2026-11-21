@@ -68,6 +68,16 @@ pub enum Instruction {
     // Simple cast based on the registers
     Cast(SimpleCast),
 
+    // Shift left or right based on registers
+    Shift(ShiftParams, ShiftType),
+
+    // Square root
+    Sqrt(AnySingleReg),
+
+    // Exponent - e^input
+    // UMC analogue of C++ exp/expf/expl
+    Exp(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
+
     /// Environment call
     ECall(ECallParams),
     // TODO: Float to integer cast
@@ -123,6 +133,7 @@ impl AnySingleRegOrConstant {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryCondition {
     Equal,
+    NotEqual,
     GreaterThan,
     GreaterThanOrEqualTo,
     LessThan,
@@ -157,7 +168,7 @@ impl<RT: RegTypeT> VectorBroadcastParams<RT> {
     ) -> Self {
         Self {
             dst_full_index: dst,
-            length: length,
+            length,
             vec_index: vec_param,
             value: single,
             reversed,
@@ -207,7 +218,7 @@ impl<RT: RegTypeT> VectorVectorParams<RT> {
     pub fn new(dst: Reg<RT>, length: RegWidth, p1: RegIndex, p2: RegIndex) -> Self {
         Self {
             dst_full_index: dst,
-            length: length,
+            length,
             p1_index: p1,
             p2_index: p2,
         }
@@ -320,6 +331,14 @@ pub enum SimpleCast {
     /// Bitwise convert an unsigned integer to signed one
     /// > This is dangerous if the top bits of the unsigned register are used
     AddSign(IntegerCast<SignedRegT, UnsignedRegT>),
+    /// Bitwise convert an unsigned integer to float
+    USink(IntegerFloatCast<UnsignedRegT, FloatRegT>),
+    /// Bitwise convert a signed integer to float
+    ISink(IntegerFloatCast<SignedRegT, FloatRegT>),
+    /// Bitwise convert float to unsigned integer
+    UBuoy(IntegerFloatCast<FloatRegT, UnsignedRegT>),
+    /// Bitwise convert float to signed integer
+    IBuoy(IntegerFloatCast<FloatRegT, SignedRegT>),
     // TODO: Vector casts?
 }
 
@@ -359,6 +378,39 @@ where
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct IntegerFloatCast<TO: RegTypeT, FROM: RegTypeT>
+where
+    TO: RegTypeT<WIDTH = FROM::WIDTH>,
+{
+    to: Reg<TO>,
+    from: RegOrConstant<FROM>,
+}
+
+impl<TO, FROM> IntegerFloatCast<TO, FROM>
+where
+    TO: RegTypeT<WIDTH = RegWidth>,
+    FROM: RegTypeT<WIDTH = RegWidth>,
+{
+    /// Value casts, so source and destination widths may differ (e.g. f32 -> i64)
+    pub fn try_create(to: Reg<TO>, from: RegOrConstant<FROM>) -> Result<Self, ()> {
+        Ok(Self { to, from })
+    }
+
+    pub fn dst(&self) -> &Reg<TO> {
+        &self.to
+    }
+
+    pub fn from(&self) -> &RegOrConstant<FROM> {
+        &self.from
+    }
+
+    /// Destination width
+    pub fn width(&self) -> RegWidth {
+        self.to.width
+    }
+}
+
 /// A narrowing or widening cast
 /// > Note that widening is allowed implicitly in all instructions
 #[derive(Debug, PartialEq, Clone)]
@@ -369,4 +421,21 @@ pub enum ResizeCast {
     Signed(Reg<SignedRegT>, RegOrConstant<SignedRegT>),
     /// Precision increase / decrease
     Float(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ShiftParams {
+    pub dst: AnySingleReg,
+    pub size: RegOrConstant<UnsignedRegT>,
+}
+
+/// Type of shifts
+#[derive(Debug, PartialEq, Clone)]
+pub enum ShiftType {
+    // Shift left
+    LeftShift,
+    // Logical Right Shift
+    RightLogicalShift,
+    // Arithmetic Right Shift - only needed for preserving sign of signed integers
+    RightArithmeticShift,
 }
