@@ -2,7 +2,6 @@ use std::fmt::Display;
 use std::iter::repeat_n;
 use std::ops::BitXorAssign;
 use std::ops::{BitAndAssign, BitOrAssign};
-use std::usize;
 
 use crate::vm::types::{CastFrom, CastInto, UMCArithmetic, UMCBitwise};
 

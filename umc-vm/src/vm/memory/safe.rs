@@ -1,7 +1,5 @@
 //! A safe memory manager implementation that catches invalid attempts to read/write out of bounds, or use-after free
 
-use std::usize;
-
 use crate::vm::memory::{
     AllocateError, MemoryAccessError, MemoryAddress, MemoryManager, Serializable, SerializableArb,
 };
