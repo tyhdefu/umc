@@ -69,6 +69,7 @@ pub fn instr_to_raw(instr: &Instruction) -> Vec<Operand> {
         Instruction::Cast(simple_cast) => simple_cast_to_raw(simple_cast),
         Instruction::Shift(params, _) => shift_to_raw(params),
         Instruction::Sqrt(reg) => sqrt_to_raw(reg),
+        Instruction::Exp(reg, op) => vec![Operand::Reg(reg.into()), op.into()],
         Instruction::ECall(ecall) => ecall_to_raw(ecall),
         Instruction::Dbg(reg_operand) => vec![Operand::Reg(reg_operand.into())],
     }

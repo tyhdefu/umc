@@ -274,6 +274,9 @@ impl VirtualMachine {
             Instruction::Sqrt(reg) => {
                 helper::execute_sqrt(reg, &mut self.state);
             }
+            Instruction::Exp(dst, op) => {
+                helper::execute_exp(dst, op, &mut self.state);
+            }
             Instruction::ECall(ecall) => helper::execute_ecall(
                 ecall,
                 &mut self.state,

@@ -622,6 +622,28 @@ pub fn execute_sqrt(reg: &AnySingleReg, state: &mut RegState) {
     }
 }
 
+pub fn execute_exp(dst: &Reg<FloatRegT>, op: &RegOrConstant<FloatRegT>, state: &mut RegState) {
+    match dst.width {
+        32 => {
+            let v: f32 = match op {
+                RegOrConstant::Reg(op) => read_float::<f32>(&RegOrConstant::Reg(*op), state),
+                RegOrConstant::Const(op) => read_float::<f32>(&RegOrConstant::Const(*op), state),
+            };
+            state.store_prim(*dst, v.exp());
+        }
+        64 => {
+            let v: f64 = match op {
+                RegOrConstant::Reg(op) => read_float::<f64>(&RegOrConstant::Reg(*op), state),
+                RegOrConstant::Const(op) => read_float::<f64>(&RegOrConstant::Const(*op), state),
+            };
+            state.store_prim(*dst, v.exp());
+        }
+        _ => {
+            unreachable!("Arbitrary width floats unsupported");
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ECallError {
     InvalidECallCode(u32),

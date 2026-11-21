@@ -837,8 +837,10 @@ impl<'m> Tx<'m> {
                     let s = self.tmp((('m'), 0));
                     self.out
                         .push(Instruction::Alloc(s.rm(), RegOrConstant::Const(8)));
-                    self.out.push(Instruction::Store(RegOrConstant::Reg(s.rm()), a.any()));
-                    self.out.push(Instruction::Load(d.any(), RegOrConstant::Reg(s.rm())));
+                    self.out
+                        .push(Instruction::Store(RegOrConstant::Reg(s.rm()), a.any()));
+                    self.out
+                        .push(Instruction::Load(d.any(), RegOrConstant::Reg(s.rm())));
                     self.out.push(Instruction::Free(s.rm()));
                 }
             }
@@ -973,6 +975,10 @@ impl<'m> Tx<'m> {
             // mov into dst reg, then call native UMC sqrt
             self.out.push(mov(&d, args[0].clone()));
             self.out.push(Instruction::Sqrt(d.any()));
+        } else if n == "exp" || n == "expf" || n == "expl" {
+            let d = d.unwrap();
+            let [a] = args.try_into().unwrap();
+            self.out.push(Instruction::Exp(d.rf(), a.f()));
         } else if n.starts_with("llvm.smax") || n.starts_with("llvm.smin") {
             // return the larger / smaller value while comparing as signed values
             let d = d.unwrap();

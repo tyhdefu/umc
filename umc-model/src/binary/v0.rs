@@ -670,6 +670,19 @@ pub fn decode_instruction<R: io::Read>(
                 }
             })?
         }
+        OpCode::EXP => disassembler.decode_fixed_instruction(src, opcode_raw, |[op1, op2]| {
+            let dst_reg = Reg::from_float(&op1).map_err(|_| {
+                DecodeError::Malformed(format!(
+                    "Invalid Exp Instruction: Expected float dst register"
+                ))
+            })?;
+            let operand = RegOrConstant::from_float(&op2).map_err(|_| {
+                DecodeError::Malformed(format!(
+                    "Invalid Exp Instruction: Expected float register / immediate"
+                ))
+            })?;
+            Ok(Instruction::Exp(dst_reg, operand))
+        })?,
         OpCode::ECALL => disassembler.decode_variable_instruction(src, opcode_raw, |ops| {
             Ok(Instruction::ECall(ECallParams::try_from(ops)?))
         })?,
@@ -727,6 +740,7 @@ fn split_instruction(instr: &Instruction) -> (OpCode, Vec<Operand>) {
         Instruction::Shift(_, ShiftType::RightLogicalShift) => OpCode::SHR,
         Instruction::Shift(_, ShiftType::RightArithmeticShift) => OpCode::ASHR,
         Instruction::Sqrt(_) => OpCode::SQRT,
+        Instruction::Exp(_, _) => OpCode::EXP,
         Instruction::ECall(_) => OpCode::ECALL,
         Instruction::Dbg(_) => OpCode::DBG,
     };
@@ -984,6 +998,9 @@ enum OpCode {
 
     // SQRT
     SQRT = 0b101100,
+
+    // EXP
+    EXP = 0b101101,
 
     // Environment call
     ECALL = 0b110100,

@@ -74,6 +74,10 @@ pub enum Instruction {
     // Square root
     Sqrt(AnySingleReg),
 
+    // Exponent - e^input
+    // UMC analogue of C++ exp/expf/expl
+    Exp(Reg<FloatRegT>, RegOrConstant<FloatRegT>),
+
     /// Environment call
     ECall(ECallParams),
     // TODO: Float to integer cast

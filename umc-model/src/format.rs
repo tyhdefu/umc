@@ -182,6 +182,7 @@ impl DisplayAssembly for Instruction {
                 write_instr(f, "ashr", params, opts)
             }
             Instruction::Sqrt(reg) => write_instr(f, "sqrt", reg, opts),
+            Instruction::Exp(reg, op) => write_instr(f, "exp", &ParamPair(reg, op), opts),
             Instruction::ECall(ecall) => write_instr(f, "ecall", ecall, opts),
             Instruction::Dbg(reg_operand) => write_instr(f, "dbg", reg_operand, opts),
         }

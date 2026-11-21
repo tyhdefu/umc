@@ -453,6 +453,17 @@ pub fn ast_to_bytecode(
                 .expect("SQRT instruction requires only a single register operand");
             Ok(Instruction::Sqrt(reg))
         }
+        "exp" => {
+            let [p1, p2] = ops::<2>(&instr)?;
+            let dst_reg = parse_dst_reg(p1)?;
+            let operand = parse_reg_or_constant(p2, None, labels)?;
+
+            let dst_reg = Reg::from_float(&Operand::Reg(dst_reg))
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p1))?;
+            let operand = RegOrConstant::from_float(&operand)
+                .map_err(|_| AssembleInstructionError::invalid_op_type(p2))?;
+            Ok(Instruction::Exp(dst_reg, operand))
+        }
         "ecall" => {
             let ecall = ecall_instr(&instr, labels)?;
             Ok(Instruction::ECall(ecall))
